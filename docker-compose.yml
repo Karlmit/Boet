@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boet
+      POSTGRES_PASSWORD: boet
+      POSTGRES_DB: boet
+    volumes:
+      - boet-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3020
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: boet
+      PGPASSWORD: boet
+      PGDATABASE: boet
+    ports:
+      # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
+      - "3020:3020"
+
+volumes:
+  boet-db:
