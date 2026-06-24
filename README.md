@@ -20,12 +20,41 @@ Boet/
 
 ## Backend
 
-Self-hosted on Unraid, reverse-proxied to **https://boet.jabba.se**.
+Self-hosted on Unraid at **http://192.168.1.66:3020**, reverse-proxied by Nginx
+Proxy Manager to **https://boet.jabba.se**.
+
+### Local / dev (build from source)
 
 ```bash
 docker compose up -d --build      # builds & runs Postgres + server on :3020
 curl http://localhost:3020/health
 ```
+
+### Unraid / production (pull prebuilt image from GHCR)
+
+The server image is published to **`ghcr.io/karlmit/boet:latest`** by a GitHub
+Action on every push to `main` (and on `v*` tags), so Unraid's "check for
+updates" detects new versions.
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+In **Nginx Proxy Manager**: forward `boet.jabba.se` → `http://192.168.1.66:3020`
+and enable **Websockets Support** on the proxy host (required for real-time sync
+and presence).
+
+### Push notifications (optional)
+
+Push uses Firebase Cloud Messaging and is entirely optional — without it the app
+still syncs in real time over WebSocket while open. To enable background push:
+
+1. Create a Firebase project, add an Android app with package `se.jabba.boet`,
+   and download its `google-services.json` → replace `android/app/google-services.json`.
+2. Generate a service-account key (Project settings → Service accounts) and mount
+   it into the server, then set `FCM_SERVICE_ACCOUNT=/secrets/fcm.json`
+   (see the commented volume in `docker-compose.prod.yml`).
 
 See [`server/README.md`](server/README.md) for the full API. Highlights:
 
