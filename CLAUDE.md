@@ -15,12 +15,12 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 ## Known design-fidelity gaps vs `.planning/Design/`
 
 The palette, Manrope type, serif wordmark, nest icon, category sections, checkboxes,
-quantity badges and dark Shopping Mode are in place. Still off from the mockup:
+quantity badges, the header band (bg image on the main list), full-screen Shopping
+Mode background, and the collapsible Klara section are in place. Still off from the mockup:
 - ⬜ Per-row **drag handle (≡)** to reorder items / move between categories
 - ⬜ Prominent full-width **"Lägg till med röst"** pill button (currently a mic icon)
-- 🟡 List **header band / background imagery** styling (bg-image feature exists, default header is plain)
-- 🟡 Recipe card visual polish
-- 🟡 Overall density/spacing refinement to match the mockup
+- ⬜ Category rows in the mockup have leading icons + chevrons (we render flat sections)
+- 🟡 Overall density/spacing refinement; DropdownMenu surface is the default lavender (theme it WarmWhite)
 
 ## Feature checklist (from `.planning/Boet_Project_Specs.md`)
 
@@ -65,9 +65,14 @@ quantity badges and dark Shopping Mode are in place. Still off from the mockup:
 - ⬜ Detect repeated reorders and **suggest** updating the store layout
 
 ### Shopping Mode
-- ✅ Dark theme, oversized type, large targets, keep-screen-awake
+- ✅ Dark theme, oversized type, large targets, keep-screen-awake, full-screen bg image
 - ✅ Quick check, collapsed empty categories, "Dölj klara" toggle, remaining counter
+- ✅ Completed section (10 most recent) separate from active items
 - ⬜ Fast **jump navigation** between categories
+
+### Completed / "Klara" items
+- ✅ Checked items move to a collapsible Klara section (bottom of list)
+- ✅ Shopping Mode shows the 10 most recent; auto-prune beyond 50 completed
 
 ### Offline & realtime
 - ✅ Add/edit/remove/check offline; auto-sync on reconnect; sync status chip
@@ -87,7 +92,8 @@ quantity badges and dark Shopping Mode are in place. Still off from the mockup:
 - ✅ Swedish + English, prefers on-device, no always-listening
 
 ### Background images
-- ✅ Per-list shared image (upload), ✅ blur amount, ✅ dark overlay amount
+- ✅ Per-list shared image (upload), blur, dark overlay
+- ✅ Placement: header band on the main list (top only), full-screen in Shopping Mode
 
 ### Presence
 - ✅ Who's active, "handlar"/"tittar", near real-time, only while app open
@@ -107,11 +113,16 @@ quantity badges and dark Shopping Mode are in place. Still off from the mockup:
 - 🟡 Backend `GET /api/history` + repo call exist; ⬜ no UI to view / re-add frequent items
 
 ### Recipe → grocery list
-- ✅ Enter recipe text; ✅ suggested items; ✅ approval flow (accept all / per-item / reject)
+- ⏸ **Deferred to V2** — removed from the UI (didn't work as intended). The
+  RecipeScreen + `/api/recipe/parse` code still exist, unused. Its slot now holds
+  the **Auto-sortera** button (→ `/autosort`, placeholder for the future local LLM).
 
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)
 - ✅ Swipe-left-to-delete (position-based, animated)
+- ✅ Add bar lifts above the keyboard (imePadding)
+- ✅ Self-healing sync: flush-then-pull + reconcile; server returns 404 (not 500)
+  for items on a missing list so the outbox drains
 
 ### Infra / delivery
 - ✅ Dockerized backend on :3020

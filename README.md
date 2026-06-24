@@ -149,24 +149,30 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ Items: name, quantity, notes; favorite toggle
 - ✅ 9 default categories; add / rename / remove / reorder categories
 - ✅ Swipe-left-to-delete (animated); hamburger drawer with settings cog
+- ✅ Completed items move to a collapsible "Klara" section (auto-prune past 50)
+- ✅ Add bar lifts above the keyboard
+- ✅ Self-healing sync (switching servers / DB reset reconciles cleanly)
 - 🟡 Archived lists searchable ⬜ · per-row drag handle (≡) ⬜
 
 **Intelligence**
 - ✅ Auto-categorization (Swedish supermarket KB)
 - ✅ Learning: manual moves teach the whole household (shared KB)
-- ✅ Recipe → list with approval flow (accept all / per-item)
+- ✅ **Auto-sortera** button → re-categorizes via the KB (placeholder for a future local LLM)
 - 🟡 Natural-language sort rules for custom lists (deterministic; no AI yet)
 - ⬜ On-device AI categorization · ⬜ store-layout "suggest update" detection
+- ⏸ Recipe → list deferred to V2 (removed from UI)
 
 **Voice**
 - ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred
 
 **Shopping Mode**
 - ✅ Dark, oversized type, large targets, keep-awake, "Dölj klara", remaining count
+- ✅ Full-screen background image; completed section (10 most recent)
 - 🟡 Completion suggestion (Remove / Keep ✅, Archive ⬜) · ⬜ category jump-nav
 
 **Personalization**
 - ✅ Per-list background image + blur + dark overlay
+- ✅ Placement: header band on the main list, full-screen in Shopping Mode
 
 **Push & history**
 - 🟡 FCM push wired (needs Firebase config) · ⬜ only-when-inactive · ⬜ toggle gating
@@ -178,4 +184,4 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ Builds & runs on a real Android device (verified)
 
 **Closest gaps to the design mockup:** per-row drag handles, a prominent
-"Lägg till med röst" pill, list header band/imagery, and a density/polish pass.
+"Lägg till med röst" pill, category-row icons/chevrons, and a density/polish pass.
