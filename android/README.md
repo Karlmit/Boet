@@ -1,7 +1,7 @@
 # Boet — Android app
 
 Kotlin + Jetpack Compose, offline-first. Connects to the Boet backend over REST
-and WebSocket at **https://boet.jabba.se** by default (configurable in Settings).
+and WebSocket; set the server address in **Settings**.
 
 ## Build
 

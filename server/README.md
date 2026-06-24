@@ -12,8 +12,8 @@ docker compose up -d --build
 ```
 
 The server listens on **:3020** (mapped to the host). Postgres data persists in
-the `boet-db` volume. In production this is reverse-proxied to
-`https://boet.jabba.se`.
+the `boet-db` volume. Put a reverse proxy in front for HTTPS/remote access if you
+want it (enable Websockets Support on the proxy).
 
 ## Endpoints (REST, prefix `/api`)
 

@@ -20,8 +20,7 @@ Boet/
 
 ## Backend
 
-Self-hosted on Unraid at **http://192.168.1.66:3020**, reverse-proxied by Nginx
-Proxy Manager to **https://boet.jabba.se**.
+Self-hosted on Unraid, listening on **:3020**.
 
 ### Local / dev (build from source)
 
@@ -36,14 +35,58 @@ The server image is published to **`ghcr.io/karlmit/boet:latest`** by a GitHub
 Action on every push to `main` (and on `v*` tags), so Unraid's "check for
 updates" detects new versions.
 
-```bash
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+Drop this `docker-compose.yml` into Unraid (app data lives under
+`/mnt/user/appdata/Boet`):
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boet
+      POSTGRES_PASSWORD: boet            # change me
+      POSTGRES_DB: boet
+    volumes:
+      - /mnt/user/appdata/Boet/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    image: ghcr.io/karlmit/boet:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3020
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: boet
+      PGPASSWORD: boet                   # match the db password above
+      PGDATABASE: boet
+      UPLOAD_DIR: /data/uploads
+      # Optional — enable push notifications by mounting a Firebase service
+      # account and pointing here; leave unset to run WebSocket-only.
+      # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
+    volumes:
+      - /mnt/user/appdata/Boet/uploads:/data/uploads
+      # - /mnt/user/appdata/Boet/fcm.json:/secrets/fcm.json:ro
+    ports:
+      - "3020:3020"
 ```
 
-In **Nginx Proxy Manager**: forward `boet.jabba.se` → `http://192.168.1.66:3020`
-and enable **Websockets Support** on the proxy host (required for real-time sync
-and presence).
+```bash
+docker compose pull && docker compose up -d
+```
+
+Put a reverse proxy in front if you want HTTPS/remote access; enable
+**Websockets Support** on the proxy host (required for real-time sync and
+presence). In the Android app, set the server address in **Settings** to wherever
+the backend is reachable.
 
 ### Push notifications (optional)
 
@@ -73,7 +116,8 @@ WebSocket, on-device `SpeechRecognizer` voice input, the Boet design system
 (Manrope + the Cormorant "Boet" wordmark), and the nest logo as the launcher
 icon.
 
-The default server is `https://boet.jabba.se` (changeable in Settings).
+The server address is configurable in **Settings**, so point the app at wherever
+you host the backend.
 
 See [`android/README.md`](android/README.md) to build. In short:
 

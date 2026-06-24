@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +78,7 @@ fun ListScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen, // open only via the hamburger; no edge-swipe
         drawerContent = {
             ListsDrawer(
                 lists = allLists,
@@ -175,11 +178,13 @@ fun ListScreen(
                     CategoryHeader(section.name, modifier = Modifier.padding(top = 12.dp))
                 }
                 items(section.items, key = { it.id }) { item ->
-                    ItemRow(
-                        item = item,
-                        onToggle = { vm.toggle(item) },
-                        onClick = { editing = item },
-                    )
+                    SwipeToDeleteRow(onDelete = { vm.delete(item) }) {
+                        ItemRow(
+                            item = item,
+                            onToggle = { vm.toggle(item) },
+                            onClick = { editing = item },
+                        )
+                    }
                     Spacer(Modifier.height(6.dp))
                 }
             }
@@ -253,6 +258,38 @@ private fun ListsDrawer(
             Spacer(Modifier.height(8.dp))
         }
     }
+}
+
+// Full-swipe-left to delete (Microsoft To-Do style): the row follows the finger,
+// revealing a red area with a white trash icon; only a near-complete swipe deletes,
+// otherwise it snaps back.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDeleteRow(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { total -> total * 0.85f },
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
+        },
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,   // no swipe-right action
+        enableDismissFromEndToStart = true,    // swipe-left to delete
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(DangerRed)
+                    .padding(horizontal = 22.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = Color.White)
+            }
+        },
+        content = { content() },
+    )
 }
 
 @Composable

@@ -17,3 +17,6 @@ val NightSurface = Color(0xFF232822)
 
 // Muted ink for checked / secondary text on light surfaces (meets 4.5:1 on WarmWhite).
 val CharcoalMuted = Color(0xFF6E6E6A)
+
+// Destructive action (swipe-to-delete background). White icon clears AA on this red.
+val DangerRed = Color(0xFFB3261E)
