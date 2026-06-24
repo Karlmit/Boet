@@ -95,6 +95,7 @@ class ListViewModel(
     fun move(item: ItemEntity, categoryId: String) = viewModelScope.launch { repo.moveItem(item, categoryId) }
     fun clearChecked() = viewModelScope.launch { repo.clearChecked(listId) }
     fun autoSort() = viewModelScope.launch { repo.autoSort(listId) }
+    fun reorderItems(orderedIds: List<String>) = viewModelScope.launch { repo.reorderItems(listId, orderedIds) }
     fun reorderCategories(order: List<String>) = viewModelScope.launch { repo.reorderCategories(listId, order) }
     fun addCategory(name: String) = viewModelScope.launch { repo.addCategory(listId, name) }
 

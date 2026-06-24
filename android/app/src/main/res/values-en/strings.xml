@@ -49,6 +49,8 @@
     <string name="background_image">Background image</string>
     <string name="blur">Blur</string>
     <string name="overlay">Dark overlay</string>
+    <string name="preview">Preview</string>
+    <string name="no_background">No background set</string>
 
     <string name="presence_shopping">%1$s is shopping</string>
     <string name="presence_viewing">%1$s is viewing the list</string>

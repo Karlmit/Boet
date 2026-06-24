@@ -50,6 +50,7 @@ interface ItemDao {
 
     @Upsert suspend fun upsert(item: ItemEntity)
     @Upsert suspend fun upsertAll(items: List<ItemEntity>)
+    @Query("UPDATE items SET position = :position WHERE id = :id") suspend fun setPosition(id: String, position: Int)
     @Query("DELETE FROM items WHERE id = :id") suspend fun delete(id: String)
     @Query("DELETE FROM items WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM items") suspend fun deleteAll()

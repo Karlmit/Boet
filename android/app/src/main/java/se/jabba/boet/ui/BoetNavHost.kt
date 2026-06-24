@@ -97,7 +97,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
 
             composable("listsettings/{listId}") { entry ->
                 val id = entry.arguments?.getString("listId") ?: return@composable
-                ListSettingsScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+                ListSettingsScreen(repo = repo, listId = id, serverUrl = settings.serverUrl, onBack = { nav.popBackStack() })
             }
         }
     }

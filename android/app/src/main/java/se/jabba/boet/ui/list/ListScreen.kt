@@ -10,9 +10,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
@@ -32,9 +34,11 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
@@ -81,6 +85,8 @@ fun ListScreen(
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var completedExpanded by remember { mutableStateOf(false) }
+    // Per-category collapse state; absent = expanded (default).
+    val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -90,7 +96,8 @@ fun ListScreen(
         repo.realtime.sendPresence("viewing", listId)
     }
 
-    val otherPresence = presence.firstOrNull { it.name != identity }
+    // Banner presence line: only when the partner is actively shopping.
+    val shoppingPartner = presence.firstOrNull { it.name != identity && it.status == "shopping" }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -137,9 +144,8 @@ fun ListScreen(
                             Spacer(Modifier.width(8.dp))
                         },
                     )
-                    val presenceText = otherPresence?.let {
-                        if (it.status == "shopping") stringResource(R.string.presence_shopping, it.name ?: "")
-                        else stringResource(R.string.presence_viewing, it.name ?: "")
+                    val presenceText = shoppingPartner?.let {
+                        stringResource(R.string.presence_shopping, it.name ?: "")
                     }
                     ListHeaderBand(
                         listName = state.list?.name ?: "…",
@@ -150,7 +156,6 @@ fun ListScreen(
                         overlay = state.list?.bgOverlay ?: 0,
                         conn = conn,
                         pending = pending,
-                        onEditBackground = onOpenListSettings,
                     )
                 }
             }
@@ -168,48 +173,50 @@ fun ListScreen(
       Box(Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         ) {
             for (section in state.sections) {
                 if (section.items.isEmpty()) continue
-                item(key = "h-${section.id}") {
-                    CategoryHeader(section.name, modifier = Modifier.padding(top = 12.dp))
-                }
-                items(section.items, key = { it.id }) { item ->
-                    SwipeToDeleteRow(onDelete = { vm.delete(item) }) {
-                        ItemRow(
-                            item = item,
-                            onToggle = { vm.toggle(item) },
-                            onClick = { editing = item },
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
+                val key = section.id ?: "orphan"
+                val expanded = collapsed[key] != true
+                item(key = "cat-$key") {
+                    CategoryGroup(
+                        name = section.name,
+                        items = section.items,
+                        expanded = expanded,
+                        onToggleExpanded = { collapsed[key] = expanded },
+                        onItemToggle = { vm.toggle(it) },
+                        onItemClick = { editing = it },
+                        onReorder = { vm.reorderItems(it) },
+                    )
                 }
             }
 
-            // Completed items live in a collapsed-by-default section at the bottom.
+            // Completed items live in a collapsed-by-default group at the bottom.
             if (state.completed.isNotEmpty()) {
-                item(key = "completed-header") {
-                    CompletedHeader(
-                        count = state.completed.size,
-                        expanded = completedExpanded,
-                        onToggle = { completedExpanded = !completedExpanded },
-                    )
-                }
-                if (completedExpanded) {
-                    items(state.completed, key = { it.id }) { item ->
-                        SwipeToDeleteRow(onDelete = { vm.delete(item) }) {
-                            ItemRow(
-                                item = item,
-                                onToggle = { vm.toggle(item) },
-                                onClick = { editing = item },
-                            )
+                item(key = "completed") {
+                    Column(Modifier.padding(top = 14.dp)) {
+                        CompletedHeader(
+                            count = state.completed.size,
+                            expanded = completedExpanded,
+                            onToggle = { completedExpanded = !completedExpanded },
+                        )
+                        AnimatedVisibility(visible = completedExpanded) {
+                            GroupedCard {
+                                state.completed.forEachIndexed { i, item ->
+                                    if (i > 0) GroupDivider()
+                                    CompactItemRow(
+                                        item = item,
+                                        onToggle = { vm.toggle(item) },
+                                        onClick = { editing = item },
+                                    )
+                                }
+                            }
                         }
-                        Spacer(Modifier.height(6.dp))
                     }
                 }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+            item { Spacer(Modifier.height(96.dp)) }
         }
       }
     }
@@ -363,14 +370,13 @@ private fun ListHeaderBand(
     overlay: Int,
     conn: ConnState,
     pending: Int,
-    onEditBackground: () -> Unit,
 ) {
     val hasImage = bgImageUrl != null
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .height(104.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .height(96.dp)
             .clip(RoundedCornerShape(22.dp))
             .background(if (hasImage) Charcoal else Leaf),
     ) {
@@ -384,19 +390,162 @@ private fun ListHeaderBand(
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
         }
         Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) { SyncChip(conn, pending) }
-        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+        // Title raised toward the top so the presence line sits beneath it.
+        Column(Modifier.align(Alignment.CenterStart).padding(start = 18.dp, end = 16.dp)) {
             Text(listName, style = BoetType.headline, color = if (hasImage) WarmWhite else Charcoal)
             if (presence != null) {
                 Text(presence, style = BoetType.body, color = if (hasImage) Stone else MossDeep)
             }
         }
-        IconButton(onClick = onEditBackground, modifier = Modifier.align(Alignment.BottomEnd)) {
+    }
+}
+
+// One soft-cornered card holding a category's items, hairline-separated.
+@Composable
+private fun GroupedCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        color = WarmWhite,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Stone),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun GroupDivider() {
+    HorizontalDivider(color = Stone, thickness = 1.dp, modifier = Modifier.padding(start = 52.dp))
+}
+
+// A category: glanceable icon + name + collapse chevron, above one grouped card.
+// Items reorder by long-pressing the trailing drag handle.
+@Composable
+private fun CategoryGroup(
+    name: String,
+    items: List<ItemEntity>,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onItemToggle: (ItemEntity) -> Unit,
+    onItemClick: (ItemEntity) -> Unit,
+    onReorder: (List<String>) -> Unit,
+) {
+    Column(Modifier.padding(top = 10.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onToggleExpanded)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+        ) {
+            Icon(categoryIcon(name), contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(name.uppercase(), style = BoetType.label, color = MossDeep, modifier = Modifier.weight(1f))
             Icon(
-                Icons.Default.Image,
-                contentDescription = stringResource(R.string.background_image),
-                tint = if (hasImage) WarmWhite else MossDeep,
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Dölj" else "Visa",
+                tint = MossDeep,
+                modifier = Modifier.size(22.dp),
             )
         }
+        AnimatedVisibility(visible = expanded) {
+            var order by remember(items.map { it.id }) { mutableStateOf(items) }
+            var draggingId by remember { mutableStateOf<String?>(null) }
+            var dragOffset by remember { mutableFloatStateOf(0f) }
+            val rowHeights = remember { mutableStateMapOf<String, Int>() }
+
+            GroupedCard {
+                order.forEachIndexed { index, item ->
+                    val isDragging = item.id == draggingId
+                    if (index > 0) GroupDivider()
+                    Box(
+                        Modifier
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
+                            .onSizeChanged { rowHeights[item.id] = it.height },
+                    ) {
+                        CompactItemRow(
+                            item = item,
+                            onToggle = { onItemToggle(item) },
+                            onClick = { onItemClick(item) },
+                            dragHandle = {
+                                Icon(
+                                    Icons.Default.DragHandle,
+                                    contentDescription = "Sortera",
+                                    tint = if (isDragging) MossDeep else CharcoalMuted,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .pointerInput(item.id) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = { draggingId = item.id; dragOffset = 0f },
+                                                onDragEnd = { draggingId = null; dragOffset = 0f; onReorder(order.map { it.id }) },
+                                                onDragCancel = { draggingId = null; dragOffset = 0f },
+                                                onDrag = { change, drag ->
+                                                    change.consume()
+                                                    dragOffset += drag.y
+                                                    val curIdx = order.indexOfFirst { it.id == draggingId }
+                                                    val rowH = (rowHeights[item.id] ?: 1).toFloat().coerceAtLeast(1f)
+                                                    if (curIdx in 0..order.lastIndex) {
+                                                        if (dragOffset > rowH / 2 && curIdx < order.lastIndex) {
+                                                            order = order.toMutableList().apply { add(curIdx + 1, removeAt(curIdx)) }
+                                                            dragOffset -= rowH
+                                                        } else if (dragOffset < -rowH / 2 && curIdx > 0) {
+                                                            order = order.toMutableList().apply { add(curIdx - 1, removeAt(curIdx)) }
+                                                            dragOffset += rowH
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                        },
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Compact list row used inside grouped cards: checkbox · name · qty · drag handle.
+@Composable
+private fun CompactItemRow(
+    item: ItemEntity,
+    onToggle: () -> Unit,
+    onClick: () -> Unit,
+    dragHandle: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(WarmWhite)
+            .clickable(onClick = onClick)
+            .padding(start = 14.dp, end = 6.dp, top = 9.dp, bottom = 9.dp),
+    ) {
+        BoetCheckbox(checked = item.checked, onToggle = onToggle)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.name,
+                style = BoetType.title,
+                color = if (item.checked) CharcoalMuted else Charcoal,
+                textDecoration = if (item.checked) TextDecoration.LineThrough else null,
+            )
+            if (!item.note.isNullOrBlank()) {
+                Text(item.note, style = BoetType.body, color = CharcoalMuted)
+            }
+        }
+        if (!item.quantity.isNullOrBlank()) {
+            QuantityBadge(item.quantity)
+            Spacer(Modifier.width(6.dp))
+        }
+        if (item.favorite) {
+            Icon(Icons.Default.Star, contentDescription = stringResource(R.string.favorite), tint = Sage, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        if (dragHandle != null) dragHandle() else Spacer(Modifier.width(8.dp))
     }
 }
 

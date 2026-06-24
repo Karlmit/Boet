@@ -3,6 +3,7 @@ package se.jabba.boet.ui.list
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,9 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
@@ -27,6 +33,7 @@ import se.jabba.boet.util.compressImageToBase64
 fun ListSettingsScreen(
     repo: Repository,
     listId: String,
+    serverUrl: String,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -65,6 +72,30 @@ fun ListSettingsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            // Live preview — reflects the current blur + overlay so you see the effect.
+            Surface(shape = RoundedCornerShape(18.dp), color = Leaf, modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                Box(Modifier.fillMaxSize()) {
+                    val url = list?.bgImageUrl
+                    if (url != null) {
+                        AsyncImage(
+                            model = serverUrl.trimEnd('/') + url,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize().clip(RoundedCornerShape(18.dp)).blur((blur / 100f * 16f).dp),
+                        )
+                        Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
+                        Column(Modifier.align(Alignment.CenterStart).padding(start = 18.dp)) {
+                            Text("Matkasse", style = BoetType.headline, color = WarmWhite)
+                            Text(stringResource(R.string.preview), style = BoetType.body, color = Stone)
+                        }
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.no_background), color = MossDeep, style = BoetType.body)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
             PrimaryButton(
                 text = stringResource(R.string.background_image),
                 icon = Icons.Default.Image,

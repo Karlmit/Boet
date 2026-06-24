@@ -154,6 +154,13 @@ class Repository(
         enqueue("POST", "/api/lists/$listId/categories/reorder", buildJson(mapOf("order" to order)))
     }
 
+    // Manual item reorder within a category (drag handle). Positions are scoped
+    // per category in the UI, so writing 0..n for one category's ids is enough.
+    suspend fun reorderItems(listId: String, order: List<String>) = withContext(Dispatchers.IO) {
+        order.forEachIndexed { idx, id -> itemDao.setPosition(id, idx) }
+        enqueue("POST", "/api/lists/$listId/items/reorder", buildJson(mapOf("order" to order)))
+    }
+
     suspend fun renameCategory(category: CategoryEntity, name: String) = withContext(Dispatchers.IO) {
         categoryDao.upsert(category.copy(name = name))
         enqueue("PATCH", "/api/categories/${category.id}", buildJson(mapOf("name" to name)))

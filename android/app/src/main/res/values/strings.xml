@@ -56,9 +56,11 @@
     <string name="background_image">Bakgrundsbild</string>
     <string name="blur">Oskärpa</string>
     <string name="overlay">Mörk overlay</string>
+    <string name="preview">Förhandsvisning</string>
+    <string name="no_background">Ingen bakgrund vald</string>
 
     <!-- Presence / sync -->
-    <string name="presence_shopping">%1$s handlar</string>
+    <string name="presence_shopping">%1$s är och handlar</string>
     <string name="presence_viewing">%1$s tittar på listan</string>
     <string name="sync_offline">Offline – ändringar sparas</string>
     <string name="sync_syncing">Synkar…</string>
