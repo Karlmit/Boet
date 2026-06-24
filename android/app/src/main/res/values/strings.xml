@@ -71,5 +71,8 @@
     <string name="delete">Ta bort</string>
     <string name="rename">Byt namn</string>
     <string name="favorites">Favoriter</string>
+    <string name="favorites_subtitle">Tryck för att lägga till i listan</string>
+    <string name="favorites_empty">Inga favoriter än. Stjärnmärk en vara så hittar du den här.</string>
+    <string name="favorites_added">Tillagd ×%1$d</string>
     <string name="history">Tidigare köpt</string>
 </resources>

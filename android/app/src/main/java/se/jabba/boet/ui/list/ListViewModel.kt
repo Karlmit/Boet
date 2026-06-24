@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -13,6 +14,7 @@ import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.local.ListEntity
+import se.jabba.boet.data.remote.ItemDto
 
 data class CategorySection(
     val id: String?,
@@ -29,7 +31,16 @@ data class ListUiState(
     val total: Int = 0,
 )
 
+// One category's worth of favorites in the quick-add sheet.
+data class FavoriteSection(val category: String, val items: List<ItemDto>)
+
+data class FavoritesUiState(
+    val loading: Boolean = false,
+    val sections: List<FavoriteSection> = emptyList(),
+)
+
 private const val MAX_COMPLETED = 50
+private const val FAVORITES_FALLBACK_CATEGORY = "Övrigt"
 
 class ListViewModel(
     private val repo: Repository,
@@ -76,6 +87,31 @@ class ListViewModel(
         }
     }
 
+    // Favorites quick-add sheet -------------------------------------------
+    private val _favorites = MutableStateFlow(FavoritesUiState())
+    val favorites: StateFlow<FavoritesUiState> = _favorites
+
+    // Fetch favorites and group them by category name, sorted alphabetically.
+    fun loadFavorites() {
+        _favorites.value = _favorites.value.copy(loading = true)
+        viewModelScope.launch {
+            val favs = repo.favorites()
+            val catNames = repo.allCategories().associate { it.id to it.name }
+            val sections = favs
+                .groupBy { catNames[it.categoryId] ?: FAVORITES_FALLBACK_CATEGORY }
+                .toList()
+                .sortedBy { it.first.lowercase() }
+                .map { (cat, items) -> FavoriteSection(cat, items.sortedBy { it.name.lowercase() }) }
+            _favorites.value = FavoritesUiState(loading = false, sections = sections)
+        }
+    }
+
+    // Add a favorite to the current list. A favorite is just the item name; if it's
+    // already on the list, its quantity is bumped by 1 rather than duplicated.
+    fun addFavorite(fav: ItemDto) = viewModelScope.launch {
+        repo.addOrIncrementFavorite(listId, fav.name)
+    }
+
     fun addItems(text: String) {
         val names = text.split(",", "\n").map { it.trim() }.filter { it.isNotEmpty() }
         if (names.isEmpty()) return
@@ -89,6 +125,10 @@ class ListViewModel(
 
     fun toggle(item: ItemEntity) = viewModelScope.launch { repo.toggleChecked(item) }
     fun toggleFavorite(item: ItemEntity) = viewModelScope.launch { repo.toggleFavorite(item) }
+    // Live quantity update from the stepper; 1 clears the quantity (no ×N badge).
+    fun setQuantity(item: ItemEntity, count: Int) = viewModelScope.launch {
+        repo.setQuantity(item, if (count > 1) count.toString() else null)
+    }
     fun delete(item: ItemEntity) = viewModelScope.launch { repo.deleteItem(item) }
     fun edit(item: ItemEntity, name: String, qty: String?, note: String?) =
         viewModelScope.launch { repo.editItem(item, name, qty, note) }

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
@@ -39,6 +40,7 @@ fun AddBar(
     onSpoken: (List<String>) -> Unit,
     onShopping: () -> Unit,
     onAutoSort: () -> Unit,
+    onShowFavorites: () -> Unit,
 ) {
     val context = LocalContext.current
     var text by remember { mutableStateOf("") }
@@ -129,9 +131,15 @@ fun AddBar(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
+                // Tap with text → add it; tap while empty → open the favorites
+                // quick-add sheet so saved items are one tap away.
                 Surface(color = MossDeep, shape = CircleShape, modifier = Modifier.size(52.dp)) {
-                    IconButton(onClick = { submit() }) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add), tint = WarmWhite)
+                    IconButton(onClick = { if (text.isBlank()) onShowFavorites() else submit() }) {
+                        Icon(
+                            if (text.isBlank()) Icons.Default.Star else Icons.Default.Add,
+                            contentDescription = if (text.isBlank()) stringResource(R.string.favorites) else stringResource(R.string.add),
+                            tint = WarmWhite,
+                        )
                     }
                 }
             }

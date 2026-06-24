@@ -30,6 +30,8 @@ class Repository(
     private val itemDao = db.itemDao()
     private val outboxDao = db.outboxDao()
     private val flushMutex = Mutex()
+    // Serializes favorite add/increment so rapid taps don't create duplicates.
+    private val favoriteMutex = Mutex()
 
     private val _members = MutableStateFlow<List<MemberDto>>(emptyList())
     val members: StateFlow<List<MemberDto>> = _members
@@ -97,8 +99,23 @@ class Repository(
         enqueue("POST", "/api/lists/$listId/items", body)
     }
 
+    // Add a favorite to the list. If an active item with the same name already
+    // exists, bump its quantity by 1 instead of adding a duplicate row.
+    suspend fun addOrIncrementFavorite(listId: String, name: String) = favoriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val existing = itemDao.findActiveByName(listId, name.trim())
+            if (existing != null) {
+                val current = existing.quantity?.toIntOrNull() ?: 1
+                setQuantity(existing, (current + 1).toString())
+            } else {
+                addItems(listId, listOf(name to null))
+            }
+        }
+    }
+
     suspend fun toggleChecked(item: ItemEntity) = patchItem(item.copy(checked = !item.checked), mapOf("checked" to !item.checked))
     suspend fun toggleFavorite(item: ItemEntity) = patchItem(item.copy(favorite = !item.favorite), mapOf("favorite" to !item.favorite))
+    suspend fun setQuantity(item: ItemEntity, quantity: String?) = patchItem(item.copy(quantity = quantity), mapOf("quantity" to quantity))
 
     suspend fun editItem(item: ItemEntity, name: String, quantity: String?, note: String?) =
         patchItem(item.copy(name = name, quantity = quantity, note = note),
@@ -207,6 +224,21 @@ class Repository(
     suspend fun history(): List<HistoryItem> = withContext(Dispatchers.IO) {
         runCatching { api.history() }.getOrDefault(emptyList())
     }
+
+    // Favorited items across all lists (deduped by name). Prefers the server,
+    // which dedupes and orders for us; falls back to the local Room mirror when
+    // offline so the favorites quick-add still works without a connection.
+    suspend fun favorites(): List<ItemDto> = withContext(Dispatchers.IO) {
+        val remote = runCatching { api.favorites() }.getOrNull()
+        if (!remote.isNullOrEmpty()) return@withContext remote
+        itemDao.favorites()
+            .distinctBy { it.name.lowercase() }
+            .map { ItemDto(id = it.id, listId = it.listId, categoryId = it.categoryId, name = it.name, quantity = it.quantity, favorite = true) }
+    }
+
+    // All categories across every list — used to resolve a favorite's category
+    // name (a favorite may originate from a different list than the current one).
+    suspend fun allCategories(): List<CategoryEntity> = withContext(Dispatchers.IO) { categoryDao.all() }
 
     // Outbox ----------------------------------------------------------------
     private suspend fun enqueue(method: String, path: String, body: String?) {

@@ -63,5 +63,8 @@
     <string name="delete">Delete</string>
     <string name="rename">Rename</string>
     <string name="favorites">Favorites</string>
+    <string name="favorites_subtitle">Tap to add to the list</string>
+    <string name="favorites_empty">No favorites yet. Star an item to find it here.</string>
+    <string name="favorites_added">Added ×%1$d</string>
     <string name="history">Purchase history</string>
 </resources>

@@ -83,6 +83,8 @@ fun ListScreen(
     val allLists by repo.activeLists().collectAsState(initial = emptyList())
 
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
+    var favoritesOpen by remember { mutableStateOf(false) }
+    val favorites by vm.favorites.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
     var completedExpanded by remember { mutableStateOf(false) }
     // Per-category collapse state; absent = expanded (default).
@@ -167,6 +169,7 @@ fun ListScreen(
                 onSpoken = vm::addSpokenItems,
                 onShopping = onOpenShopping,
                 onAutoSort = { vm.autoSort() },
+                onShowFavorites = { favoritesOpen = true; vm.loadFavorites() },
             )
         },
     ) { padding ->
@@ -222,11 +225,20 @@ fun ListScreen(
     }
     } // ModalNavigationDrawer
 
+    if (favoritesOpen) {
+        FavoritesSheet(
+            ui = favorites,
+            onAdd = { vm.addFavorite(it) },
+            onDismiss = { favoritesOpen = false },
+        )
+    }
+
     editing?.let { item ->
         ItemEditSheet(
             item = item,
             onDismiss = { editing = null },
-            onSave = { name, qty, note -> vm.edit(item, name, qty, note); editing = null },
+            onSave = { name, qty, note -> vm.edit(item, name, qty, note) },
+            onQuantityChange = { vm.setQuantity(item, it) },
             onDelete = { vm.delete(item); editing = null },
             onFavorite = { vm.toggleFavorite(item) },
         )
@@ -450,7 +462,10 @@ private fun CategoryGroup(
             )
         }
         AnimatedVisibility(visible = expanded) {
-            var order by remember(items.map { it.id }) { mutableStateOf(items) }
+            // Key on the full item content (not just ids) so quantity/note/check
+            // edits re-render live; a drag only calls onReorder on release, so the
+            // underlying `items` is stable for the duration of a drag.
+            var order by remember(items) { mutableStateOf(items) }
             var draggingId by remember { mutableStateOf<String?>(null) }
             var dragOffset by remember { mutableFloatStateOf(0f) }
             val rowHeights = remember { mutableStateMapOf<String, Int>() }

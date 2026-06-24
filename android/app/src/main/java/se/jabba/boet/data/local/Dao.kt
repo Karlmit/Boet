@@ -31,6 +31,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE listId = :listId ORDER BY position")
     fun categoriesForList(listId: String): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM categories")
+    suspend fun all(): List<CategoryEntity>
+
     @Upsert suspend fun upsert(category: CategoryEntity)
     @Upsert suspend fun upsertAll(categories: List<CategoryEntity>)
     @Query("UPDATE categories SET position = :position WHERE id = :id") suspend fun setPosition(id: String, position: Int)
@@ -47,6 +50,14 @@ interface ItemDao {
 
     @Query("SELECT * FROM items WHERE id = :id")
     suspend fun byId(id: String): ItemEntity?
+
+    @Query("SELECT * FROM items WHERE favorite = 1 ORDER BY name")
+    suspend fun favorites(): List<ItemEntity>
+
+    // Active (unchecked) item with this name in a list — used to merge favorites
+    // into an existing row instead of adding a duplicate.
+    @Query("SELECT * FROM items WHERE listId = :listId AND checked = 0 AND lower(name) = lower(:name) ORDER BY position LIMIT 1")
+    suspend fun findActiveByName(listId: String, name: String): ItemEntity?
 
     @Upsert suspend fun upsert(item: ItemEntity)
     @Upsert suspend fun upsertAll(items: List<ItemEntity>)

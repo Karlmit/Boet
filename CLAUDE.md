@@ -9,7 +9,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 ## How things are built / verified
 
 - Backend: Node + Express + ws + Postgres (`server/`), `docker compose up -d --build`, port **3020**. Verified end-to-end.
-- Android: Kotlin + Compose (`android/`). **Build/test via the "Windows Workstation" Opus connector** (Android Studio SDK at `%LOCALAPPDATA%\Android\Sdk`, JDK = Android Studio JBR). Pattern: `opus connector put` changed files → `gradlew.bat assembleDebug` → `adb install -r` → drive with `adb shell input` + `screencap`. A physical device is attached.
+- Android: Kotlin + Compose (`android/`). **Build & deploy via the "Windows Workstation" Opus connector** (Android Studio SDK at `%LOCALAPPDATA%\Android\Sdk`, JDK = Android Studio JBR) — this LXC has no JDK/Android SDK, so it cannot compile locally. A physical device is connected to the workstation over `adb`; deploy by installing the built APK onto that device with `adb install -r`. Pattern: `opus connector put` changed files → `gradlew.bat assembleDebug` → `adb install -r` (to the connected device) → drive/verify with `adb shell input` + `screencap`.
 - Default app server is `https://boet.jabba.se`; for on-device testing against this workspace, temporarily set `Prefs.DEFAULT_SERVER` to the LAN IP (revert before commit).
 
 ## Known design-fidelity gaps vs `.planning/Design/`
