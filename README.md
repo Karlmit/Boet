@@ -149,10 +149,12 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ Items: name, quantity, notes; favorite toggle
 - ✅ 9 default categories; add / rename / remove / reorder categories
 - ✅ Swipe-left-to-delete (animated); hamburger drawer with settings cog
+- ✅ Compact grouped category cards: leading icons, hairline dividers, collapse/expand
+- ✅ Per-item drag handle to reorder within a category
 - ✅ Completed items move to a collapsible "Klara" section (auto-prune past 50)
 - ✅ Add bar lifts above the keyboard
 - ✅ Self-healing sync (switching servers / DB reset reconciles cleanly)
-- 🟡 Archived lists searchable ⬜ · per-row drag handle (≡) ⬜
+- 🟡 Archived lists searchable ⬜ · drag between categories ⬜
 
 **Intelligence**
 - ✅ Auto-categorization (Swedish supermarket KB)
@@ -171,7 +173,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - 🟡 Completion suggestion (Remove / Keep ✅, Archive ⬜) · ⬜ category jump-nav
 
 **Personalization**
-- ✅ Per-list background image + blur + dark overlay
+- ✅ Per-list background image + blur + dark overlay (with a live preview while adjusting)
 - ✅ Placement: header band on the main list, full-screen in Shopping Mode
 
 **Push & history**
@@ -183,5 +185,5 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ GHCR image `ghcr.io/karlmit/boet:latest` (Unraid update detection)
 - ✅ Builds & runs on a real Android device (verified)
 
-**Closest gaps to the design mockup:** per-row drag handles, a prominent
-"Lägg till med röst" pill, category-row icons/chevrons, and a density/polish pass.
+**Closest gaps to the design mockup:** a prominent full-width "Lägg till med röst"
+pill (currently a mic icon), drag-between-categories, and a final density/polish pass.

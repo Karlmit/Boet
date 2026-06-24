@@ -14,13 +14,15 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 
 ## Known design-fidelity gaps vs `.planning/Design/`
 
-The palette, Manrope type, serif wordmark, nest icon, category sections, checkboxes,
-quantity badges, the header band (bg image on the main list), full-screen Shopping
-Mode background, and the collapsible Klara section are in place. Still off from the mockup:
-- ⬜ Per-row **drag handle (≡)** to reorder items / move between categories
+In place: palette, Manrope, serif wordmark, nest icon, **compact grouped category
+cards** (hairline dividers, leading icons, collapse chevrons), per-item **drag
+handles** (long-press reorder within a category), the **banner** (raised title +
+shopping presence beneath), header-band bg image, full-screen Shopping Mode bg,
+collapsible Klara section, and the **background-settings live preview**. Still off:
 - ⬜ Prominent full-width **"Lägg till med röst"** pill button (currently a mic icon)
-- ⬜ Category rows in the mockup have leading icons + chevrons (we render flat sections)
-- 🟡 Overall density/spacing refinement; DropdownMenu surface is the default lavender (theme it WarmWhite)
+- ⬜ Drag to move an item **between** categories (reorder is within-category only)
+- 🟡 DropdownMenu surface is the default lavender (theme it WarmWhite)
+- 🟡 Final density/spacing polish pass
 
 ## Feature checklist (from `.planning/Boet_Project_Specs.md`)
 
@@ -47,8 +49,10 @@ Mode background, and the collapsible Klara section are in place. Still off from 
 - 🟡 Archive / restore lists ✅; "archived remain **searchable**" ⬜ (no search UI)
 
 ### Grocery categories
-- ✅ 9 default categories
+- ✅ 9 default categories, each with a glanceable icon
 - ✅ Add / rename / remove / reorder categories
+- ✅ Compact grouped cards; collapse/expand per category (expanded by default)
+- ✅ Manual item reorder via per-item drag handle (within a category)
 
 ### Intelligent sorting
 - ✅ Auto-assign items to categories
