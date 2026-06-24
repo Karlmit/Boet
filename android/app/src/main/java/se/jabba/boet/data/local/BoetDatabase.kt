@@ -1,0 +1,31 @@
+package se.jabba.boet.data.local
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+
+@Database(
+    entities = [ListEntity::class, CategoryEntity::class, ItemEntity::class, OutboxOp::class],
+    version = 1,
+    exportSchema = false,
+)
+abstract class BoetDatabase : RoomDatabase() {
+    abstract fun listDao(): ListDao
+    abstract fun categoryDao(): CategoryDao
+    abstract fun itemDao(): ItemDao
+    abstract fun outboxDao(): OutboxDao
+
+    companion object {
+        @Volatile private var instance: BoetDatabase? = null
+
+        fun get(context: Context): BoetDatabase =
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    BoetDatabase::class.java,
+                    "boet.db",
+                ).fallbackToDestructiveMigration().build().also { instance = it }
+            }
+    }
+}

@@ -1,0 +1,114 @@
+package se.jabba.boet.ui
+
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import se.jabba.boet.BoetApp
+import se.jabba.boet.data.local.Settings
+import se.jabba.boet.ui.list.ListScreen
+import se.jabba.boet.ui.lists.ListsScreen
+import se.jabba.boet.ui.onboarding.OnboardingScreen
+import se.jabba.boet.ui.recipe.RecipeScreen
+import se.jabba.boet.ui.settings.SettingsScreen
+import se.jabba.boet.ui.shopping.ShoppingScreen
+import se.jabba.boet.ui.theme.MossDeep
+import java.util.Locale
+import kotlinx.coroutines.launch
+
+@Composable
+fun BoetNavHost(app: BoetApp, settings: Settings) {
+    // Apply the chosen UI language by providing a localized Context/Configuration.
+    val baseContext = LocalContext.current
+    val localizedContext = remember(settings.language) {
+        val config = Configuration(baseContext.resources.configuration)
+        config.setLocale(Locale(settings.language))
+        baseContext.createConfigurationContext(config)
+    }
+
+    CompositionLocalProvider(
+        LocalContext provides localizedContext,
+        LocalConfiguration provides localizedContext.resources.configuration,
+    ) {
+        val repo = app.repository
+        val nav = rememberNavController()
+        val scope = rememberCoroutineScope()
+
+        // The currently shown list (defaults to the first list once loaded).
+        var selectedListId by rememberSaveable { mutableStateOf<String?>(null) }
+        val activeLists by repo.activeLists().collectAsState(initial = emptyList())
+
+        LaunchedEffect(activeLists) {
+            if (selectedListId == null || activeLists.none { it.id == selectedListId }) {
+                selectedListId = activeLists.firstOrNull()?.id
+            }
+        }
+        LaunchedEffect(Unit) { repo.bootstrap() }
+
+        val start = if (settings.identity == null) "onboarding" else "home"
+
+        NavHost(navController = nav, startDestination = start) {
+            composable("onboarding") {
+                OnboardingScreen(onPick = { name ->
+                    scope.launch { app.prefs.setIdentity(name) }
+                    nav.navigate("home") { popUpTo("onboarding") { inclusive = true } }
+                })
+            }
+
+            composable("home") {
+                val listId = selectedListId
+                if (listId == null) {
+                    // No list yet — send the user to the lists hub to create one.
+                    ListsScreen(
+                        repo = repo,
+                        onOpenList = { selectedListId = it },
+                        onBack = { },
+                    )
+                } else {
+                    ListScreen(
+                        repo = repo,
+                        listId = listId,
+                        identity = settings.identity,
+                        language = settings.language,
+                        onOpenLists = { nav.navigate("lists") },
+                        onOpenSettings = { nav.navigate("settings") },
+                        onOpenShopping = { nav.navigate("shopping/$listId") },
+                        onOpenRecipe = { nav.navigate("recipe/$listId") },
+                    )
+                }
+            }
+
+            composable("lists") {
+                ListsScreen(
+                    repo = repo,
+                    onOpenList = { id -> selectedListId = id; nav.popBackStack() },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("settings") {
+                SettingsScreen(prefs = app.prefs, settings = settings, onBack = { nav.popBackStack() })
+            }
+
+            composable("shopping/{listId}") { entry ->
+                val id = entry.arguments?.getString("listId") ?: return@composable
+                ShoppingScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+            }
+
+            composable("recipe/{listId}") { entry ->
+                val id = entry.arguments?.getString("listId") ?: return@composable
+                RecipeScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+            }
+        }
+    }
+}

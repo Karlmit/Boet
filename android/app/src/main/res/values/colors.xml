@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Boet "Shared Nest" palette -->
+    <color name="moss">#6B7F64</color>
+    <color name="moss_deep">#5F7358</color>
+    <color name="sage">#A3B18A</color>
+    <color name="leaf">#D8E3D1</color>
+    <color name="warm_white">#F7F6F2</color>
+    <color name="stone">#E5E3DE</color>
+    <color name="charcoal">#2B2B2B</color>
+    <color name="night_base">#181C17</color>
+    <color name="night_surface">#232822</color>
+
+    <!-- Matches the logo's own pale-green ground so the nest blends edge-to-edge -->
+    <color name="ic_launcher_background">#D8E0CE</color>
+</resources>

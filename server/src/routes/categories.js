@@ -15,15 +15,16 @@ categories.get('/lists/:listId/categories', async (req, res) => {
 });
 
 categories.post('/lists/:listId/categories', async (req, res) => {
-  const { name } = req.body || {};
+  const { id: clientId, name } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const { rows: pos } = await query(
     `SELECT COALESCE(MAX(position), -1)+1 AS p FROM categories WHERE list_id=$1`,
     [req.params.listId]
   );
   const { rows } = await query(
-    `INSERT INTO categories (id, list_id, name, position) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [nanoid(), req.params.listId, name.trim(), pos[0].p]
+    `INSERT INTO categories (id, list_id, name, position) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name RETURNING *`,
+    [clientId || nanoid(), req.params.listId, name.trim(), pos[0].p]
   );
   const payload = categoryRow(rows[0]);
   hub.emit('create', 'category', payload);

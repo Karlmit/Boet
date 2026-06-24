@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Boet</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_tagline">Dela. Planera. Få tid tillsammans.</string>
+    <string name="onboarding_who">Vem är du?</string>
+
+    <!-- Lists -->
+    <string name="lists_title">Listor</string>
+    <string name="new_list">Ny lista</string>
+    <string name="archived_lists">Arkiverade listor</string>
+    <string name="archive">Arkivera</string>
+    <string name="restore">Återställ</string>
+
+    <!-- List detail -->
+    <string name="add_item_hint">Lägg till vara…</string>
+    <string name="add">Lägg till</string>
+    <string name="add_with_voice">Lägg till med röst</string>
+    <string name="shopping_mode">Handla</string>
+    <string name="hide_completed">Dölj klara</string>
+    <string name="items_left">%1$d kvar</string>
+    <string name="shopping_done">Det ser ut som att handlingen är klar.</string>
+    <string name="remove_completed">Ta bort klara</string>
+    <string name="keep_list">Behåll listan</string>
+
+    <!-- Item -->
+    <string name="quantity">Antal</string>
+    <string name="note">Anteckning</string>
+    <string name="added_by">Tillagd av %1$s</string>
+    <string name="favorite">Favorit</string>
+
+    <!-- Voice -->
+    <string name="listening">Lyssnar…</string>
+    <string name="voice_hint">Säg t.ex. ”Lägg till mjölk, ägg och bananer”</string>
+
+    <!-- Recipe -->
+    <string name="recipe_to_list">Recept till inköpslistan</string>
+    <string name="recipe_hint">Klistra in recept eller ingredienser…</string>
+    <string name="generate_suggestions">Föreslå varor</string>
+    <string name="accept_all">Lägg till alla</string>
+    <string name="add_selected">Lägg till (%1$d)</string>
+
+    <!-- Settings -->
+    <string name="settings">Inställningar</string>
+    <string name="identity">Identitet</string>
+    <string name="language">Språk</string>
+    <string name="lang_swedish">Svenska</string>
+    <string name="lang_english">Engelska</string>
+    <string name="server_url">Serveradress</string>
+    <string name="notifications">Notiser</string>
+    <string name="background_image">Bakgrundsbild</string>
+    <string name="blur">Oskärpa</string>
+    <string name="overlay">Mörk overlay</string>
+
+    <!-- Presence / sync -->
+    <string name="presence_shopping">%1$s handlar</string>
+    <string name="presence_viewing">%1$s tittar på listan</string>
+    <string name="sync_offline">Offline – ändringar sparas</string>
+    <string name="sync_syncing">Synkar…</string>
+    <string name="sync_synced">Synkad</string>
+
+    <string name="cancel">Avbryt</string>
+    <string name="save">Spara</string>
+    <string name="delete">Ta bort</string>
+    <string name="rename">Byt namn</string>
+    <string name="favorites">Favoriter</string>
+    <string name="history">Tidigare köpt</string>
+</resources>

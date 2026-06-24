@@ -22,7 +22,7 @@ items.post('/lists/:listId/items', async (req, res) => {
   const body = req.body || {};
   const incoming = Array.isArray(body.items)
     ? body.items
-    : [{ name: body.name, quantity: body.quantity, note: body.note, categoryId: body.categoryId }];
+    : [{ id: body.id, name: body.name, quantity: body.quantity, note: body.note, categoryId: body.categoryId }];
   const addedBy = body.addedBy || null;
 
   const created = await tx(async (c) => {
@@ -34,10 +34,16 @@ items.post('/lists/:listId/items', async (req, res) => {
         `SELECT COALESCE(MAX(position), -1)+1 AS p FROM items WHERE list_id=$1 AND COALESCE(category_id,'')=COALESCE($2,'')`,
         [listId, categoryId]
       );
+      // Respect a client-provided id so offline-created items stay consistent;
+      // ON CONFLICT makes a replayed outbox POST idempotent.
       const { rows } = await c.query(
         `INSERT INTO items (id, list_id, category_id, name, quantity, note, position, added_by, modified_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
-        [nanoid(), listId, categoryId, it.name.trim(), it.quantity || null, it.note || null, pos[0].p, addedBy]
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
+         ON CONFLICT (id) DO UPDATE SET
+           name=EXCLUDED.name, quantity=EXCLUDED.quantity, note=EXCLUDED.note,
+           category_id=EXCLUDED.category_id, updated_at=now()
+         RETURNING *`,
+        [it.id || nanoid(), listId, categoryId, it.name.trim(), it.quantity || null, it.note || null, pos[0].p, addedBy]
       );
       out.push(rows[0]);
     }

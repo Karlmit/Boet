@@ -1,0 +1,66 @@
+package se.jabba.boet.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ListDao {
+    @Query("SELECT * FROM lists WHERE archived = 0 ORDER BY position, name")
+    fun activeLists(): Flow<List<ListEntity>>
+
+    @Query("SELECT * FROM lists ORDER BY archived, position, name")
+    fun allLists(): Flow<List<ListEntity>>
+
+    @Query("SELECT * FROM lists WHERE id = :id")
+    fun listById(id: String): Flow<ListEntity?>
+
+    @Upsert suspend fun upsert(list: ListEntity)
+    @Upsert suspend fun upsertAll(lists: List<ListEntity>)
+    @Query("DELETE FROM lists WHERE id = :id") suspend fun delete(id: String)
+    @Query("SELECT id FROM lists LIMIT 1") suspend fun anyListId(): String?
+}
+
+@Dao
+interface CategoryDao {
+    @Query("SELECT * FROM categories WHERE listId = :listId ORDER BY position")
+    fun categoriesForList(listId: String): Flow<List<CategoryEntity>>
+
+    @Upsert suspend fun upsert(category: CategoryEntity)
+    @Upsert suspend fun upsertAll(categories: List<CategoryEntity>)
+    @Query("UPDATE categories SET position = :position WHERE id = :id") suspend fun setPosition(id: String, position: Int)
+    @Query("DELETE FROM categories WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM categories WHERE listId = :listId") suspend fun clearForList(listId: String)
+}
+
+@Dao
+interface ItemDao {
+    @Query("SELECT * FROM items WHERE listId = :listId ORDER BY position, createdAt")
+    fun itemsForList(listId: String): Flow<List<ItemEntity>>
+
+    @Query("SELECT * FROM items WHERE id = :id")
+    suspend fun byId(id: String): ItemEntity?
+
+    @Upsert suspend fun upsert(item: ItemEntity)
+    @Upsert suspend fun upsertAll(items: List<ItemEntity>)
+    @Query("DELETE FROM items WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM items WHERE listId = :listId AND checked = 1") suspend fun clearChecked(listId: String)
+}
+
+@Dao
+interface OutboxDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun enqueue(op: OutboxOp): Long
+
+    @Query("SELECT * FROM outbox ORDER BY seq ASC")
+    suspend fun pending(): List<OutboxOp>
+
+    @Query("DELETE FROM outbox WHERE seq = :seq")
+    suspend fun remove(seq: Long)
+
+    @Query("SELECT COUNT(*) FROM outbox")
+    fun count(): Flow<Int>
+}

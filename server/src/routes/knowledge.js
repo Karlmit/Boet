@@ -3,7 +3,7 @@ import { query } from '../db.js';
 import { HOUSEHOLD_ID } from '../seed.js';
 import { guessCategory } from '../categorize.js';
 import { parseRecipe } from '../ai.js';
-import { itemRow } from '../serialize.js';
+import { itemRow, listRow, categoryRow } from '../serialize.js';
 
 export const knowledge = Router();
 
@@ -19,8 +19,8 @@ knowledge.get('/bootstrap', async (req, res) => {
   res.json({
     household: house.rows[0] || null,
     members: members.rows,
-    lists: lists.rows,
-    categories: categories.rows,
+    lists: lists.rows.map(listRow),
+    categories: categories.rows.map(categoryRow),
     items: items.rows.map(itemRow),
   });
 });

@@ -22,7 +22,7 @@ lists.get('/lists', async (req, res) => {
 
 // Create a list. For custom lists, an optional sortPrompt seeds categories.
 lists.post('/lists', async (req, res) => {
-  const { name, kind = 'custom', icon = null, sortPrompt = null } = req.body || {};
+  const { id: clientId, name, kind = 'custom', icon = null, sortPrompt = null } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
 
   const result = await tx(async (c) => {
@@ -30,19 +30,24 @@ lists.post('/lists', async (req, res) => {
       `SELECT COALESCE(MAX(position), -1) + 1 AS p FROM lists WHERE household_id=$1`,
       [HOUSEHOLD_ID]
     );
-    const id = nanoid();
+    const id = clientId || nanoid();
     const { rows } = await c.query(
       `INSERT INTO lists (id, household_id, name, kind, icon, position, sort_prompt)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, icon=EXCLUDED.icon, updated_at=now()
+       RETURNING *`,
       [id, HOUSEHOLD_ID, name.trim(), kind, icon, posRows[0].p, sortPrompt]
     );
 
-    // Seed categories.
+    // Seed categories — but only for a genuinely new list (a replayed outbox
+    // POST hits ON CONFLICT and must not duplicate categories).
+    const { rows: existing } = await c.query(
+      `SELECT 1 FROM categories WHERE list_id=$1 LIMIT 1`, [id]
+    );
     let cats = [];
-    if (kind === 'grocery') {
-      cats = DEFAULT_CATEGORIES;
-    } else if (sortPrompt) {
-      cats = parseSortPrompt(sortPrompt);
+    if (existing.length === 0) {
+      if (kind === 'grocery') cats = DEFAULT_CATEGORIES;
+      else if (sortPrompt) cats = parseSortPrompt(sortPrompt);
     }
     const catRows = [];
     let pos = 0;
