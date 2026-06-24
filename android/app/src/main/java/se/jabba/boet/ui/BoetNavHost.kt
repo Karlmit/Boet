@@ -1,17 +1,7 @@
 package se.jabba.boet.ui
 
-import android.content.res.Configuration
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -25,24 +15,14 @@ import se.jabba.boet.ui.onboarding.OnboardingScreen
 import se.jabba.boet.ui.recipe.RecipeScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
-import se.jabba.boet.ui.theme.MossDeep
-import java.util.Locale
 import kotlinx.coroutines.launch
 
 @Composable
 fun BoetNavHost(app: BoetApp, settings: Settings) {
-    // Apply the chosen UI language by providing a localized Context/Configuration.
-    val baseContext = LocalContext.current
-    val localizedContext = remember(settings.language) {
-        val config = Configuration(baseContext.resources.configuration)
-        config.setLocale(Locale(settings.language))
-        baseContext.createConfigurationContext(config)
-    }
-
-    CompositionLocalProvider(
-        LocalContext provides localizedContext,
-        LocalConfiguration provides localizedContext.resources.configuration,
-    ) {
+    // Localization is applied at the Activity level (MainActivity.attachBaseContext)
+    // so dialogs and bottom sheets — which render in separate windows — are localized
+    // too. Nothing locale-related needs to happen here.
+    run {
         val repo = app.repository
         val nav = rememberNavController()
         val scope = rememberCoroutineScope()
@@ -90,6 +70,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         onOpenRecipe = { nav.navigate("recipe/$listId") },
                         onOpenCategories = { nav.navigate("categories/$listId") },
                         onOpenListSettings = { nav.navigate("listsettings/$listId") },
+                        onSelectList = { selectedListId = it },
                     )
                 }
             }

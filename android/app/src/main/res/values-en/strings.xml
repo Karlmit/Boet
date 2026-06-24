@@ -6,6 +6,7 @@
     <string name="onboarding_who">Who are you?</string>
 
     <string name="lists_title">Lists</string>
+    <string name="manage_lists">Manage lists</string>
     <string name="new_list">New list</string>
     <string name="archived_lists">Archived lists</string>
     <string name="archive">Archive</string>

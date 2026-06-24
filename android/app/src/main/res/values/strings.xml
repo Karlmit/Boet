@@ -8,6 +8,7 @@
 
     <!-- Lists -->
     <string name="lists_title">Listor</string>
+    <string name="manage_lists">Hantera listor</string>
     <string name="new_list">Ny lista</string>
     <string name="archived_lists">Arkiverade listor</string>
     <string name="archive">Arkivera</string>

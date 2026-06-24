@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.ItemEntity
@@ -48,6 +49,7 @@ fun ListScreen(
     onOpenRecipe: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenListSettings: () -> Unit,
+    onSelectList: (String) -> Unit,
 ) {
     val vm: ListViewModel = viewModel(
         key = "list-$listId",
@@ -57,9 +59,12 @@ fun ListScreen(
     val presence by repo.presence.collectAsState()
     val conn by repo.realtime.state.collectAsState()
     val pending by repo.pendingCount().collectAsState(initial = 0)
+    val allLists by repo.activeLists().collectAsState(initial = emptyList())
 
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     // Mark presence as "viewing" while this screen is composed.
     LaunchedEffect(listId) {
@@ -69,6 +74,18 @@ fun ListScreen(
 
     val otherPresence = presence.firstOrNull { it.name != identity }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ListsDrawer(
+                lists = allLists,
+                currentId = listId,
+                onSelect = { scope.launch { drawerState.close() }; onSelectList(it) },
+                onManage = { scope.launch { drawerState.close() }; onOpenLists() },
+                onSettings = { scope.launch { drawerState.close() }; onOpenSettings() },
+            )
+        },
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -77,7 +94,7 @@ fun ListScreen(
                     TopAppBar(
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = WarmWhite),
                         navigationIcon = {
-                            IconButton(onClick = onOpenLists) {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.lists_title), tint = Charcoal)
                             }
                         },
@@ -98,7 +115,6 @@ fun ListScreen(
                                     )
                                 }
                             }
-                            IconButton(onClick = onOpenSettings) { Avatar(identity) }
                             Spacer(Modifier.width(8.dp))
                         },
                     )
@@ -171,6 +187,7 @@ fun ListScreen(
         }
       }
     }
+    } // ModalNavigationDrawer
 
     editing?.let { item ->
         ItemEditSheet(
@@ -180,6 +197,61 @@ fun ListScreen(
             onDelete = { vm.delete(item); editing = null },
             onFavorite = { vm.toggleFavorite(item) },
         )
+    }
+}
+
+// Slide-in navigation drawer: the household's lists with a settings cog at the
+// lower-left.
+@Composable
+private fun ListsDrawer(
+    lists: List<se.jabba.boet.data.local.ListEntity>,
+    currentId: String,
+    onSelect: (String) -> Unit,
+    onManage: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    ModalDrawerSheet(drawerContainerColor = WarmWhite) {
+        Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp)) {
+            Spacer(Modifier.height(24.dp))
+            Wordmark(Modifier.padding(start = 16.dp, bottom = 4.dp))
+            CategoryHeader(stringResource(R.string.lists_title), modifier = Modifier.padding(start = 16.dp))
+            Spacer(Modifier.height(4.dp))
+
+            lists.forEach { list ->
+                NavigationDrawerItem(
+                    label = { Text(list.name, style = BoetType.title) },
+                    selected = list.id == currentId,
+                    onClick = { onSelect(list.id) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = Leaf,
+                        unselectedContainerColor = WarmWhite,
+                        selectedTextColor = Charcoal,
+                        unselectedTextColor = Charcoal,
+                    ),
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                )
+            }
+
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.manage_lists), style = BoetType.body, color = MossDeep) },
+                icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MossDeep) },
+                selected = false,
+                onClick = onManage,
+                colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = WarmWhite),
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            // Settings cog, lower-left.
+            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), tint = MossDeep)
+                }
+                Text(stringResource(R.string.settings), style = BoetType.body, color = MossDeep)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
     }
 }
 

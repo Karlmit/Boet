@@ -1,6 +1,5 @@
 package se.jabba.boet.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
@@ -54,7 +53,10 @@ fun BoetTheme(
     forceDark: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val dark = forceDark || isSystemInDarkTheme()
+    // Boet is a deliberately light, warm "daylight" app; Shopping Mode is the one
+    // dark counterpoint (forceDark). We don't follow the system into dark mode, so
+    // the brand's light surfaces stay consistent and on-palette.
+    val dark = forceDark
     MaterialTheme(
         colorScheme = if (dark) DarkColors else LightColors,
         typography = BoetTypography,
