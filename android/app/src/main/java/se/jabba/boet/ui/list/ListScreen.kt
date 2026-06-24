@@ -3,9 +3,20 @@ package se.jabba.boet.ui.list
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,14 +31,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.ItemEntity
@@ -260,36 +276,74 @@ private fun ListsDrawer(
     }
 }
 
-// Full-swipe-left to delete (Microsoft To-Do style): the row follows the finger,
-// revealing a red area with a white trash icon; only a near-complete swipe deletes,
-// otherwise it snaps back.
-@OptIn(ExperimentalMaterial3Api::class)
+// Swipe-left to delete (Microsoft To-Do style): the row tracks the finger and
+// reveals a red area with a white trash icon. Deletion is position-based — you
+// must deliberately drag past the halfway point; a quick flick that doesn't get
+// there springs back. On commit the row slides off and collapses so the delete
+// reads clearly rather than vanishing instantly.
 @Composable
 private fun SwipeToDeleteRow(onDelete: () -> Unit, content: @Composable () -> Unit) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        positionalThreshold = { total -> total * 0.85f },
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
-        },
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,   // no swipe-right action
-        enableDismissFromEndToStart = true,    // swipe-left to delete
-        backgroundContent = {
+    val scope = rememberCoroutineScope()
+    var width by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var visible by remember { mutableStateOf(true) }
+    val commitThreshold = 0.5f
+
+    AnimatedVisibility(
+        visible = visible,
+        exit = shrinkVertically(animationSpec = tween(240)) + fadeOut(animationSpec = tween(180)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) },
+        ) {
+            val progress = (-offsetX / width).coerceIn(0f, 1f)
+            // Red reveal — the trash icon fades and scales in as you drag.
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .matchParentSize()
                     .clip(RoundedCornerShape(14.dp))
                     .background(DangerRed)
                     .padding(horizontal = 22.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = Color.White)
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.delete),
+                    tint = Color.White,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = progress
+                        val s = 0.7f + 0.3f * progress
+                        scaleX = s; scaleY = s
+                    },
+                )
             }
-        },
-        content = { content() },
-    )
+            // Foreground row — follows the finger (leftward only).
+            Box(
+                Modifier
+                    .offset { IntOffset(offsetX.roundToInt(), 0) }
+                    .draggable(
+                        orientation = Orientation.Horizontal,
+                        state = rememberDraggableState { delta ->
+                            offsetX = (offsetX + delta).coerceIn(-width, 0f)
+                        },
+                        onDragStopped = {
+                            scope.launch {
+                                if (-offsetX >= width * commitThreshold) {
+                                    animate(offsetX, -width, animationSpec = tween(200)) { v, _ -> offsetX = v }
+                                    visible = false
+                                    delay(240)
+                                    onDelete()
+                                } else {
+                                    animate(offsetX, 0f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { v, _ -> offsetX = v }
+                                }
+                            }
+                        },
+                    ),
+            ) { content() }
+        }
+    }
 }
 
 @Composable
