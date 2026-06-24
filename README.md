@@ -131,3 +131,51 @@ cd android
 Two people, one household, no accounts. On first launch the app asks
 *"Vem är du? Kalle / Klara"* and stores the choice locally. Identity drives
 presence, "added by", and audit history.
+
+## Feature status
+
+Tracking the spec in `.planning/Boet_Project_Specs.md`.
+Legend: ✅ done · 🟡 partial · ⬜ not started.
+
+**Foundations**
+- ✅ Self-hosted backend (Docker, :3020) · REST + WebSocket + Postgres
+- ✅ Onboarding (Kalle / Klara), no accounts, identity stored locally
+- ✅ Swedish-first, English optional (switch in Settings)
+- ✅ Offline-first (Room + outbox, replays on reconnect) + sync-status chip
+- ✅ Real-time sync <1s + presence ("handlar" / "tittar")
+
+**Lists & items**
+- ✅ Multiple lists, default **Matkasse** grocery list, archive / restore
+- ✅ Items: name, quantity, notes; favorite toggle
+- ✅ 9 default categories; add / rename / remove / reorder categories
+- ✅ Swipe-left-to-delete (animated); hamburger drawer with settings cog
+- 🟡 Archived lists searchable ⬜ · per-row drag handle (≡) ⬜
+
+**Intelligence**
+- ✅ Auto-categorization (Swedish supermarket KB)
+- ✅ Learning: manual moves teach the whole household (shared KB)
+- ✅ Recipe → list with approval flow (accept all / per-item)
+- 🟡 Natural-language sort rules for custom lists (deterministic; no AI yet)
+- ⬜ On-device AI categorization · ⬜ store-layout "suggest update" detection
+
+**Voice**
+- ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred
+
+**Shopping Mode**
+- ✅ Dark, oversized type, large targets, keep-awake, "Dölj klara", remaining count
+- 🟡 Completion suggestion (Remove / Keep ✅, Archive ⬜) · ⬜ category jump-nav
+
+**Personalization**
+- ✅ Per-list background image + blur + dark overlay
+
+**Push & history**
+- 🟡 FCM push wired (needs Firebase config) · ⬜ only-when-inactive · ⬜ toggle gating
+- 🟡 Purchase history + favorites: backend ready · ⬜ no quick-add UI yet
+- 🟡 Audit fields (added/modified by, timestamps) stored · ⬜ not shown in UI
+
+**Delivery**
+- ✅ GHCR image `ghcr.io/karlmit/boet:latest` (Unraid update detection)
+- ✅ Builds & runs on a real Android device (verified)
+
+**Closest gaps to the design mockup:** per-row drag handles, a prominent
+"Lägg till med röst" pill, list header band/imagery, and a density/polish pass.
