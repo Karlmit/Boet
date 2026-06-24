@@ -21,6 +21,13 @@ items.get('/lists/:listId/items', async (req, res) => {
 items.post('/lists/:listId/items', async (req, res) => {
   const listId = req.params.listId;
   const body = req.body || {};
+
+  // Reject items for a non-existent list with 404 (a 4xx) so an offline client's
+  // outbox drops the stale op instead of retrying forever (e.g. after switching
+  // servers / resetting the DB). Avoids endless FK-violation 500s.
+  const { rows: listExists } = await query(`SELECT 1 FROM lists WHERE id=$1`, [listId]);
+  if (listExists.length === 0) return res.status(404).json({ error: 'list not found' });
+
   const incoming = Array.isArray(body.items)
     ? body.items
     : [{ id: body.id, name: body.name, quantity: body.quantity, note: body.note, categoryId: body.categoryId }];
@@ -118,6 +125,30 @@ items.post('/lists/:listId/clear-checked', async (req, res) => {
   );
   hub.emit('bulk-delete', 'item', { listId: req.params.listId, ids: rows.map((r) => r.id) });
   res.json({ removed: rows.length });
+});
+
+// Auto-sort: re-categorize every item in the list using the household knowledge
+// base (learned mappings + KB). No learning side-effect. Placeholder hook for a
+// future local-LLM sorter — the endpoint contract stays the same.
+items.post('/lists/:listId/autosort', async (req, res) => {
+  const listId = req.params.listId;
+  const { rows: listExists } = await query(`SELECT 1 FROM lists WHERE id=$1`, [listId]);
+  if (listExists.length === 0) return res.status(404).json({ error: 'list not found' });
+
+  const { rows: existing } = await query(`SELECT * FROM items WHERE list_id=$1`, [listId]);
+  const updated = [];
+  for (const item of existing) {
+    const categoryId = await resolveCategoryId(listId, item.name);
+    if (categoryId && categoryId !== item.category_id) {
+      const { rows } = await query(
+        `UPDATE items SET category_id=$1, updated_at=now() WHERE id=$2 RETURNING *`,
+        [categoryId, item.id]
+      );
+      updated.push(rows[0]);
+    }
+  }
+  for (const r of updated) hub.emit('update', 'item', itemRow(r));
+  res.json({ updated: updated.length, items: updated.map(itemRow) });
 });
 
 // Reorder items within a list. body: { order: [id...] }
