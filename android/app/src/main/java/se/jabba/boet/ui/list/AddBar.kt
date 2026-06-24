@@ -14,8 +14,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +38,7 @@ fun AddBar(
     onAdd: (String) -> Unit,
     onSpoken: (List<String>) -> Unit,
     onShopping: () -> Unit,
-    onRecipe: () -> Unit,
+    onAutoSort: () -> Unit,
 ) {
     val context = LocalContext.current
     var text by remember { mutableStateOf("") }
@@ -69,7 +69,9 @@ fun AddBar(
         if (text.isNotBlank()) { onAdd(text); text = "" }
     }
 
-    Surface(color = WarmWhite, shadowElevation = 8.dp) {
+    // imePadding lifts the whole add bar above the keyboard so the field and the
+    // + button stay visible while typing.
+    Surface(color = WarmWhite, shadowElevation = 8.dp, modifier = Modifier.imePadding().navigationBarsPadding()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onShopping) {
@@ -78,10 +80,10 @@ fun AddBar(
                     Text(stringResource(R.string.shopping_mode), color = MossDeep, style = BoetType.title)
                 }
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onRecipe) {
-                    Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+                TextButton(onClick = onAutoSort) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.recipe_to_list), color = MossDeep, style = BoetType.title)
+                    Text(stringResource(R.string.auto_sort), color = MossDeep, style = BoetType.title)
                 }
             }
             Spacer(Modifier.height(4.dp))

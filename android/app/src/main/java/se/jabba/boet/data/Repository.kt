@@ -56,14 +56,29 @@ class Repository(
 
     // Initial sync ----------------------------------------------------------
     suspend fun bootstrap() = withContext(Dispatchers.IO) {
+        // Push local changes first (stale ops now 4xx-drop), then pull and
+        // reconcile so switching servers / a reset DB self-heals.
+        flushOutbox()
         try {
             val data = api.bootstrap()
             _members.value = data.members
             listDao.upsertAll(data.lists.map { it.toEntity() })
             categoryDao.upsertAll(data.categories.map { it.toEntity() })
             itemDao.upsertAll(data.items.map { it.toEntity() })
-            flushOutbox()
+
+            // Reconcile: drop anything the server no longer has.
+            val listIds = data.lists.map { it.id }
+            if (listIds.isEmpty()) listDao.deleteAll() else listDao.deleteNotIn(listIds)
+            val catIds = data.categories.map { it.id }
+            if (catIds.isEmpty()) categoryDao.deleteAll() else categoryDao.deleteNotIn(catIds)
+            val itemIds = data.items.map { it.id }
+            if (itemIds.isEmpty()) itemDao.deleteAll() else itemDao.deleteNotIn(itemIds)
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
+    }
+
+    // Server-side re-categorization (online only). WS pushes the moved items back.
+    suspend fun autoSort(listId: String) = withContext(Dispatchers.IO) {
+        runCatching { api.send("POST", "/api/lists/$listId/autosort", null) }
     }
 
     // Mutations -------------------------------------------------------------

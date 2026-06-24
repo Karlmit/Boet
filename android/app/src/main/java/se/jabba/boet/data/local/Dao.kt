@@ -21,6 +21,8 @@ interface ListDao {
     @Upsert suspend fun upsert(list: ListEntity)
     @Upsert suspend fun upsertAll(lists: List<ListEntity>)
     @Query("DELETE FROM lists WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM lists WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM lists") suspend fun deleteAll()
     @Query("SELECT id FROM lists LIMIT 1") suspend fun anyListId(): String?
 }
 
@@ -33,6 +35,8 @@ interface CategoryDao {
     @Upsert suspend fun upsertAll(categories: List<CategoryEntity>)
     @Query("UPDATE categories SET position = :position WHERE id = :id") suspend fun setPosition(id: String, position: Int)
     @Query("DELETE FROM categories WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM categories WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM categories") suspend fun deleteAll()
     @Query("DELETE FROM categories WHERE listId = :listId") suspend fun clearForList(listId: String)
 }
 
@@ -47,6 +51,8 @@ interface ItemDao {
     @Upsert suspend fun upsert(item: ItemEntity)
     @Upsert suspend fun upsertAll(items: List<ItemEntity>)
     @Query("DELETE FROM items WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM items WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM items") suspend fun deleteAll()
     @Query("DELETE FROM items WHERE listId = :listId AND checked = 1") suspend fun clearChecked(listId: String)
 }
 

@@ -12,7 +12,6 @@ import se.jabba.boet.ui.list.ListScreen
 import se.jabba.boet.ui.list.ListSettingsScreen
 import se.jabba.boet.ui.lists.ListsScreen
 import se.jabba.boet.ui.onboarding.OnboardingScreen
-import se.jabba.boet.ui.recipe.RecipeScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
 import kotlinx.coroutines.launch
@@ -67,7 +66,6 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         onOpenLists = { nav.navigate("lists") },
                         onOpenSettings = { nav.navigate("settings") },
                         onOpenShopping = { nav.navigate("shopping/$listId") },
-                        onOpenRecipe = { nav.navigate("recipe/$listId") },
                         onOpenCategories = { nav.navigate("categories/$listId") },
                         onOpenListSettings = { nav.navigate("listsettings/$listId") },
                         onSelectList = { selectedListId = it },
@@ -89,12 +87,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
 
             composable("shopping/{listId}") { entry ->
                 val id = entry.arguments?.getString("listId") ?: return@composable
-                ShoppingScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
-            }
-
-            composable("recipe/{listId}") { entry ->
-                val id = entry.arguments?.getString("listId") ?: return@composable
-                RecipeScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+                ShoppingScreen(repo = repo, listId = id, serverUrl = settings.serverUrl, onBack = { nav.popBackStack() })
             }
 
             composable("categories/{listId}") { entry ->

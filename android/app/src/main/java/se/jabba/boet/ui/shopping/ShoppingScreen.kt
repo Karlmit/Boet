@@ -2,6 +2,7 @@ package se.jabba.boet.ui.shopping
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,13 +12,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.list.CompletedHeader
 import se.jabba.boet.ui.list.ItemRow
 import se.jabba.boet.ui.list.ListViewModel
 import se.jabba.boet.ui.theme.*
@@ -27,12 +33,14 @@ import se.jabba.boet.ui.theme.*
 fun ShoppingScreen(
     repo: Repository,
     listId: String,
+    serverUrl: String,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val vm: ListViewModel = viewModel(key = "list-$listId", factory = ListViewModel.factory(repo, listId))
     val state by vm.state.collectAsState()
     var hideCompleted by remember { mutableStateOf(false) }
+    var completedExpanded by remember { mutableStateOf(false) }
     var dismissedDone by remember { mutableStateOf(false) }
 
     // Keep the screen awake while shopping.
@@ -47,8 +55,24 @@ fun ShoppingScreen(
     }
 
     BoetTheme(forceDark = true) {
+      Box(Modifier.fillMaxSize().background(NightBase)) {
+        // Full-screen background image (blur + dark overlay) for Shopping Mode.
+        val bg = state.list?.bgImageUrl
+        if (bg != null) {
+            AsyncImage(
+                model = serverUrl.trimEnd('/') + bg,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize().blur(((state.list?.bgBlur ?: 0) / 100f * 24f).dp),
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    Color.Black.copy(alpha = 0.35f + (state.list?.bgOverlay ?: 0) / 100f * 0.45f)
+                )
+            )
+        }
         Scaffold(
-            containerColor = NightBase,
+            containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = NightBase, titleContentColor = WarmWhite),
@@ -91,20 +115,38 @@ fun ShoppingScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     for (section in state.sections) {
-                        val visible = if (hideCompleted) section.items.filter { !it.checked } else section.items
-                        if (visible.isEmpty()) continue   // collapse empty categories
+                        if (section.items.isEmpty()) continue   // collapse empty categories
                         item(key = "sh-h-${section.id}") {
                             CategoryHeader(section.name, color = Sage, modifier = Modifier.padding(top = 16.dp))
                         }
-                        items(visible, key = { it.id }) { item ->
+                        items(section.items, key = { it.id }) { item ->
                             ItemRow(item = item, onToggle = { vm.toggle(item) }, onClick = { vm.toggle(item) }, large = true)
                             Spacer(Modifier.height(10.dp))
+                        }
+                    }
+
+                    // Completed: the 10 most recent, hideable via "Dölj klara".
+                    if (!hideCompleted && state.completed.isNotEmpty()) {
+                        item(key = "sh-completed-h") {
+                            CompletedHeader(
+                                count = state.completed.size,
+                                expanded = completedExpanded,
+                                onToggle = { completedExpanded = !completedExpanded },
+                                dark = true,
+                            )
+                        }
+                        if (completedExpanded) {
+                            items(state.completed.take(10), key = { it.id }) { item ->
+                                ItemRow(item = item, onToggle = { vm.toggle(item) }, onClick = { vm.toggle(item) }, large = true)
+                                Spacer(Modifier.height(10.dp))
+                            }
                         }
                     }
                     item { Spacer(Modifier.height(40.dp)) }
                 }
             }
         }
+      }
     }
 }
 

@@ -64,7 +64,6 @@ fun ListScreen(
     onOpenLists: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenShopping: () -> Unit,
-    onOpenRecipe: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenListSettings: () -> Unit,
     onSelectList: (String) -> Unit,
@@ -81,6 +80,7 @@ fun ListScreen(
 
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var completedExpanded by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -137,23 +137,21 @@ fun ListScreen(
                             Spacer(Modifier.width(8.dp))
                         },
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column {
-                            Text(state.list?.name ?: "…", style = BoetType.headline)
-                            val presenceText = otherPresence?.let {
-                                if (it.status == "shopping") stringResource(R.string.presence_shopping, it.name ?: "")
-                                else stringResource(R.string.presence_viewing, it.name ?: "")
-                            }
-                            if (presenceText != null) {
-                                Text(presenceText, style = BoetType.body, color = MossDeep)
-                            }
-                        }
-                        SyncChip(conn, pending)
+                    val presenceText = otherPresence?.let {
+                        if (it.status == "shopping") stringResource(R.string.presence_shopping, it.name ?: "")
+                        else stringResource(R.string.presence_viewing, it.name ?: "")
                     }
+                    ListHeaderBand(
+                        listName = state.list?.name ?: "…",
+                        presence = presenceText,
+                        bgImageUrl = state.list?.bgImageUrl,
+                        serverUrl = serverUrl,
+                        blur = state.list?.bgBlur ?: 0,
+                        overlay = state.list?.bgOverlay ?: 0,
+                        conn = conn,
+                        pending = pending,
+                        onEditBackground = onOpenListSettings,
+                    )
                 }
             }
         },
@@ -163,27 +161,11 @@ fun ListScreen(
                 onAdd = vm::addItems,
                 onSpoken = vm::addSpokenItems,
                 onShopping = onOpenShopping,
-                onRecipe = onOpenRecipe,
+                onAutoSort = { vm.autoSort() },
             )
         },
     ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding)) {
-        // Shared per-list background image with blur + dark overlay for readability.
-        val bg = state.list?.bgImageUrl
-        if (bg != null) {
-            val blur = ((state.list?.bgBlur ?: 0) / 100f * 24f).dp
-            AsyncImage(
-                model = serverUrl.trimEnd('/') + bg,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().blur(blur),
-            )
-            Box(
-                Modifier.matchParentSize().background(
-                    androidx.compose.ui.graphics.Color.Black.copy(alpha = (state.list?.bgOverlay ?: 0) / 100f * 0.7f)
-                )
-            )
-        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -202,6 +184,29 @@ fun ListScreen(
                         )
                     }
                     Spacer(Modifier.height(6.dp))
+                }
+            }
+
+            // Completed items live in a collapsed-by-default section at the bottom.
+            if (state.completed.isNotEmpty()) {
+                item(key = "completed-header") {
+                    CompletedHeader(
+                        count = state.completed.size,
+                        expanded = completedExpanded,
+                        onToggle = { completedExpanded = !completedExpanded },
+                    )
+                }
+                if (completedExpanded) {
+                    items(state.completed, key = { it.id }) { item ->
+                        SwipeToDeleteRow(onDelete = { vm.delete(item) }) {
+                            ItemRow(
+                                item = item,
+                                onToggle = { vm.toggle(item) },
+                                onClick = { editing = item },
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
                 }
             }
             item { Spacer(Modifier.height(80.dp)) }
@@ -346,9 +351,84 @@ private fun SwipeToDeleteRow(onDelete: () -> Unit, content: @Composable () -> Un
     }
 }
 
+// Header band at the top of the list. Shows the per-list background image (blur +
+// dark overlay) with the list name + presence overlaid; falls back to a Leaf fill.
+@Composable
+private fun ListHeaderBand(
+    listName: String,
+    presence: String?,
+    bgImageUrl: String?,
+    serverUrl: String,
+    blur: Int,
+    overlay: Int,
+    conn: ConnState,
+    pending: Int,
+    onEditBackground: () -> Unit,
+) {
+    val hasImage = bgImageUrl != null
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .height(104.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (hasImage) Charcoal else Leaf),
+    ) {
+        if (hasImage) {
+            AsyncImage(
+                model = serverUrl.trimEnd('/') + bgImageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize().blur((blur / 100f * 16f).dp),
+            )
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) { SyncChip(conn, pending) }
+        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+            Text(listName, style = BoetType.headline, color = if (hasImage) WarmWhite else Charcoal)
+            if (presence != null) {
+                Text(presence, style = BoetType.body, color = if (hasImage) Stone else MossDeep)
+            }
+        }
+        IconButton(onClick = onEditBackground, modifier = Modifier.align(Alignment.BottomEnd)) {
+            Icon(
+                Icons.Default.Image,
+                contentDescription = stringResource(R.string.background_image),
+                tint = if (hasImage) WarmWhite else MossDeep,
+            )
+        }
+    }
+}
+
+// Collapsible "Klara" (completed) section header with a count and chevron.
+@Composable
+fun CompletedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit, dark: Boolean = false) {
+    val tint = if (dark) Sage else MossDeep
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+    ) {
+        Icon(
+            if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = tint,
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "${stringResource(R.string.completed).uppercase()} · $count",
+            style = BoetType.label,
+            color = tint,
+        )
+    }
+}
+
 @Composable
 fun ItemRow(item: ItemEntity, onToggle: () -> Unit, onClick: () -> Unit, large: Boolean = false) {
-    val rowColor = if (large) NightSurface else WarmWhite
+    // Shopping-mode rows are transparent so the full-screen background shows through.
+    val rowColor = if (large) Color.Transparent else WarmWhite
     val textColor = when {
         item.checked && large -> Stone
         item.checked -> CharcoalMuted
