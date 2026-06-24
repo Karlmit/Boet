@@ -4,6 +4,7 @@ import { query, tx } from '../db.js';
 import { hub } from '../hub.js';
 import { itemRow } from '../serialize.js';
 import { resolveCategoryId, learnCategory, recordPurchase } from '../categorizer.js';
+import { notifyOthers } from '../push.js';
 
 export const items = Router();
 
@@ -55,6 +56,15 @@ items.post('/lists/:listId/items', async (req, res) => {
 
   const payload = created.map(itemRow);
   for (const p of payload) hub.emit('create', 'item', p);
+
+  // Push to the other member when items were added.
+  if (created.length > 0 && addedBy) {
+    const names = created.map((r) => r.name);
+    const title = names.length === 1 ? `${names[0]} tillagd` : `${names.length} varor tillagda`;
+    const body = `${addedBy.charAt(0).toUpperCase() + addedBy.slice(1)}: ${names.slice(0, 4).join(', ')}`;
+    notifyOthers(addedBy, title, body, { listId, type: 'item_added' }).catch(() => {});
+  }
+
   res.status(201).json(payload);
 });
 

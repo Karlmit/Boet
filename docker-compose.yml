@@ -27,9 +27,14 @@ services:
       PGUSER: boet
       PGPASSWORD: boet
       PGDATABASE: boet
+      UPLOAD_DIR: /data/uploads
+      FCM_SERVICE_ACCOUNT: ${FCM_SERVICE_ACCOUNT:-}
+    volumes:
+      - boet-uploads:/data/uploads
     ports:
       # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
       - "3020:3020"
 
 volumes:
   boet-db:
+  boet-uploads:

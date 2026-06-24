@@ -13,19 +13,18 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.ItemEntity
@@ -42,10 +41,13 @@ fun ListScreen(
     listId: String,
     identity: String?,
     language: String,
+    serverUrl: String,
     onOpenLists: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenShopping: () -> Unit,
     onOpenRecipe: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenListSettings: () -> Unit,
 ) {
     val vm: ListViewModel = viewModel(
         key = "list-$listId",
@@ -57,6 +59,7 @@ fun ListScreen(
     val pending by repo.pendingCount().collectAsState(initial = 0)
 
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
 
     // Mark presence as "viewing" while this screen is composed.
     LaunchedEffect(listId) {
@@ -80,6 +83,21 @@ fun ListScreen(
                         },
                         title = { Wordmark() },
                         actions = {
+                            Box {
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Mer", tint = Charcoal)
+                                }
+                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Sortera kategorier") },
+                                        onClick = { menuOpen = false; onOpenCategories() },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.background_image)) },
+                                        onClick = { menuOpen = false; onOpenListSettings() },
+                                    )
+                                }
+                            }
                             IconButton(onClick = onOpenSettings) { Avatar(identity) }
                             Spacer(Modifier.width(8.dp))
                         },
@@ -114,8 +132,25 @@ fun ListScreen(
             )
         },
     ) { padding ->
+      Box(Modifier.fillMaxSize().padding(padding)) {
+        // Shared per-list background image with blur + dark overlay for readability.
+        val bg = state.list?.bgImageUrl
+        if (bg != null) {
+            val blur = ((state.list?.bgBlur ?: 0) / 100f * 24f).dp
+            AsyncImage(
+                model = serverUrl.trimEnd('/') + bg,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize().blur(blur),
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = (state.list?.bgOverlay ?: 0) / 100f * 0.7f)
+                )
+            )
+        }
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
             for (section in state.sections) {
@@ -134,6 +169,7 @@ fun ListScreen(
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
+      }
     }
 
     editing?.let { item ->

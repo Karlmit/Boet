@@ -76,6 +76,14 @@ export async function initSchema() {
       PRIMARY KEY (household_id, item_key)
     );
 
+    -- FCM device tokens for push notifications (optional feature).
+    CREATE TABLE IF NOT EXISTS device_tokens (
+      token        TEXT PRIMARY KEY,
+      member_id    TEXT,
+      platform     TEXT,
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_items_list ON items(list_id);
     CREATE INDEX IF NOT EXISTS idx_categories_list ON categories(list_id);
     CREATE INDEX IF NOT EXISTS idx_lists_household ON lists(household_id);

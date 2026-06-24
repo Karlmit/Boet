@@ -16,7 +16,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import se.jabba.boet.BoetApp
 import se.jabba.boet.data.local.Settings
+import se.jabba.boet.ui.list.CategoryManageScreen
 import se.jabba.boet.ui.list.ListScreen
+import se.jabba.boet.ui.list.ListSettingsScreen
 import se.jabba.boet.ui.lists.ListsScreen
 import se.jabba.boet.ui.onboarding.OnboardingScreen
 import se.jabba.boet.ui.recipe.RecipeScreen
@@ -80,10 +82,13 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         listId = listId,
                         identity = settings.identity,
                         language = settings.language,
+                        serverUrl = settings.serverUrl,
                         onOpenLists = { nav.navigate("lists") },
                         onOpenSettings = { nav.navigate("settings") },
                         onOpenShopping = { nav.navigate("shopping/$listId") },
                         onOpenRecipe = { nav.navigate("recipe/$listId") },
+                        onOpenCategories = { nav.navigate("categories/$listId") },
+                        onOpenListSettings = { nav.navigate("listsettings/$listId") },
                     )
                 }
             }
@@ -108,6 +113,16 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
             composable("recipe/{listId}") { entry ->
                 val id = entry.arguments?.getString("listId") ?: return@composable
                 RecipeScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+            }
+
+            composable("categories/{listId}") { entry ->
+                val id = entry.arguments?.getString("listId") ?: return@composable
+                CategoryManageScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
+            }
+
+            composable("listsettings/{listId}") { entry ->
+                val id = entry.arguments?.getString("listId") ?: return@composable
+                ListSettingsScreen(repo = repo, listId = id, onBack = { nav.popBackStack() })
             }
         }
     }

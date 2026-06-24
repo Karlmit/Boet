@@ -4,12 +4,14 @@ import android.app.Application
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.Prefs
 import se.jabba.boet.data.local.Settings
 import se.jabba.boet.data.remote.ApiClient
+import se.jabba.boet.push.BoetMessagingService
 
 // Manual dependency container. Small app, single household — no DI framework needed.
 class BoetApp : Application() {
@@ -29,6 +31,7 @@ class BoetApp : Application() {
         super.onCreate()
         instance = this
         prefs = Prefs(this)
+        BoetMessagingService.ensureChannel(this)
 
         val api = ApiClient(baseUrlProvider = { serverUrl })
         repository = Repository(
@@ -46,8 +49,17 @@ class BoetApp : Application() {
             identity = s.identity
             if (s.identity != null && changedIdentity) {
                 repository.realtime.connect(s.identity.lowercase(), s.identity)
+                registerFcmToken()
             }
         }.launchIn(appScope)
+    }
+
+    private fun registerFcmToken() {
+        runCatching {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) task.result?.let { repository.registerDevice(it) }
+            }
+        }
     }
 
     companion object {

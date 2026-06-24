@@ -23,9 +23,15 @@ fun parseSpokenItems(raw: String): List<String> {
 }
 
 // Thin wrapper around the on-device SpeechRecognizer. Prefers local recognition.
+// Supports a continuous mode that re-arms after each utterance until stopped
+// (spec: "Continuous Voice Mode").
 class VoiceRecognizer(private val context: Context) {
 
     private var recognizer: SpeechRecognizer? = null
+    private var continuous = false
+    private var stopped = false
+    private var languageTag = "sv"
+    private var callbacks: Callbacks? = null
 
     interface Callbacks {
         fun onPartial(text: String) {}
@@ -36,21 +42,39 @@ class VoiceRecognizer(private val context: Context) {
 
     fun isAvailable() = SpeechRecognizer.isRecognitionAvailable(context)
 
-    fun start(languageTag: String, callbacks: Callbacks) {
-        stop()
+    fun start(languageTag: String, continuous: Boolean = false, callbacks: Callbacks) {
+        stopInternal()
+        stopped = false
+        this.continuous = continuous
+        this.languageTag = languageTag
+        this.callbacks = callbacks
+        listen()
+    }
+
+    private fun listen() {
+        if (stopped) return
         val r = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer = r
         r.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
                 val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!text.isNullOrBlank()) callbacks.onResult(text)
-                callbacks.onEnd()
+                if (!text.isNullOrBlank()) callbacks?.onResult(text)
+                next()
             }
             override fun onPartialResults(partial: Bundle?) {
                 val text = partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!text.isNullOrBlank()) callbacks.onPartial(text)
+                if (!text.isNullOrBlank()) callbacks?.onPartial(text)
             }
-            override fun onError(error: Int) { callbacks.onError(error); callbacks.onEnd() }
+            override fun onError(error: Int) {
+                // In continuous mode, no-match / timeout just means re-arm.
+                if (continuous && !stopped &&
+                    (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                    next()
+                } else {
+                    if (!continuous) callbacks?.onError(error)
+                    next()
+                }
+            }
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
@@ -67,9 +91,23 @@ class VoiceRecognizer(private val context: Context) {
         r.startListening(intent)
     }
 
-    fun stop() {
+    // After each utterance: re-arm in continuous mode, otherwise finish.
+    private fun next() {
+        recognizer?.destroy()
+        recognizer = null
+        if (continuous && !stopped) listen() else callbacks?.onEnd()
+    }
+
+    private fun stopInternal() {
         recognizer?.stopListening()
         recognizer?.destroy()
         recognizer = null
+    }
+
+    fun stop() {
+        stopped = true
+        continuous = false
+        stopInternal()
+        callbacks?.onEnd()
     }
 }

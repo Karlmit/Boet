@@ -1,0 +1,51 @@
+# Production stack for Unraid. Pulls the prebuilt server image from GHCR so
+# Unraid's "check for updates" detects new versions of :latest.
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Exposed on the host as :3020 — point Nginx Proxy Manager (boet.jabba.se) at
+# http://192.168.1.66:3020 and enable "Websockets Support" on the proxy host.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-boet}
+      POSTGRES_DB: boet
+    volumes:
+      - boet-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    image: ghcr.io/karlmit/boet:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3020
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: boet
+      PGPASSWORD: ${POSTGRES_PASSWORD:-boet}
+      PGDATABASE: boet
+      UPLOAD_DIR: /data/uploads
+      # Optional: mount a Firebase service-account JSON and point here to enable
+      # push notifications. Leave unset to run fully self-hosted (WebSocket only).
+      FCM_SERVICE_ACCOUNT: ${FCM_SERVICE_ACCOUNT:-}
+    volumes:
+      - boet-uploads:/data/uploads
+      # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json
+    ports:
+      - "3020:3020"
+
+volumes:
+  boet-db:
+  boet-uploads:

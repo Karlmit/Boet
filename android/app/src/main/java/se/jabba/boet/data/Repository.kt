@@ -139,6 +139,45 @@ class Repository(
         enqueue("POST", "/api/lists/$listId/categories/reorder", buildJson(mapOf("order" to order)))
     }
 
+    suspend fun renameCategory(category: CategoryEntity, name: String) = withContext(Dispatchers.IO) {
+        categoryDao.upsert(category.copy(name = name))
+        enqueue("PATCH", "/api/categories/${category.id}", buildJson(mapOf("name" to name)))
+    }
+
+    suspend fun deleteCategory(category: CategoryEntity) = withContext(Dispatchers.IO) {
+        categoryDao.delete(category.id)
+        enqueue("DELETE", "/api/categories/${category.id}", null)
+    }
+
+    fun registerDevice(token: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val body = buildJson(mapOf(
+                    "token" to token,
+                    "memberId" to identityProvider()?.lowercase(),
+                    "platform" to "android",
+                ))
+                api.send("POST", "/api/devices", body)
+            }
+        }
+    }
+
+    suspend fun uploadBackground(listId: String, dataBase64: String, contentType: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = buildJson(mapOf("dataBase64" to dataBase64, "contentType" to contentType))
+                val resp = api.send("POST", "/api/lists/$listId/background", body)
+                val dto = api.json.decodeFromString(se.jabba.boet.data.remote.ListDto.serializer(), resp)
+                listDao.upsert(dto.toEntity())
+                true
+            }.getOrDefault(false)
+        }
+
+    suspend fun updateListDisplay(list: ListEntity, blur: Int, overlay: Int) = withContext(Dispatchers.IO) {
+        listDao.upsert(list.copy(bgBlur = blur, bgOverlay = overlay))
+        enqueue("PATCH", "/api/lists/${list.id}", buildJson(mapOf("bgBlur" to blur, "bgOverlay" to overlay)))
+    }
+
     // Recipe / history (network-only helpers) -------------------------------
     suspend fun parseRecipe(text: String): List<RecipeSuggestion> = withContext(Dispatchers.IO) {
         runCatching { api.parseRecipe(text).suggestions }.getOrDefault(emptyList())
