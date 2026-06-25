@@ -40,12 +40,34 @@ services:
       # Optional: mount a Firebase service-account JSON and point here to enable
       # push notifications. Leave unset to run fully self-hosted (WebSocket only).
       FCM_SERVICE_ACCOUNT: ${FCM_SERVICE_ACCOUNT:-}
+      # Local LLM for voice cleaning — keeps the "no third-party cloud" promise.
+      # Points at the ollama service below; unset OLLAMA_URL to disable (the server
+      # then falls back to deterministic cleaning).
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
     volumes:
       - boet-uploads:/data/uploads
       # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json
     ports:
       - "3020:3020"
 
+  # Household-local LLM (Ollama) for voice cleaning. After the first `up`, pull the
+  # model once (downloads ~2.5 GB into the boet-ollama volume):
+  #   docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen3:4b-instruct
+  # If the Unraid box has an NVIDIA GPU + container toolkit, uncomment the deploy
+  # block for much faster inference.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - boet-ollama:/root/.ollama
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
 volumes:
   boet-db:
   boet-uploads:
+  boet-ollama:

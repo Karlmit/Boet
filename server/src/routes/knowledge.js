@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { HOUSEHOLD_ID } from '../seed.js';
 import { guessCategory } from '../categorize.js';
 import { parseRecipe } from '../ai.js';
+import { cleanVoice } from '../voice.js';
 import { itemRow, listRow, categoryRow, favoriteRow } from '../serialize.js';
 
 export const knowledge = Router();
@@ -61,6 +62,14 @@ knowledge.get('/history', async (req, res) => {
 
 // Favorites moved to routes/favorites.js — they are now a standalone catalogue,
 // no longer derived from starred list items.
+
+// Clean a raw voice transcript into tidy grocery items using the household's local
+// LLM (Ollama / qwen3:4b-instruct), so phones without an on-device model still get
+// good cleaning. body: { transcript: [] } -> { items: [{name, quantity}], engine }.
+knowledge.post('/voice/clean', async (req, res) => {
+  const { transcript } = req.body || {};
+  res.json(await cleanVoice(transcript));
+});
 
 // Recipe -> suggested items (approval flow happens in the app; nothing is added here).
 // body: { text } -> { suggestions: [{name, quantity, category}] }

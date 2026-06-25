@@ -8,12 +8,20 @@ import kotlinx.serialization.json.Json
 // freeform amount string ("2", "1 kg", "10 g") or null for a plain count of 1.
 data class VoiceItem(val name: String, val quantity: String? = null)
 
-// Turns raw voice transcript into a tidy shopping list using the on-device LLM:
-// fixes mis-hearings ("tonjäst" -> "torrjäst"), singularizes ("citroner" -> "Citron"),
-// parses amounts ("två citroner" -> qty 2; "ett kilo fläsk" -> 1 kg), and drops
-// anything that isn't a real grocery. Falls back to a simple regex split when the
-// LLM is unavailable or unsure.
-class VoiceCleaner(private val classifier: ItemClassifier?) {
+// Turns raw voice transcript into a tidy shopping list: fixes mis-hearings
+// ("tonjäst" -> "torrjäst"), singularizes ("citroner" -> "Citron"), parses amounts
+// ("två citroner" -> qty 2; "ett kilo fläsk" -> 1 kg), and drops anything that isn't
+// a real grocery.
+//
+// Cleaning is tried in order: (1) the server's household-local LLM, so every phone
+// gets the same quality even without an on-device model (Klara's Samsung S24 has no
+// Gemini Nano); (2) the on-device LLM if present and the server is unreachable;
+// (3) a deterministic regex split offline. `serverClean` returns null when the
+// server is unreachable/offline so we degrade gracefully.
+class VoiceCleaner(
+    private val classifier: ItemClassifier?,
+    private val serverClean: (suspend (List<String>) -> List<VoiceItem>?)? = null,
+) {
 
     @Serializable
     private data class CleanDto(val name: String = "", val qty: String = "1", val unit: String = "")
@@ -24,6 +32,15 @@ class VoiceCleaner(private val classifier: ItemClassifier?) {
         val raw = transcript.joinToString(". ") { it.trim() }.trim()
         if (raw.isEmpty()) return emptyList()
 
+        // 1. Server-side local LLM — consistent quality on every device.
+        val sc = serverClean
+        if (sc != null) {
+            val server = runCatching { sc(transcript) }.getOrNull()
+            if (!server.isNullOrEmpty()) return dedup(server)
+            Log.w(TAG, "server clean unavailable; trying on-device")
+        }
+
+        // 2. On-device LLM (Gemini Nano) if the server couldn't help.
         val c = classifier
         if (c != null && c.available) {
             val out = runCatching { c.generate(buildPrompt(raw)) }.getOrNull()
@@ -31,6 +48,8 @@ class VoiceCleaner(private val classifier: ItemClassifier?) {
             if (!parsed.isNullOrEmpty()) return dedup(parsed)
             Log.w(TAG, "LLM clean returned nothing usable; falling back to regex")
         }
+
+        // 3. Deterministic split (offline / no model anywhere).
         return dedup(transcript.flatMap { regexItems(it) })
     }
 

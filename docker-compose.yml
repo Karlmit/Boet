@@ -29,12 +29,25 @@ services:
       PGDATABASE: boet
       UPLOAD_DIR: /data/uploads
       FCM_SERVICE_ACCOUNT: ${FCM_SERVICE_ACCOUNT:-}
+      # Local LLM for voice cleaning (no third-party cloud). Unset OLLAMA_URL to
+      # disable and fall back to deterministic cleaning.
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
     volumes:
       - boet-uploads:/data/uploads
     ports:
       # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
       - "3020:3020"
 
+  # Household-local LLM. After first `up`, pull the model once:
+  #   docker compose exec ollama ollama pull qwen3:4b-instruct
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - boet-ollama:/root/.ollama
+
 volumes:
   boet-db:
   boet-uploads:
+  boet-ollama:

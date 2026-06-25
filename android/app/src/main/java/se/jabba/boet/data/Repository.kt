@@ -41,8 +41,16 @@ class Repository(
     // On-device categorization (learned mapping -> keyword KB -> on-device LLM -> Övrigt).
     private val classifier = ClassifierFactory.create(context)
     private val engine = CategoryEngine(categoryDao, learnedDao, classifier)
-    // Cleans raw voice transcript into tidy grocery items via the same on-device LLM.
-    private val voiceCleaner = VoiceCleaner(classifier)
+    // Cleans raw voice transcript into tidy grocery items: prefers the server's
+    // household-local LLM (works on every phone), falls back to the on-device LLM,
+    // then a deterministic split. The server lambda returns null when offline so
+    // the on-device path takes over.
+    private val voiceCleaner = VoiceCleaner(classifier) { transcript ->
+        withContext(Dispatchers.IO) {
+            runCatching { api.cleanVoice(transcript).items.map { VoiceItem(it.name, it.quantity) } }
+                .getOrNull()
+        }
+    }
 
     init {
         // Probe / warm up the on-device LLM in the background and log its status so

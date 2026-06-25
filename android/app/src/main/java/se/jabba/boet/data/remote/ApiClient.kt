@@ -42,6 +42,25 @@ class ApiClient(private val baseUrlProvider: () -> String) {
     fun parseRecipe(text: String): RecipeResponse =
         request("POST", "/api/recipe/parse", json.encodeToString(RecipeReq.serializer(), RecipeReq(text)))
 
+    // Clean a raw voice transcript server-side via the household's local LLM. Uses
+    // a longer read timeout than the shared client because local model inference
+    // can take several seconds. Throws on transport/HTTP errors so the caller can
+    // fall back to the on-device path.
+    fun cleanVoice(transcript: List<String>): VoiceCleanResponse {
+        val body = json.encodeToString(VoiceCleanReq.serializer(), VoiceCleanReq(transcript))
+        val client = http.newBuilder()
+            .readTimeout(45, TimeUnit.SECONDS)
+            .callTimeout(50, TimeUnit.SECONDS)
+            .build()
+        val req = Request.Builder().url(url("/api/voice/clean"))
+            .post(body.toRequestBody(jsonMedia)).build()
+        client.newCall(req).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw HttpException(resp.code, text)
+            return json.decodeFromString(VoiceCleanResponse.serializer(), text)
+        }
+    }
+
     // --- Generic mutations (also used by the offline outbox) ---------------
     fun send(method: String, path: String, body: String?): String {
         val reqBody = body?.toRequestBody(jsonMedia)
@@ -57,3 +76,6 @@ class ApiClient(private val baseUrlProvider: () -> String) {
 
 @kotlinx.serialization.Serializable
 private data class RecipeReq(val text: String)
+
+@kotlinx.serialization.Serializable
+private data class VoiceCleanReq(val transcript: List<String>)

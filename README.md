@@ -69,6 +69,11 @@ services:
       PGPASSWORD: boet                   # match the db password above
       PGDATABASE: boet
       UPLOAD_DIR: /data/uploads
+      # Local LLM for voice cleaning — keeps the "no third-party cloud" promise.
+      # Points at the ollama service below; unset OLLAMA_URL to disable (the server
+      # then falls back to deterministic cleaning).
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen3:4b-instruct
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
@@ -77,10 +82,23 @@ services:
       # - /mnt/user/appdata/Boet/fcm.json:/secrets/fcm.json:ro
     ports:
       - "3020:3020"
+
+  # Household-local LLM (Ollama) that cleans voice input into tidy items, so phones
+  # without an on-device model still get good results. Stays on the LAN — nothing
+  # leaves home. If the Unraid box has an NVIDIA GPU + container toolkit, add a
+  # `deploy.resources.reservations.devices: [{capabilities: [gpu]}]` block for much
+  # faster inference.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - /mnt/user/appdata/Boet/ollama:/root/.ollama
 ```
 
 ```bash
 docker compose pull && docker compose up -d
+# Pull the voice model once (~2.5 GB, stored in the ollama volume):
+docker compose exec ollama ollama pull qwen3:4b-instruct
 ```
 
 Put a reverse proxy in front if you want HTTPS/remote access; enable
@@ -104,8 +122,11 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
 - **REST + WebSocket** real-time sync with presence ("Kalle handlar").
 - **Swedish grocery categorization** knowledge base (ICA/Coop/Hemköp/Willys).
 - **Learning**: moving an item teaches the household; all devices benefit.
-- **Recipe → list** and **natural-language sort rules**, parsed deterministically
-  (no cloud-AI dependency).
+- **Recipe → list** and **natural-language sort rules**, parsed deterministically.
+- **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
+  tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),
+  so phones without an on-device model get the same quality — and no third-party
+  cloud is involved. Degrades to a deterministic split if the model is offline.
 - **Offline-friendly**: every create accepts a client-supplied id and is
   idempotent, so the app's outbox can safely replay queued operations.
 
