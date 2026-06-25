@@ -18,18 +18,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import se.jabba.boet.R
+import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.ui.theme.*
 
-// The edit sheet autosaves: the quantity stepper persists on every tap, and the
-// name/note persist when the sheet is closed. There is no Save button.
-@OptIn(ExperimentalMaterial3Api::class)
+// The edit sheet autosaves: the quantity stepper persists on every tap, the
+// category persists the moment you pick it, and the name/note persist when the
+// sheet is closed. There is no Save button.
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ItemEditSheet(
     item: ItemEntity,
+    categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onSave: (String, String?, String?) -> Unit,
     onQuantityChange: (Int) -> Unit,
+    onMove: (String) -> Unit,
     onDelete: () -> Unit,
     onFavorite: () -> Unit,
 ) {
@@ -39,6 +43,9 @@ fun ItemEditSheet(
     var qty by remember { mutableStateOf(item.quantity?.toIntOrNull()?.coerceAtLeast(1) ?: 1) }
     var note by remember { mutableStateOf(item.note ?: "") }
     var fav by remember { mutableStateOf(item.favorite) }
+    // Selected category persists immediately on tap (autosave), so a correction
+    // syncs to the other device and teaches the household KB right away.
+    var categoryId by remember { mutableStateOf(item.categoryId) }
 
     // Persist name/note (keeps the existing name if blanked), then close.
     fun saveAndDismiss() {
@@ -65,6 +72,21 @@ fun ItemEditSheet(
             QuantityStepper(qty, onChange = { qty = it; onQuantityChange(it) })
             Spacer(Modifier.height(12.dp))
             field(note, { note = it }, stringResource(R.string.note))
+            if (categories.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.category), style = BoetType.label, color = MossDeep)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    categories.forEach { cat ->
+                        CategoryChip(cat.name, selected = cat.id == categoryId) {
+                            if (cat.id != categoryId) { categoryId = cat.id; onMove(cat.id) }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(20.dp))
             OutlinedButton(
                 onClick = onDelete,
@@ -76,6 +98,23 @@ fun ItemEditSheet(
                 Text(stringResource(R.string.delete))
             }
         }
+    }
+}
+
+// A selectable category pill. Tonal Leaf when unselected, solid Moss when chosen.
+@Composable
+private fun CategoryChip(name: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) Moss else Leaf,
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            name,
+            style = BoetType.body,
+            color = if (selected) WarmWhite else MossDeep,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+        )
     }
 }
 

@@ -9,12 +9,13 @@ export const knowledge = Router();
 
 // Bootstrap: everything the app needs on launch.
 knowledge.get('/bootstrap', async (req, res) => {
-  const [house, members, lists, categories, items] = await Promise.all([
+  const [house, members, lists, categories, items, learned] = await Promise.all([
     query(`SELECT * FROM households WHERE id=$1`, [HOUSEHOLD_ID]),
     query(`SELECT id, name FROM members WHERE household_id=$1 ORDER BY name`, [HOUSEHOLD_ID]),
     query(`SELECT * FROM lists WHERE household_id=$1 ORDER BY position, created_at`, [HOUSEHOLD_ID]),
     query(`SELECT c.* FROM categories c JOIN lists l ON l.id=c.list_id WHERE l.household_id=$1 ORDER BY c.position`, [HOUSEHOLD_ID]),
     query(`SELECT i.* FROM items i JOIN lists l ON l.id=i.list_id WHERE l.household_id=$1 ORDER BY i.position, i.created_at`, [HOUSEHOLD_ID]),
+    query(`SELECT item_key, category_name FROM learned_categories WHERE household_id=$1`, [HOUSEHOLD_ID]),
   ]);
   res.json({
     household: house.rows[0] || null,
@@ -22,6 +23,9 @@ knowledge.get('/bootstrap', async (req, res) => {
     lists: lists.rows.map(listRow),
     categories: categories.rows.map(categoryRow),
     items: items.rows.map(itemRow),
+    // Household learned mappings so the app can categorize offline and reflect
+    // corrections made on the other device.
+    learned: learned.rows.map((r) => ({ key: r.item_key, category: r.category_name })),
   });
 });
 

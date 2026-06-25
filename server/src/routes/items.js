@@ -99,10 +99,21 @@ items.patch('/items/:id', async (req, res) => {
   if (rows.length === 0) return res.status(404).json({ error: 'not found' });
   const item = rows[0];
 
-  // Manual category move -> learn it for the household.
-  if (body.categoryId !== undefined && item.category_id) {
+  // Manual category move -> learn it for the household. Automatic moves (the
+  // on-device auto-sort / categorizer) pass autosort:true and must NOT teach the
+  // KB — only a deliberate human correction should become a learned mapping.
+  if (body.categoryId !== undefined && item.category_id && !body.autosort) {
     const { rows: cat } = await query(`SELECT name FROM categories WHERE id=$1`, [item.category_id]);
     if (cat.length) learnCategory(item.name, cat[0].name).catch(() => {});
+  }
+
+  // Notify the other member when an item is checked off (not on uncheck, and
+  // not for automatic re-sorts which never touch `checked`).
+  if (body.checked === true && item.checked) {
+    const actor = body.modifiedBy || null;
+    const who = actor ? actor.charAt(0).toUpperCase() + actor.slice(1) : 'Någon';
+    notifyOthers(actor, `${item.name} avbockad`, `${who} bockade av ${item.name}`,
+      { listId: item.list_id, type: 'item_checked' }).catch(() => {});
   }
 
   const payload = itemRow(item);

@@ -52,8 +52,10 @@ object BoetType {
         fontFamily = Manrope, fontWeight = FontWeight.SemiBold,
         fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.08.em,
     )
+    // Shopping Mode type — intentionally ~20% smaller than before (28→22sp) so more
+    // of the list fits on screen and rows stay compact while shopping.
     val shopping = TextStyle(
         fontFamily = Manrope, fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = (-0.01).em,
+        fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.01).em,
     )
 }

@@ -15,6 +15,9 @@ data class Settings(
     val language: String = "sv",         // "sv" | "en"
     val serverUrl: String = DEFAULT_SERVER,
     val notifications: Boolean = true,
+    // Shopping Mode: whether checked items are hidden into the "klara" list. The
+    // toggle remembers the user's last choice across trips.
+    val shoppingHideCompleted: Boolean = false,
 ) {
     companion object { const val DEFAULT_SERVER = "https://boet.jabba.se" }
 }
@@ -25,6 +28,7 @@ class Prefs(private val context: Context) {
         val language = stringPreferencesKey("language")
         val serverUrl = stringPreferencesKey("server_url")
         val notifications = booleanPreferencesKey("notifications")
+        val shoppingHideCompleted = booleanPreferencesKey("shopping_hide_completed")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -33,6 +37,7 @@ class Prefs(private val context: Context) {
             language = p[Keys.language] ?: "sv",
             serverUrl = p[Keys.serverUrl] ?: Settings.DEFAULT_SERVER,
             notifications = p[Keys.notifications] ?: true,
+            shoppingHideCompleted = p[Keys.shoppingHideCompleted] ?: false,
         )
     }
 
@@ -47,4 +52,7 @@ class Prefs(private val context: Context) {
 
     suspend fun setNotifications(enabled: Boolean) =
         context.dataStore.edit { it[Keys.notifications] = enabled }.let {}
+
+    suspend fun setShoppingHideCompleted(hide: Boolean) =
+        context.dataStore.edit { it[Keys.shoppingHideCompleted] = hide }.let {}
 }

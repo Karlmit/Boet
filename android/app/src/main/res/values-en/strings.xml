@@ -29,9 +29,19 @@
     <string name="note">Note</string>
     <string name="added_by">Added by %1$s</string>
     <string name="favorite">Favorite</string>
+    <string name="category">Category</string>
 
     <string name="listening">Listening…</string>
     <string name="voice_hint">Say e.g. “Add milk, eggs and bananas”</string>
+    <string name="voice_paused">Paused</string>
+    <string name="voice_continuous_hint">Keep talking – say one item at a time</string>
+    <string name="voice_added_count">Added · %1$d</string>
+    <string name="voice_heard_count">Heard · %1$d</string>
+    <string name="voice_stop">Stop</string>
+    <string name="voice_cleaning">Tidying the list…</string>
+    <string name="voice_review_title">Review items</string>
+    <string name="voice_none">No items found</string>
+    <string name="close">Close</string>
 
     <string name="recipe_to_list">Recipe to shopping list</string>
     <string name="recipe_hint">Paste a recipe or ingredients…</string>

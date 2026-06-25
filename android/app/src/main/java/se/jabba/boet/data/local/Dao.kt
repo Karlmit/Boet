@@ -34,6 +34,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories")
     suspend fun all(): List<CategoryEntity>
 
+    @Query("SELECT * FROM categories WHERE listId = :listId ORDER BY position")
+    suspend fun categoriesForListOnce(listId: String): List<CategoryEntity>
+
     @Upsert suspend fun upsert(category: CategoryEntity)
     @Upsert suspend fun upsertAll(categories: List<CategoryEntity>)
     @Query("UPDATE categories SET position = :position WHERE id = :id") suspend fun setPosition(id: String, position: Int)
@@ -51,6 +54,9 @@ interface ItemDao {
     @Query("SELECT * FROM items WHERE id = :id")
     suspend fun byId(id: String): ItemEntity?
 
+    @Query("SELECT * FROM items WHERE listId = :listId")
+    suspend fun itemsForListOnce(listId: String): List<ItemEntity>
+
     @Query("SELECT * FROM items WHERE favorite = 1 ORDER BY name")
     suspend fun favorites(): List<ItemEntity>
 
@@ -66,6 +72,18 @@ interface ItemDao {
     @Query("DELETE FROM items WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM items") suspend fun deleteAll()
     @Query("DELETE FROM items WHERE listId = :listId AND checked = 1") suspend fun clearChecked(listId: String)
+}
+
+@Dao
+interface LearnedDao {
+    @Query("SELECT * FROM learned_categories")
+    suspend fun all(): List<LearnedCategoryEntity>
+
+    @Query("SELECT categoryName FROM learned_categories WHERE itemKey = :key LIMIT 1")
+    suspend fun categoryFor(key: String): String?
+
+    @Upsert suspend fun upsertAll(rows: List<LearnedCategoryEntity>)
+    @Query("DELETE FROM learned_categories") suspend fun deleteAll()
 }
 
 @Dao

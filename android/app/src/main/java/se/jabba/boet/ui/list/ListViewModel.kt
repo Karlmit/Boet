@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import se.jabba.boet.ai.VoiceItem
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.ItemEntity
@@ -26,6 +27,9 @@ data class ListUiState(
     val list: ListEntity? = null,
     val categories: List<CategoryEntity> = emptyList(),
     val sections: List<CategorySection> = emptyList(),
+    // Shopping Mode view: every item grouped under its category, checked items sunk
+    // to the bottom of each group (shown struck-through in place, not hidden away).
+    val shoppingSections: List<CategorySection> = emptyList(),
     val completed: List<ItemEntity> = emptyList(),   // checked items, newest first
     val remaining: Int = 0,
     val total: Int = 0,
@@ -64,12 +68,27 @@ class ListViewModel(
             val orphan = active.filter { it.categoryId == null || ordered.none { c -> c.id == it.categoryId } }
             if (orphan.isNotEmpty()) add(CategorySection(null, "Övrigt", orphan.sortedBy { it.position }))
         }
+        // Shopping Mode sections: include checked items in their own category, sunk
+        // to the bottom of the group (unchecked first by position, then checked).
+        val allByCat = items.groupBy { it.categoryId }
+        val shoppingSections = buildList {
+            for (cat in ordered) {
+                val its = (allByCat[cat.id] ?: emptyList())
+                    .sortedWith(compareBy({ it.checked }, { it.position }))
+                add(CategorySection(cat.id, cat.name, its))
+            }
+            val orphan = items.filter { it.categoryId == null || ordered.none { c -> c.id == it.categoryId } }
+            if (orphan.isNotEmpty()) {
+                add(CategorySection(null, "Övrigt", orphan.sortedWith(compareBy({ it.checked }, { it.position }))))
+            }
+        }
         // Completed items live in a separate, newest-first bucket.
         val completed = items.filter { it.checked }.sortedByDescending { it.updatedAt ?: it.createdAt }
         ListUiState(
             list = list,
             categories = ordered,
             sections = sections,
+            shoppingSections = shoppingSections,
             completed = completed,
             remaining = active.size,
             total = items.size,
@@ -121,6 +140,14 @@ class ListViewModel(
     fun addSpokenItems(names: List<String>) {
         if (names.isEmpty()) return
         viewModelScope.launch { repo.addItems(listId, names.map { it to null }) }
+    }
+
+    // Voice approval flow: clean a raw transcript with the on-device LLM, then add
+    // the items the user approved (reusing/incrementing existing rows by name).
+    suspend fun cleanSpoken(transcript: List<String>): List<VoiceItem> = repo.cleanSpoken(transcript)
+    fun addVoiceItems(items: List<VoiceItem>) {
+        if (items.isEmpty()) return
+        viewModelScope.launch { repo.addOrIncrementItems(listId, items) }
     }
 
     fun toggle(item: ItemEntity) = viewModelScope.launch { repo.toggleChecked(item) }

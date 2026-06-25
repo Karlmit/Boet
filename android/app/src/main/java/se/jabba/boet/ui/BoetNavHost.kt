@@ -87,7 +87,14 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
 
             composable("shopping/{listId}") { entry ->
                 val id = entry.arguments?.getString("listId") ?: return@composable
-                ShoppingScreen(repo = repo, listId = id, serverUrl = settings.serverUrl, onBack = { nav.popBackStack() })
+                ShoppingScreen(
+                    repo = repo,
+                    listId = id,
+                    serverUrl = settings.serverUrl,
+                    prefs = app.prefs,
+                    initialHideCompleted = settings.shoppingHideCompleted,
+                    onBack = { nav.popBackStack() },
+                )
             }
 
             composable("categories/{listId}") { entry ->

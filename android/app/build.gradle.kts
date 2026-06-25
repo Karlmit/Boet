@@ -55,10 +55,13 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
     // Persistence (offline-first)
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // On-device LLM (Gemini Nano via AICore) for categorizing unknown grocery items.
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

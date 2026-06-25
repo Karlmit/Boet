@@ -11,6 +11,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import se.jabba.boet.ai.CategoryEngine
+import se.jabba.boet.ai.ClassifierFactory
+import se.jabba.boet.ai.VoiceCleaner
+import se.jabba.boet.ai.VoiceItem
 import se.jabba.boet.data.local.*
 import se.jabba.boet.data.remote.*
 import java.util.UUID
@@ -28,8 +32,23 @@ class Repository(
     private val listDao = db.listDao()
     private val categoryDao = db.categoryDao()
     private val itemDao = db.itemDao()
+    private val learnedDao = db.learnedDao()
     private val outboxDao = db.outboxDao()
     private val flushMutex = Mutex()
+
+    // On-device categorization (learned mapping -> keyword KB -> on-device LLM -> Övrigt).
+    private val classifier = ClassifierFactory.create(context)
+    private val engine = CategoryEngine(categoryDao, learnedDao, classifier)
+    // Cleans raw voice transcript into tidy grocery items via the same on-device LLM.
+    private val voiceCleaner = VoiceCleaner(classifier)
+
+    init {
+        // Probe / warm up the on-device LLM in the background and log its status so
+        // device capability (e.g. Gemini Nano on this phone) is visible in logcat.
+        scope.launch(Dispatchers.Default) {
+            runCatching { android.util.Log.i("BoetLLM", "on-device classifier status=${engine.llmStatus()}") }
+        }
+    }
     // Serializes favorite add/increment so rapid taps don't create duplicates.
     private val favoriteMutex = Mutex()
 
@@ -68,6 +87,10 @@ class Repository(
             categoryDao.upsertAll(data.categories.map { it.toEntity() })
             itemDao.upsertAll(data.items.map { it.toEntity() })
 
+            // Refresh the on-device learned-mappings mirror (small table; replace wholesale).
+            learnedDao.deleteAll()
+            learnedDao.upsertAll(data.learned.map { LearnedCategoryEntity(it.key, it.category) })
+
             // Reconcile: drop anything the server no longer has.
             val listIds = data.lists.map { it.id }
             if (listIds.isEmpty()) listDao.deleteAll() else listDao.deleteNotIn(listIds)
@@ -78,25 +101,86 @@ class Repository(
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
     }
 
-    // Server-side re-categorization (online only). WS pushes the moved items back.
+    // On-device re-categorization: re-run every item through the engine (learned ->
+    // KB -> on-device LLM). Works offline; each moved item is PATCHed with
+    // autosort:true so the server doesn't mistake it for a manual correction.
     suspend fun autoSort(listId: String) = withContext(Dispatchers.IO) {
-        runCatching { api.send("POST", "/api/lists/$listId/autosort", null) }
+        val items = itemDao.itemsForListOnce(listId)
+        for (item in items) {
+            val g = engine.guess(listId, item.name)
+            var targetId = g.categoryId
+            // Only consult the LLM for items the deterministic layers couldn't place.
+            if (!g.confident) {
+                engine.llmCategoryId(listId, item.name)?.let { targetId = it }
+            }
+            if (targetId != null && targetId != item.categoryId) {
+                autoMove(item, targetId!!)
+            }
+        }
     }
 
     // Mutations -------------------------------------------------------------
     suspend fun addItems(listId: String, names: List<Pair<String, String?>>) = withContext(Dispatchers.IO) {
         val who = identityProvider()
+        // Categorize each new item on-device, immediately, so it lands in the right
+        // group even offline (the server respects a client-provided categoryId).
         val entities = names
             .filter { it.first.isNotBlank() }
             .map { (name, qty) ->
-                ItemEntity(id = UUID.randomUUID().toString(), listId = listId, name = name.trim(),
-                    quantity = qty, addedBy = who, modifiedBy = who)
+                val trimmed = name.trim()
+                val g = engine.guess(listId, trimmed)
+                ItemEntity(id = UUID.randomUUID().toString(), listId = listId, name = trimmed,
+                    quantity = qty, categoryId = g.categoryId, addedBy = who, modifiedBy = who)
             }
         if (entities.isEmpty()) return@withContext
         entities.forEach { itemDao.upsert(it) }
-        val dtos = entities.map { ItemDto(id = it.id, listId = listId, name = it.name, quantity = it.quantity, addedBy = who) }
+        val dtos = entities.map { ItemDto(id = it.id, listId = listId, categoryId = it.categoryId, name = it.name, quantity = it.quantity, addedBy = who) }
         val body = api.json.encodeToString(AddItemsRequest.serializer(), AddItemsRequest(dtos, who))
         enqueue("POST", "/api/lists/$listId/items", body)
+
+        // Background upgrade: for items the KB couldn't confidently place, ask the
+        // on-device LLM and quietly move them if it has a better answer.
+        if (engine.llmAvailable) {
+            scope.launch(Dispatchers.Default) {
+                for (e in entities) {
+                    val g = engine.guess(listId, e.name)
+                    if (g.confident) continue
+                    val better = runCatching { engine.llmCategoryId(listId, e.name) }.getOrNull()
+                    if (better != null && better != e.categoryId) {
+                        itemDao.byId(e.id)?.let { latest -> autoMove(latest, better) }
+                    }
+                }
+            }
+        }
+    }
+
+    // Move an item to a category as an automatic decision (not a human correction):
+    // updates Room and PATCHes with autosort:true so the server skips learning it.
+    private suspend fun autoMove(item: ItemEntity, categoryId: String) = withContext(Dispatchers.IO) {
+        val who = identityProvider()
+        itemDao.upsert(item.copy(categoryId = categoryId, modifiedBy = who))
+        enqueue("PATCH", "/api/items/${item.id}", buildJson(mapOf("categoryId" to categoryId, "autosort" to true, "modifiedBy" to who)))
+    }
+
+    // Voice: clean a raw transcript into corrected {name, qty} grocery items.
+    suspend fun cleanSpoken(transcript: List<String>): List<VoiceItem> = voiceCleaner.clean(transcript)
+
+    // Add a batch of (already-approved) voice items. Reuses an existing active item
+    // with the same name by bumping its quantity, instead of adding a duplicate row.
+    suspend fun addOrIncrementItems(listId: String, items: List<VoiceItem>) = favoriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            for (it in items) {
+                val name = it.name.trim()
+                if (name.isEmpty()) continue
+                val existing = itemDao.findActiveByName(listId, name)
+                if (existing != null) {
+                    val cur = existing.quantity?.toIntOrNull() ?: 1
+                    setQuantity(existing, (cur + it.quantity).toString())
+                } else {
+                    addItems(listId, listOf(name to (if (it.quantity > 1) it.quantity.toString() else null)))
+                }
+            }
+        }
     }
 
     // Add a favorite to the list. If an active item with the same name already

@@ -6,14 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [ListEntity::class, CategoryEntity::class, ItemEntity::class, OutboxOp::class],
-    version = 1,
+    entities = [ListEntity::class, CategoryEntity::class, ItemEntity::class, LearnedCategoryEntity::class, OutboxOp::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class BoetDatabase : RoomDatabase() {
     abstract fun listDao(): ListDao
     abstract fun categoryDao(): CategoryDao
     abstract fun itemDao(): ItemDao
+    abstract fun learnedDao(): LearnedDao
     abstract fun outboxDao(): OutboxDao
 
     companion object {

@@ -31,12 +31,22 @@
     <!-- Item -->
     <string name="quantity">Antal</string>
     <string name="note">Anteckning</string>
+    <string name="category">Kategori</string>
     <string name="added_by">Tillagd av %1$s</string>
     <string name="favorite">Favorit</string>
 
     <!-- Voice -->
     <string name="listening">Lyssnar…</string>
     <string name="voice_hint">Säg t.ex. ”Lägg till mjölk, ägg och bananer”</string>
+    <string name="voice_paused">Pausad</string>
+    <string name="voice_continuous_hint">Fortsätt prata – säg en vara i taget</string>
+    <string name="voice_added_count">Tillagda · %1$d</string>
+    <string name="voice_heard_count">Hört · %1$d</string>
+    <string name="voice_stop">Stoppa</string>
+    <string name="voice_cleaning">Städar listan…</string>
+    <string name="voice_review_title">Granska varor</string>
+    <string name="voice_none">Inga varor hittades</string>
+    <string name="close">Stäng</string>
 
     <!-- Recipe -->
     <string name="recipe_to_list">Recept till inköpslistan</string>

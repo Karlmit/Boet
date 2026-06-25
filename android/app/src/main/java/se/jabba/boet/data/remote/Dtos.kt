@@ -58,11 +58,15 @@ data class ItemDto(
 data class AddItemsRequest(val items: List<ItemDto>, val addedBy: String? = null)
 
 @Serializable
+data class LearnedDto(val key: String, val category: String)
+
+@Serializable
 data class BootstrapDto(
     val members: List<MemberDto> = emptyList(),
     val lists: List<ListDto> = emptyList(),
     val categories: List<CategoryDto> = emptyList(),
     val items: List<ItemDto> = emptyList(),
+    val learned: List<LearnedDto> = emptyList(),
 )
 
 @Serializable

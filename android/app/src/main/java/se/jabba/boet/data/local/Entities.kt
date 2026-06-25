@@ -44,6 +44,15 @@ data class ItemEntity(
     val updatedAt: String? = null,
 )
 
+// Household "knowledge base" of learned item→category mappings, synced down from
+// the server on bootstrap. Lets the on-device categorizer honour corrections
+// ("Mjölk → Mejeri" that Kalle set) even while offline, for both members.
+@Entity(tableName = "learned_categories")
+data class LearnedCategoryEntity(
+    @PrimaryKey val itemKey: String,   // normalized name (see Categorizer.normalizeKey)
+    val categoryName: String,
+)
+
 // Offline outbox: operations awaiting delivery to the server.
 @Entity(tableName = "outbox")
 data class OutboxOp(

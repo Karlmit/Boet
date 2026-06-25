@@ -3,9 +3,12 @@ package se.jabba.boet.ui.voice
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 
 // Parse a spoken utterance into item names.
 // "Lägg till mjölk, ägg och bananer" -> ["mjölk","ägg","bananer"]
@@ -32,6 +35,10 @@ class VoiceRecognizer(private val context: Context) {
     private var stopped = false
     private var languageTag = "sv"
     private var callbacks: Callbacks? = null
+    private val main = Handler(Looper.getMainLooper())
+    // Force the offline model? Default false: forcing offline fails outright when the
+    // language's on-device model isn't installed (the "nothing happens" symptom).
+    private var preferOffline = false
 
     interface Callbacks {
         fun onPartial(text: String) {}
@@ -53,52 +60,82 @@ class VoiceRecognizer(private val context: Context) {
 
     private fun listen() {
         if (stopped) return
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            Log.w(TAG, "no recognition service available on this device")
+            callbacks?.onError(SpeechRecognizer.ERROR_CLIENT)
+            callbacks?.onEnd()
+            return
+        }
         val r = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer = r
         r.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
                 val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                Log.i(TAG, "onResults: '${text ?: ""}'")
                 if (!text.isNullOrBlank()) callbacks?.onResult(text)
-                next()
+                rearm(120)
             }
             override fun onPartialResults(partial: Bundle?) {
                 val text = partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!text.isNullOrBlank()) callbacks?.onPartial(text)
+                if (!text.isNullOrBlank()) { Log.i(TAG, "onPartial: '$text'"); callbacks?.onPartial(text) }
             }
             override fun onError(error: Int) {
-                // In continuous mode, no-match / timeout just means re-arm.
-                if (continuous && !stopped &&
-                    (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
-                    next()
-                } else {
-                    if (!continuous) callbacks?.onError(error)
-                    next()
-                }
+                Log.w(TAG, "onError: ${errorName(error)} (continuous=$continuous)")
+                // In continuous mode every error (no speech yet, timeout, busy) just
+                // means "re-arm and keep listening". A short delay avoids hammering the
+                // recognizer into ERROR_RECOGNIZER_BUSY.
+                if (!continuous) callbacks?.onError(error)
+                rearm(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 500 else 250)
             }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
+            override fun onReadyForSpeech(params: Bundle?) { Log.i(TAG, "onReadyForSpeech") }
+            override fun onBeginningOfSpeech() { Log.i(TAG, "onBeginningOfSpeech") }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
+            override fun onEndOfSpeech() { Log.i(TAG, "onEndOfSpeech") }
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (languageTag == "en") "en-US" else "sv-SE")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Only hint offline when explicitly requested; forcing it breaks recognition
+            // on devices that lack the language's offline pack.
+            if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
-        r.startListening(intent)
+        Log.i(TAG, "startListening lang=${if (languageTag == "en") "en-US" else "sv-SE"} offline=$preferOffline")
+        try {
+            r.startListening(intent)
+        } catch (t: Throwable) {
+            Log.e(TAG, "startListening threw", t)
+            rearm(400)
+        }
     }
 
-    // After each utterance: re-arm in continuous mode, otherwise finish.
-    private fun next() {
+    // Tear down the current recognizer and, in continuous mode, re-arm after a short
+    // delay (posted to the main thread). Otherwise signal the session is done.
+    private fun rearm(delayMs: Long) {
         recognizer?.destroy()
         recognizer = null
-        if (continuous && !stopped) listen() else callbacks?.onEnd()
+        if (continuous && !stopped) main.postDelayed({ listen() }, delayMs) else callbacks?.onEnd()
+    }
+
+    private fun errorName(code: Int): String = when (code) {
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "NETWORK_TIMEOUT"
+        SpeechRecognizer.ERROR_NETWORK -> "NETWORK"
+        SpeechRecognizer.ERROR_AUDIO -> "AUDIO"
+        SpeechRecognizer.ERROR_SERVER -> "SERVER"
+        SpeechRecognizer.ERROR_CLIENT -> "CLIENT"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "SPEECH_TIMEOUT"
+        SpeechRecognizer.ERROR_NO_MATCH -> "NO_MATCH"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "RECOGNIZER_BUSY"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "INSUFFICIENT_PERMISSIONS"
+        SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "LANGUAGE_NOT_SUPPORTED"
+        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "LANGUAGE_UNAVAILABLE"
+        else -> "ERROR_$code"
     }
 
     private fun stopInternal() {
+        main.removeCallbacksAndMessages(null)
         recognizer?.stopListening()
         recognizer?.destroy()
         recognizer = null
@@ -110,4 +147,6 @@ class VoiceRecognizer(private val context: Context) {
         stopInternal()
         callbacks?.onEnd()
     }
+
+    companion object { private const val TAG = "BoetVoice" }
 }

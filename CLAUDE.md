@@ -9,7 +9,19 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 ## How things are built / verified
 
 - Backend: Node + Express + ws + Postgres (`server/`), `docker compose up -d --build`, port **3020**. Verified end-to-end.
-- Android: Kotlin + Compose (`android/`). **Build & deploy via the "Windows Workstation" Opus connector** (Android Studio SDK at `%LOCALAPPDATA%\Android\Sdk`, JDK = Android Studio JBR) — this LXC has no JDK/Android SDK, so it cannot compile locally. A physical device is connected to the workstation over `adb`; deploy by installing the built APK onto that device with `adb install -r`. Pattern: `opus connector put` changed files → `gradlew.bat assembleDebug` → `adb install -r` (to the connected device) → drive/verify with `adb shell input` + `screencap`.
+- Android: Kotlin + Compose (`android/`). **This LXC can now BUILD the APK locally** — far faster than the connector. The connector is only needed for `adb install` + on-device verification (the physical phone is plugged into the workstation, not this LXC).
+  - **Local build (preferred):** toolchain is installed in this workspace — JDK 17 (`/usr/lib/jvm/java-17-openjdk-amd64`, apt `openjdk-17-jdk-headless`) and the Android SDK at `/root/android-sdk` (cmdline-tools 12.0, `platforms;android-34`, `build-tools;34.0.0`, `platform-tools`, licenses accepted). `android/local.properties` has `sdk.dir=/root/android-sdk`. To build:
+    ```bash
+    cd /workspace/Boet/android
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ANDROID_HOME=/root/android-sdk
+    ./gradlew assembleDebug --no-daemon   # ~1.5 min; APK → app/build/outputs/apk/debug/app-debug.apk
+    ```
+    Toolchain note: ML Kit GenAI (`genai-prompt`/`genai-common` betas) ship **Kotlin 2.2.0** metadata, so the project is on **Kotlin 2.2.0** + **KSP2** (`ksp.useKSP2=true` in `gradle.properties`) + **Room 2.7.2** (KSP1/Room 2.6.1 fail on Kotlin 2.2). compileSdk 34 is fine. `local.properties` is git-ignored.
+  - **Deploy to the device via the "Windows Workstation" connector.** Connected device = **Kalle's OnePlus 15** (`adb` model `CPH2747`, serial `3B161H00NNQ00000`); Klara has a Samsung S24. Workstation staging dir `C:\BoetBuild\` (space-free — Gradle dislikes the `OneDrive - KWA` path). Deploy the locally-built APK:
+    1. `opus connector put app/build/outputs/apk/debug/app-debug.apk "Windows Workstation:C:/BoetBuild/app-debug.apk"`
+    2. `opus connector run "Windows Workstation" -- cmd "adb install -r C:\BoetBuild\app-debug.apk"`
+    3. Drive/verify with `adb shell input` + `screencap`; check the on-device LLM probe with `adb logcat -s BoetLLM` (`status=AVAILABLE/DOWNLOADABLE/UNAVAILABLE` — tells us if Gemini Nano runs on the OnePlus 15).
+  - The workstation also has Android Studio's own SDK at `C:\Users\KarlAlmqvist\AppData\Local\Android\Sdk` if a Windows build is ever needed (build there in `C:\BoetBuild\android`, write `local.properties` pointing at it). PowerShell over the connector: pass scripts via `--shell powershell --stdin`; inline `$var` in `opus connector run -- powershell "…"` gets eaten by the local workspace shell. `OneDrive - KWA\Bilder\Apps\Boet` holds only logo art, not code.
 - Default app server is `https://boet.jabba.se`; for on-device testing against this workspace, temporarily set `Prefs.DEFAULT_SERVER` to the LAN IP (revert before commit).
 
 ## Known design-fidelity gaps vs `.planning/Design/`
@@ -19,8 +31,10 @@ cards** (hairline dividers, leading icons, collapse chevrons), per-item **drag
 handles** (long-press reorder within a category), the **banner** (raised title +
 shopping presence beneath), header-band bg image, full-screen Shopping Mode bg,
 collapsible Klara section, and the **background-settings live preview**. Still off:
-- ⬜ Prominent full-width **"Lägg till med röst"** pill button (currently a mic icon)
-- ⬜ Drag to move an item **between** categories (reorder is within-category only)
+- ✅ Prominent full-width **"Lägg till med röst"** pill button (opens the full-screen
+  continuous voice session `ui/voice/VoiceSessionSheet`: live transcription + running added-list)
+- ✅ Move an item **between** categories — via the `ItemEditSheet` category-chip picker
+  (drag-between-categories still not a gesture; reorder is within-category only)
 - 🟡 DropdownMenu surface is the default lavender (theme it WarmWhite)
 - 🟡 Final density/spacing polish pass
 
@@ -52,13 +66,21 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ✅ 9 default categories, each with a glanceable icon
 - ✅ Add / rename / remove / reorder categories
 - ✅ Compact grouped cards; collapse/expand per category (expanded by default)
-- ✅ Manual item reorder via per-item drag handle (within a category)
+- ✅ Manual item reorder via per-item drag handle (within a category) — **immediate
+  drag** from a 44dp grab target (no long-press wait) with a haptic on grab
 
 ### Intelligent sorting
 - ✅ Auto-assign items to categories
 - ✅ Learning: manual move saved per-household, overrides KB for all devices
 - ✅ Backend shared knowledge base
-- ⬜ **On-device AI** categorization (only deterministic KB + server fallback today)
+- ✅ **On-device AI** categorization — hybrid `CategoryEngine` (learned mapping → Kotlin
+  keyword KB → on-device LLM → Övrigt). LLM = **Gemini Nano via ML Kit GenAI Prompt API**
+  (`se.jabba.boet.ai.MlKitClassifier`), runs only for items the KB can't place. Learned
+  mappings sync to the device via bootstrap (Room `learned_categories`); adds categorize
+  instantly/offline then upgrade via the LLM in the background; **Sortera** re-sorts on-device.
+  Verified on the OnePlus 15 (logcat `BoetLLM status=AVAILABLE`; "saffran" → Torrvaror).
+- ✅ Manual category change: chip picker in `ItemEditSheet` → `moveItem` → PATCH → server
+  `learnCategory` (auto-moves pass `autosort:true` to skip learning) → syncs household-wide.
 
 ### Custom sorting rules (non-grocery lists)
 - 🟡 Natural-language prompt → generated categories at list creation (deterministic)
@@ -69,9 +91,12 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ⬜ Detect repeated reorders and **suggest** updating the store layout
 
 ### Shopping Mode
-- ✅ Dark theme, oversized type, large targets, keep-screen-awake, full-screen bg image
-- ✅ Quick check, collapsed empty categories, "Dölj klara" toggle, remaining counter
-- ✅ Completed section (10 most recent) separate from active items
+- ✅ Dark theme, **compact** type (~20% smaller), large targets, keep-screen-awake, full-screen bg image
+- ✅ **Pocket detection** — proximity wake lock turns the screen off when covered (like a phone call)
+- ✅ Purposeful tap feedback (emil): whole-row press-dip + haptic; animated check pop
+- ✅ Checked items stay **in place** (struck-through + dimmed); "Dölj klara" hides them
+  into the separate Klara list, and the toggle is **remembered** (Prefs)
+- ✅ Quick check, collapsed empty categories, remaining counter
 - ⬜ Fast **jump navigation** between categories
 
 ### Completed / "Klara" items
@@ -83,7 +108,10 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ✅ Real-time sync <1s over WebSocket (verified two-way)
 
 ### Push notifications
-- 🟡 FCM wired (server sends on item-add via firebase-admin; needs real `google-services.json` + service account)
+- 🟡 FCM wired; server now sends on **item-add**, **item-checked** (PATCH), and
+  **shopping-for-60s** (hub presence timer, once/hour per shopper). Delivery still
+  needs a real `google-services.json` + FCM service account (`FCM_SERVICE_ACCOUNT`).
+- ✅ In-app "User is shopping" presence line under the list title (banner)
 - ⬜ Only notify when the other user is **inactive**
 - 🟡 Configurable: Settings toggle exists but does not yet gate server sends
 
@@ -123,7 +151,11 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)
-- ✅ Swipe-left-to-delete (position-based, animated)
+- ✅ Swipe-left-to-delete (position-based, animated) — now **wired on the main list**
+  rows; deliberate drag past halfway commits, a flick springs back
+- ✅ Shopping Mode entry moved to a pill in the **top banner** (under the sync chip);
+  the bottom bar is now just the **voice pill** (with a tap ripple, emil) + add field.
+  The standalone **Sortera** button was removed (sorting is automatic on add)
 - ✅ Add bar lifts above the keyboard (imePadding)
 - ✅ Self-healing sync: flush-then-pull + reconcile; server returns 404 (not 500)
   for items on a missing list so the outbox drains

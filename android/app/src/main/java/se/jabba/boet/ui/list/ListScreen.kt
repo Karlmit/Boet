@@ -4,19 +4,24 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +39,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
@@ -54,8 +61,7 @@ import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.remote.ConnState
 import se.jabba.boet.ui.common.*
 import se.jabba.boet.ui.theme.*
-import se.jabba.boet.ui.voice.VoiceRecognizer
-import se.jabba.boet.ui.voice.parseSpokenItems
+import se.jabba.boet.ui.voice.VoiceSessionSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,6 +89,7 @@ fun ListScreen(
     val allLists by repo.activeLists().collectAsState(initial = emptyList())
 
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
+    var voiceOpen by remember { mutableStateOf(false) }
     var favoritesOpen by remember { mutableStateOf(false) }
     val favorites by vm.favorites.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
@@ -158,6 +165,7 @@ fun ListScreen(
                         overlay = state.list?.bgOverlay ?: 0,
                         conn = conn,
                         pending = pending,
+                        onShopping = onOpenShopping,
                     )
                 }
             }
@@ -166,9 +174,7 @@ fun ListScreen(
             AddBar(
                 language = language,
                 onAdd = vm::addItems,
-                onSpoken = vm::addSpokenItems,
-                onShopping = onOpenShopping,
-                onAutoSort = { vm.autoSort() },
+                onOpenVoice = { voiceOpen = true },
                 onShowFavorites = { favoritesOpen = true; vm.loadFavorites() },
             )
         },
@@ -190,6 +196,7 @@ fun ListScreen(
                         onToggleExpanded = { collapsed[key] = expanded },
                         onItemToggle = { vm.toggle(it) },
                         onItemClick = { editing = it },
+                        onItemDelete = { vm.delete(it) },
                         onReorder = { vm.reorderItems(it) },
                     )
                 }
@@ -225,6 +232,15 @@ fun ListScreen(
     }
     } // ModalNavigationDrawer
 
+    if (voiceOpen) {
+        VoiceSessionSheet(
+            language = language,
+            clean = { transcript -> vm.cleanSpoken(transcript) },
+            onConfirm = { items -> vm.addVoiceItems(items) },
+            onDismiss = { voiceOpen = false },
+        )
+    }
+
     if (favoritesOpen) {
         FavoritesSheet(
             ui = favorites,
@@ -236,9 +252,11 @@ fun ListScreen(
     editing?.let { item ->
         ItemEditSheet(
             item = item,
+            categories = state.categories,
             onDismiss = { editing = null },
             onSave = { name, qty, note -> vm.edit(item, name, qty, note) },
             onQuantityChange = { vm.setQuantity(item, it) },
+            onMove = { vm.move(item, it) },
             onDelete = { vm.delete(item); editing = null },
             onFavorite = { vm.toggleFavorite(item) },
         )
@@ -382,6 +400,7 @@ private fun ListHeaderBand(
     overlay: Int,
     conn: ConnState,
     pending: Int,
+    onShopping: () -> Unit,
 ) {
     val hasImage = bgImageUrl != null
     Box(
@@ -401,13 +420,52 @@ private fun ListHeaderBand(
             )
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
         }
-        Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) { SyncChip(conn, pending) }
+        // Top-right stack: the sync pill, with the Shopping entry point right beneath
+        // it (moved here off the add bar so the bottom stays focused on adding).
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(10.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            SyncChip(conn, pending)
+            Spacer(Modifier.height(8.dp))
+            BannerShoppingButton(onClick = onShopping)
+        }
         // Title raised toward the top so the presence line sits beneath it.
         Column(Modifier.align(Alignment.CenterStart).padding(start = 18.dp, end = 16.dp)) {
             Text(listName, style = BoetType.headline, color = if (hasImage) WarmWhite else Charcoal)
             if (presence != null) {
                 Text(presence, style = BoetType.body, color = if (hasImage) Stone else MossDeep)
             }
+        }
+    }
+}
+
+// Compact "Handla" pill that lives in the top banner under the sync chip. Scales
+// down on press (emilkowalski) so the entry into Shopping Mode feels responsive.
+@Composable
+private fun BannerShoppingButton(onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, spring(stiffness = Spring.StiffnessHigh), label = "pressShop")
+    Surface(
+        color = MossDeep,
+        shape = RoundedCornerShape(999.dp),
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interaction, indication = null) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+        ) {
+            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = WarmWhite, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.shopping_mode), style = BoetType.title, color = WarmWhite)
         }
     }
 }
@@ -440,8 +498,10 @@ private fun CategoryGroup(
     onToggleExpanded: () -> Unit,
     onItemToggle: (ItemEntity) -> Unit,
     onItemClick: (ItemEntity) -> Unit,
+    onItemDelete: (ItemEntity) -> Unit,
     onReorder: (List<String>) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     Column(Modifier.padding(top = 10.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -480,20 +540,25 @@ private fun CategoryGroup(
                             .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
                             .onSizeChanged { rowHeights[item.id] = it.height },
                     ) {
+                      SwipeToDeleteRow(onDelete = { onItemDelete(item) }) {
                         CompactItemRow(
                             item = item,
                             onToggle = { onItemToggle(item) },
                             onClick = { onItemClick(item) },
                             dragHandle = {
-                                Icon(
-                                    Icons.Default.DragHandle,
-                                    contentDescription = "Sortera",
-                                    tint = if (isDragging) MossDeep else CharcoalMuted,
+                                // Big, immediate grab target: drag starts the moment
+                                // you move the handle (no long-press wait), with a
+                                // haptic tick on grab so it's easy and obvious to sort.
+                                Box(
+                                    contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(24.dp)
+                                        .size(44.dp)
                                         .pointerInput(item.id) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = { draggingId = item.id; dragOffset = 0f },
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    draggingId = item.id; dragOffset = 0f
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                },
                                                 onDragEnd = { draggingId = null; dragOffset = 0f; onReorder(order.map { it.id }) },
                                                 onDragCancel = { draggingId = null; dragOffset = 0f },
                                                 onDrag = { change, drag ->
@@ -513,9 +578,17 @@ private fun CategoryGroup(
                                                 },
                                             )
                                         },
-                                )
+                                ) {
+                                    Icon(
+                                        Icons.Default.DragHandle,
+                                        contentDescription = "Sortera",
+                                        tint = if (isDragging) MossDeep else CharcoalMuted,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                }
                             },
                         )
+                      }
                     }
                 }
             }
@@ -634,20 +707,50 @@ fun ItemRow(item: ItemEntity, onToggle: () -> Unit, onClick: () -> Unit, large: 
     }
 }
 
+// Checkbox with deliberate, satisfying feedback (emilkowalski): it scales down on
+// press so it feels heard, the fill springs in with a subtle pop when it flips on,
+// the checkmark scales/fades in (never from scale 0), and a haptic confirms the tap.
 @Composable
 fun BoetCheckbox(checked: Boolean, onToggle: () -> Unit, large: Boolean = false) {
-    val size = if (large) 36 else 24
-    Surface(
-        color = if (checked) Moss else androidx.compose.ui.graphics.Color.Transparent,
-        shape = RoundedCornerShape(8.dp),
-        border = if (checked) null else androidx.compose.foundation.BorderStroke(2.dp, Stone),
-        modifier = Modifier.size(size.dp).clickable(onClick = onToggle),
+    val size = if (large) 34 else 26
+    val haptic = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+
+    val pressScale by animateFloatAsState(
+        if (pressed) 0.86f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessHigh), label = "press",
+    )
+    // Overshoots past 1 then settles — the "pop" that makes checking feel purposeful.
+    val checkScale by animateFloatAsState(
+        if (checked) 1f else 0.8f,
+        animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow), label = "check",
+    )
+    val fill by animateColorAsState(if (checked) Moss else Color.Transparent, tween(160), label = "fill")
+    val borderColor by animateColorAsState(if (checked) Moss else Stone, tween(160), label = "border")
+
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+            .clip(RoundedCornerShape(8.dp))
+            .background(fill)
+            .border(BorderStroke(2.dp, borderColor), RoundedCornerShape(8.dp))
+            .clickable(interactionSource = interaction, indication = null) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onToggle()
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        if (checked) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = WarmWhite, modifier = Modifier.size((size - 8).dp))
-            }
-        }
+        Icon(
+            Icons.Default.Check, contentDescription = null, tint = WarmWhite,
+            modifier = Modifier
+                .size((size - 8).dp)
+                .graphicsLayer {
+                    alpha = ((checkScale - 0.8f) / 0.2f).coerceIn(0f, 1f)
+                    scaleX = checkScale; scaleY = checkScale
+                },
+        )
     }
 }
 
