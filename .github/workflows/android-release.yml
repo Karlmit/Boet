@@ -1,0 +1,100 @@
+name: Build & release Android APK
+
+# Builds the signed, debuggable APK and publishes a GitHub Release that the
+# in-app updater (update/UpdateChecker) reads. Runs on a version bump (a push
+# that touches android/app/build.gradle.kts) or manually. The release is created
+# only when a release for the current versionName doesn't already exist, so
+# re-runs/dispatches just rebuild + verify without duplicating a release.
+#
+# Requires repo secrets (set once): KEYSTORE_BASE64 (base64 of boet-release.jks),
+# KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD. See CLAUDE.md "Releasing the app".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/app/build.gradle.kts"
+      - ".github/workflows/android-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Read version from build.gradle.kts
+        id: ver
+        run: |
+          V=$(grep -E 'versionName *=' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=app-v$V" >> "$GITHUB_OUTPUT"
+          echo "Building version $V (tag app-v$V)"
+
+      - name: Restore keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/boet-release.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=boet-release.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Wipe signing material
+        if: always()
+        run: rm -f android/boet-release.jks android/keystore.properties
+
+      - name: Stage APK as boet-<version>.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "boet-${{ steps.ver.outputs.version }}.apk"
+
+      - name: Verify signature (must be the release cert)
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "boet-${{ steps.ver.outputs.version }}.apk" | grep "SHA-256"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boet-${{ steps.ver.outputs.version }}
+          path: boet-${{ steps.ver.outputs.version }}.apk
+
+      - name: Check whether the release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.ver.outputs.tag }} already exists — skipping publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" "boet-${{ steps.ver.outputs.version }}.apk" \
+            -R "$GITHUB_REPOSITORY" \
+            --title "Boet ${{ steps.ver.outputs.version }}" \
+            --notes "Automated release of ${{ steps.ver.outputs.version }}. Download boet-${{ steps.ver.outputs.version }}.apk below; the app updates itself from here."
