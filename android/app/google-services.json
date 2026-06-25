@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "boet-placeholder",
-    "storage_bucket": "boet-placeholder.appspot.com"
+    "project_number": "741966865445",
+    "project_id": "boet-66de7",
+    "storage_bucket": "boet-66de7.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:741966865445:android:53e1f70d11881c6a648bcc",
         "android_client_info": {
           "package_name": "se.jabba.boet"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDPlaceholderPlaceholderPlaceholder0000"
+          "current_key": "AIzaSyALN_PlFEKuP9IGk5yLQ_qR4m9eIdfaYmM"
         }
       ],
       "services": {

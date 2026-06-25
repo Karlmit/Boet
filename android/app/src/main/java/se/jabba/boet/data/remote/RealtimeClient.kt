@@ -23,6 +23,11 @@ class RealtimeClient(
     private val baseUrlProvider: () -> String,
     private val onChange: (ChangeEvent) -> Unit,
     private val onPresence: (List<PresenceMember>) -> Unit,
+    // Fired when the socket re-establishes after a drop (not the first connect of a
+    // session). The live stream only carries deltas while connected, so anything the
+    // other member changed during the gap was never delivered — the listener should
+    // re-pull a full snapshot to resync.
+    private val onReconnect: () -> Unit = {},
 ) {
     private val client = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
@@ -33,6 +38,13 @@ class RealtimeClient(
     private var memberName: String? = null
     private var closed = false
     private var backoffMs = 1000L
+    // True once this connect() session has opened at least once, so we can tell a
+    // genuine reconnect from the initial open.
+    private var everConnected = false
+    // Last presence we announced, replayed on every (re)open since the server drops
+    // a member's presence the instant their socket closes.
+    private var lastStatus: String? = null
+    private var lastListId: String? = null
 
     private val _state = MutableStateFlow(ConnState.OFFLINE)
     val state: StateFlow<ConnState> = _state
@@ -41,6 +53,7 @@ class RealtimeClient(
         this.memberId = memberId
         this.memberName = memberName
         closed = false
+        everConnected = false
         open()
     }
 
@@ -59,6 +72,12 @@ class RealtimeClient(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 backoffMs = 1000L
                 _state.value = ConnState.CONNECTED
+                // Re-announce presence so the server (which dropped it on disconnect)
+                // shows us as active again and the shopping/60s-notify timers resume.
+                if (lastStatus != null) sendPresence(lastStatus!!, lastListId)
+                // On a genuine reconnect, pull a fresh snapshot to recover anything
+                // the live stream missed while we were offline.
+                if (everConnected) onReconnect() else everConnected = true
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) = handle(text)
@@ -106,6 +125,8 @@ class RealtimeClient(
     }
 
     fun sendPresence(status: String, listId: String?) {
+        lastStatus = status
+        lastListId = listId
         val payload = buildString {
             append("{\"type\":\"presence\",\"status\":\"$status\"")
             append(",\"name\":\"${memberName}\"")

@@ -65,6 +65,10 @@ class Repository(
         baseUrlProvider = baseUrlProvider,
         onChange = ::applyChange,
         onPresence = { _presence.value = it },
+        // After a dropped socket reconnects, re-pull a full snapshot so changes the
+        // other member made during the gap (never delivered over the live stream)
+        // are reconciled instead of waiting for the next app restart.
+        onReconnect = { scope.launch { bootstrap() } },
     )
 
     // Reads -----------------------------------------------------------------
