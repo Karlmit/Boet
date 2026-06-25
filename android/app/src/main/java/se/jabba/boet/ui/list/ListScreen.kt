@@ -18,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -100,6 +102,7 @@ fun ListScreen(
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     // Mark presence as "viewing" while this screen is composed.
     LaunchedEffect(listId) {
@@ -189,7 +192,14 @@ fun ListScreen(
             )
         },
     ) { padding ->
-      Box(Modifier.fillMaxSize().padding(padding)) {
+      Box(
+        Modifier
+            .fillMaxSize()
+            .padding(padding)
+            // Tapping anywhere off the text field deselects it (and dismisses the
+            // keyboard), which brings the mic button back.
+            .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) },
+      ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -431,14 +441,25 @@ private fun ListHeaderBand(
             )
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
         }
-        // Top-right stack: the sync pill, with the Shopping entry point right beneath
-        // it (moved here off the add bar so the bottom stays focused on adding).
+        // Top-right stack: the Shopping entry point, with the sync pill above it — but
+        // the pill only surfaces once we've been out of sync for >5s. We're almost
+        // always synced, so showing "Synkad" all the time is just noise.
+        val synced = conn == ConnState.CONNECTED && pending == 0
+        var showSync by remember { mutableStateOf(false) }
+        LaunchedEffect(synced) {
+            if (synced) showSync = false
+            else { delay(5000); showSync = true }   // effect cancels if we resync first
+        }
         Column(
             Modifier.align(Alignment.TopEnd).padding(10.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            SyncChip(conn, pending)
-            Spacer(Modifier.height(8.dp))
+            AnimatedVisibility(visible = showSync) {
+                Column(horizontalAlignment = Alignment.End) {
+                    SyncChip(conn, pending)
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
             BannerShoppingButton(onClick = onShopping)
         }
         // Title raised toward the top so the presence line sits beneath it.

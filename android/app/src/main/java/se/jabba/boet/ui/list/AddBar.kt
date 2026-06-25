@@ -14,6 +14,9 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +30,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -37,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import se.jabba.boet.R
 import se.jabba.boet.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddBar(
     language: String,
@@ -46,7 +48,9 @@ fun AddBar(
     onShowFavorites: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
-    var focused by remember { mutableStateOf(false) }
+    // Drive the mic off the keyboard, not focus: dismissing the keyboard (incl. the
+    // back button, which leaves the field focused) brings the mic straight back.
+    val keyboardUp = WindowInsets.isImeVisible
 
     // Voice needs RECORD_AUDIO; request it, then open the full-screen session.
     val micPermission = rememberLauncherForActivityResult(
@@ -79,13 +83,11 @@ fun AddBar(
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { focused = it.isFocused },
+                modifier = Modifier.weight(1f),
             )
-            // Mic sits just left of the add button; hidden while typing.
+            // Mic sits just left of the add button; hidden while the keyboard is up.
             AnimatedVisibility(
-                visible = !focused,
+                visible = !keyboardUp,
                 enter = expandHorizontally() + fadeIn(),
                 exit = shrinkHorizontally() + fadeOut(),
             ) {
