@@ -80,7 +80,7 @@ items.patch('/items/:id', async (req, res) => {
   const body = req.body || {};
   const map = {
     name: 'name', quantity: 'quantity', note: 'note', checked: 'checked',
-    favorite: 'favorite', categoryId: 'category_id', position: 'position',
+    categoryId: 'category_id', position: 'position',
   };
   const sets = [];
   const vals = [];

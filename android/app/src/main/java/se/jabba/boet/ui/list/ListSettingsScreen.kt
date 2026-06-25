@@ -5,7 +5,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Image
@@ -71,7 +73,14 @@ fun ListSettingsScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(16.dp),
+        ) {
             // Live preview — reflects the current blur + overlay so you see the effect.
             Surface(shape = RoundedCornerShape(18.dp), color = Leaf, modifier = Modifier.fillMaxWidth().height(150.dp)) {
                 Box(Modifier.fillMaxSize()) {

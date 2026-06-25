@@ -197,8 +197,17 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ✅ Never auto-removes
 
 ### Favorites
-- ✅ Mark item as favorite
-- ⬜ Quick-add favorites UI / `GET /api/favorites` not surfaced
+- ✅ Favorites are a **standalone, server-synced catalogue** (`favorites` table,
+  household-scoped) — **decoupled from list items**. Deleting an item from a list
+  never removes the favorite. The favorite id is the normalized name (lower/trim)
+  so adds are idempotent across devices; `category_name` is stored (not id) since
+  favorites are household-wide while categories are per-list.
+- ✅ Star/unstar an item adds/removes the favorite by name (`POST/DELETE
+  /api/favorites`); a list item shows the star when a favorite with its name exists.
+- ✅ Real-time sync: create/delete broadcast over WebSocket (`entity:"favorite"`)
+  and included in `/api/bootstrap`; Android mirrors them in Room (`FavoriteEntity`),
+  so the quick-add sheet stays live. One-time backfill migrates legacy starred items.
+- ✅ Quick-add favorites sheet (grouped by category), opens from the empty + on the add bar.
 
 ### Purchase history
 - 🟡 Backend `GET /api/history` + repo call exist; ⬜ no UI to view / re-add frequent items

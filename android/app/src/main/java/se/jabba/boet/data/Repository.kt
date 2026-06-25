@@ -33,6 +33,7 @@ class Repository(
     private val listDao = db.listDao()
     private val categoryDao = db.categoryDao()
     private val itemDao = db.itemDao()
+    private val favoriteDao = db.favoriteDao()
     private val learnedDao = db.learnedDao()
     private val outboxDao = db.outboxDao()
     private val flushMutex = Mutex()
@@ -72,6 +73,7 @@ class Repository(
     fun listById(id: String) = listDao.listById(id)
     fun categories(listId: String) = categoryDao.categoriesForList(listId)
     fun items(listId: String) = itemDao.itemsForList(listId)
+    fun favorites() = favoriteDao.favorites()
     fun pendingCount() = outboxDao.count()
 
     suspend fun firstListId(): String? = withContext(Dispatchers.IO) { listDao.anyListId() }
@@ -87,6 +89,7 @@ class Repository(
             listDao.upsertAll(data.lists.map { it.toEntity() })
             categoryDao.upsertAll(data.categories.map { it.toEntity() })
             itemDao.upsertAll(data.items.map { it.toEntity() })
+            favoriteDao.upsertAll(data.favorites.map { it.toEntity() })
 
             // Refresh the on-device learned-mappings mirror (small table; replace wholesale).
             learnedDao.deleteAll()
@@ -99,6 +102,8 @@ class Repository(
             if (catIds.isEmpty()) categoryDao.deleteAll() else categoryDao.deleteNotIn(catIds)
             val itemIds = data.items.map { it.id }
             if (itemIds.isEmpty()) itemDao.deleteAll() else itemDao.deleteNotIn(itemIds)
+            val favIds = data.favorites.map { it.id }
+            if (favIds.isEmpty()) favoriteDao.deleteAll() else favoriteDao.deleteNotIn(favIds)
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
     }
 
@@ -198,8 +203,34 @@ class Repository(
     }
 
     suspend fun toggleChecked(item: ItemEntity) = patchItem(item.copy(checked = !item.checked), mapOf("checked" to !item.checked))
-    suspend fun toggleFavorite(item: ItemEntity) = patchItem(item.copy(favorite = !item.favorite), mapOf("favorite" to !item.favorite))
     suspend fun setQuantity(item: ItemEntity, quantity: String?) = patchItem(item.copy(quantity = quantity), mapOf("quantity" to quantity))
+
+    // Favorites are a standalone, server-synced catalogue — independent of any list
+    // item, so deleting an item never removes the favorite. The id is the normalized
+    // name (must match the server's favKey) so adds are idempotent across devices.
+    private fun favKey(name: String) = name.trim().lowercase()
+    // URL-encode a favorite id (a name, may contain spaces/diacritics) for the DELETE
+    // path; '+' -> '%20' so Express decodes it back to the original spaces.
+    private fun encPath(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
+    // Toggle a favorite from an item's star: on if absent, off if present. Stores the
+    // item's category name so the quick-add sheet can group it without a list context.
+    suspend fun toggleFavorite(name: String, categoryName: String?) = withContext(Dispatchers.IO) {
+        if (favoriteDao.byId(favKey(name)) != null) removeFavorite(name) else addFavorite(name, categoryName)
+    }
+
+    suspend fun addFavorite(name: String, categoryName: String?) = withContext(Dispatchers.IO) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withContext
+        favoriteDao.upsert(FavoriteEntity(id = favKey(trimmed), name = trimmed, categoryName = categoryName))
+        enqueue("POST", "/api/favorites", buildJson(mapOf("name" to trimmed, "categoryName" to categoryName)))
+    }
+
+    suspend fun removeFavorite(name: String) = withContext(Dispatchers.IO) {
+        val id = favKey(name)
+        favoriteDao.delete(id)
+        enqueue("DELETE", "/api/favorites/${encPath(id)}", null)
+    }
 
     suspend fun editItem(item: ItemEntity, name: String, quantity: String?, note: String?) =
         patchItem(item.copy(name = name, quantity = quantity, note = note),
@@ -309,21 +340,6 @@ class Repository(
         runCatching { api.history() }.getOrDefault(emptyList())
     }
 
-    // Favorited items across all lists (deduped by name). Prefers the server,
-    // which dedupes and orders for us; falls back to the local Room mirror when
-    // offline so the favorites quick-add still works without a connection.
-    suspend fun favorites(): List<ItemDto> = withContext(Dispatchers.IO) {
-        val remote = runCatching { api.favorites() }.getOrNull()
-        if (!remote.isNullOrEmpty()) return@withContext remote
-        itemDao.favorites()
-            .distinctBy { it.name.lowercase() }
-            .map { ItemDto(id = it.id, listId = it.listId, categoryId = it.categoryId, name = it.name, quantity = it.quantity, favorite = true) }
-    }
-
-    // All categories across every list — used to resolve a favorite's category
-    // name (a favorite may originate from a different list than the current one).
-    suspend fun allCategories(): List<CategoryEntity> = withContext(Dispatchers.IO) { categoryDao.all() }
-
     // Outbox ----------------------------------------------------------------
     private suspend fun enqueue(method: String, path: String, body: String?) {
         outboxDao.enqueue(OutboxOp(method = method, path = path, body = body))
@@ -362,6 +378,10 @@ class Repository(
                 "category" -> when (ev.event) {
                     "create", "update" -> runCatching { categoryDao.upsert(api.json.decodeFromString(CategoryDto.serializer(), ev.data.toString()).toEntity()) }
                     "delete" -> ev.data.str("id")?.let { categoryDao.delete(it) }
+                }
+                "favorite" -> when (ev.event) {
+                    "create", "update" -> runCatching { favoriteDao.upsert(api.json.decodeFromString(FavoriteDto.serializer(), ev.data.toString()).toEntity()) }
+                    "delete" -> ev.data.str("id")?.let { favoriteDao.delete(it) }
                 }
             }
         }

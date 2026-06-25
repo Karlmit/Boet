@@ -8,14 +8,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import se.jabba.boet.ai.VoiceItem
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.CategoryEntity
+import se.jabba.boet.data.local.FavoriteEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.local.ListEntity
-import se.jabba.boet.data.remote.ItemDto
 
 data class CategorySection(
     val id: String?,
@@ -36,7 +37,7 @@ data class ListUiState(
 )
 
 // One category's worth of favorites in the quick-add sheet.
-data class FavoriteSection(val category: String, val items: List<ItemDto>)
+data class FavoriteSection(val category: String, val items: List<FavoriteEntity>)
 
 data class FavoritesUiState(
     val loading: Boolean = false,
@@ -107,27 +108,28 @@ class ListViewModel(
     }
 
     // Favorites quick-add sheet -------------------------------------------
-    private val _favorites = MutableStateFlow(FavoritesUiState())
-    val favorites: StateFlow<FavoritesUiState> = _favorites
-
-    // Fetch favorites and group them by category name, sorted alphabetically.
-    fun loadFavorites() {
-        _favorites.value = _favorites.value.copy(loading = true)
-        viewModelScope.launch {
-            val favs = repo.favorites()
-            val catNames = repo.allCategories().associate { it.id to it.name }
+    // Server-synced and standalone: backed by the Room favorites mirror (kept fresh
+    // via bootstrap + WebSocket), grouped by their stored category name. Live, so a
+    // change on the other device updates the open sheet.
+    val favorites: StateFlow<FavoritesUiState> = repo.favorites()
+        .map { favs ->
             val sections = favs
-                .groupBy { catNames[it.categoryId] ?: FAVORITES_FALLBACK_CATEGORY }
+                .groupBy { it.categoryName?.ifBlank { null } ?: FAVORITES_FALLBACK_CATEGORY }
                 .toList()
                 .sortedBy { it.first.lowercase() }
                 .map { (cat, items) -> FavoriteSection(cat, items.sortedBy { it.name.lowercase() }) }
-            _favorites.value = FavoritesUiState(loading = false, sections = sections)
+            FavoritesUiState(loading = false, sections = sections)
         }
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FavoritesUiState())
+
+    // Lowercased favorite-name keys, for showing the star on matching list items.
+    val favoriteKeys: StateFlow<Set<String>> = repo.favorites()
+        .map { favs -> favs.map { it.id }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // Add a favorite to the current list. A favorite is just the item name; if it's
     // already on the list, its quantity is bumped by 1 rather than duplicated.
-    fun addFavorite(fav: ItemDto) = viewModelScope.launch {
+    fun addFavorite(fav: FavoriteEntity) = viewModelScope.launch {
         repo.addOrIncrementFavorite(listId, fav.name)
     }
 
@@ -151,7 +153,12 @@ class ListViewModel(
     }
 
     fun toggle(item: ItemEntity) = viewModelScope.launch { repo.toggleChecked(item) }
-    fun toggleFavorite(item: ItemEntity) = viewModelScope.launch { repo.toggleFavorite(item) }
+    // Star/unstar: adds or removes a standalone favorite keyed by the item's name,
+    // carrying its current category so the quick-add sheet can group it.
+    fun toggleFavorite(item: ItemEntity) = viewModelScope.launch {
+        val categoryName = state.value.categories.firstOrNull { it.id == item.categoryId }?.name
+        repo.toggleFavorite(item.name, categoryName)
+    }
     // Live quantity update from the edit sheet; the sheet composes the freeform
     // string ("2", "1 kg", or null for a plain count of 1 / no badge).
     fun setQuantity(item: ItemEntity, quantity: String?) = viewModelScope.launch {

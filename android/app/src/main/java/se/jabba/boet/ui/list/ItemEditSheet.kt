@@ -37,6 +37,7 @@ import se.jabba.boet.ui.theme.*
 fun ItemEditSheet(
     item: ItemEntity,
     categories: List<CategoryEntity>,
+    isFavorite: Boolean,
     onDismiss: () -> Unit,
     onSave: (String, String?, String?) -> Unit,
     onQuantityChange: (String?) -> Unit,
@@ -54,7 +55,7 @@ fun ItemEditSheet(
     var qtyUnit by remember { mutableStateOf(initialAmount.unit) }
     var qtyText by remember { mutableStateOf(formatNumber(initialAmount.value)) }
     var note by remember { mutableStateOf(item.note ?: "") }
-    var fav by remember { mutableStateOf(item.favorite) }
+    var fav by remember { mutableStateOf(isFavorite) }
     // Selected category persists immediately on tap (autosave), so a correction
     // syncs to the other device and teaches the household KB right away.
     var categoryId by remember { mutableStateOf(item.categoryId) }

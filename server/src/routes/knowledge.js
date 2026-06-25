@@ -3,19 +3,20 @@ import { query } from '../db.js';
 import { HOUSEHOLD_ID } from '../seed.js';
 import { guessCategory } from '../categorize.js';
 import { parseRecipe } from '../ai.js';
-import { itemRow, listRow, categoryRow } from '../serialize.js';
+import { itemRow, listRow, categoryRow, favoriteRow } from '../serialize.js';
 
 export const knowledge = Router();
 
 // Bootstrap: everything the app needs on launch.
 knowledge.get('/bootstrap', async (req, res) => {
-  const [house, members, lists, categories, items, learned] = await Promise.all([
+  const [house, members, lists, categories, items, learned, favorites] = await Promise.all([
     query(`SELECT * FROM households WHERE id=$1`, [HOUSEHOLD_ID]),
     query(`SELECT id, name FROM members WHERE household_id=$1 ORDER BY name`, [HOUSEHOLD_ID]),
     query(`SELECT * FROM lists WHERE household_id=$1 ORDER BY position, created_at`, [HOUSEHOLD_ID]),
     query(`SELECT c.* FROM categories c JOIN lists l ON l.id=c.list_id WHERE l.household_id=$1 ORDER BY c.position`, [HOUSEHOLD_ID]),
     query(`SELECT i.* FROM items i JOIN lists l ON l.id=i.list_id WHERE l.household_id=$1 ORDER BY i.position, i.created_at`, [HOUSEHOLD_ID]),
     query(`SELECT item_key, category_name FROM learned_categories WHERE household_id=$1`, [HOUSEHOLD_ID]),
+    query(`SELECT * FROM favorites WHERE household_id=$1 ORDER BY position, lower(name)`, [HOUSEHOLD_ID]),
   ]);
   res.json({
     household: house.rows[0] || null,
@@ -26,6 +27,8 @@ knowledge.get('/bootstrap', async (req, res) => {
     // Household learned mappings so the app can categorize offline and reflect
     // corrections made on the other device.
     learned: learned.rows.map((r) => ({ key: r.item_key, category: r.category_name })),
+    // Standalone favorites catalogue (server-synced; independent of list items).
+    favorites: favorites.rows.map(favoriteRow),
   });
 });
 
@@ -56,16 +59,8 @@ knowledge.get('/history', async (req, res) => {
   res.json(rows.map((r) => ({ key: r.item_key, name: r.name, count: r.count, lastAdded: r.last_added })));
 });
 
-// Favorites across all lists.
-knowledge.get('/favorites', async (req, res) => {
-  const { rows } = await query(
-    `SELECT DISTINCT ON (lower(name)) * FROM items i
-     WHERE i.list_id IN (SELECT id FROM lists WHERE household_id=$1) AND favorite=true
-     ORDER BY lower(name), updated_at DESC`,
-    [HOUSEHOLD_ID]
-  );
-  res.json(rows.map(itemRow));
-});
+// Favorites moved to routes/favorites.js — they are now a standalone catalogue,
+// no longer derived from starred list items.
 
 // Recipe -> suggested items (approval flow happens in the app; nothing is added here).
 // body: { text } -> { suggestions: [{name, quantity, category}] }

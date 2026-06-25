@@ -94,6 +94,7 @@ fun ListScreen(
     var voiceOpen by remember { mutableStateOf(false) }
     var favoritesOpen by remember { mutableStateOf(false) }
     val favorites by vm.favorites.collectAsState()
+    val favoriteKeys by vm.favoriteKeys.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
     var completedExpanded by remember { mutableStateOf(false) }
     // Manual drag-to-reorder is off by default; toggled from the ⋮ menu.
@@ -188,7 +189,7 @@ fun ListScreen(
                 language = language,
                 onAdd = vm::addItems,
                 onOpenVoice = { voiceOpen = true },
-                onShowFavorites = { favoritesOpen = true; vm.loadFavorites() },
+                onShowFavorites = { favoritesOpen = true },
             )
         },
     ) { padding ->
@@ -212,6 +213,7 @@ fun ListScreen(
                     CategoryGroup(
                         name = section.name,
                         items = section.items,
+                        favoriteKeys = favoriteKeys,
                         expanded = expanded,
                         reorderMode = reorderMode,
                         onToggleExpanded = { collapsed[key] = expanded },
@@ -238,6 +240,7 @@ fun ListScreen(
                                     if (i > 0) GroupDivider()
                                     CompactItemRow(
                                         item = item,
+                                        isFavorite = favoriteKeys.contains(item.name.trim().lowercase()),
                                         onToggle = { vm.toggle(item) },
                                         onClick = { editing = item },
                                     )
@@ -274,6 +277,7 @@ fun ListScreen(
         ItemEditSheet(
             item = item,
             categories = state.categories,
+            isFavorite = favoriteKeys.contains(item.name.trim().lowercase()),
             onDismiss = { editing = null },
             onSave = { name, qty, note -> vm.edit(item, name, qty, note) },
             onQuantityChange = { vm.setQuantity(item, it) },
@@ -526,6 +530,7 @@ private fun GroupDivider() {
 private fun CategoryGroup(
     name: String,
     items: List<ItemEntity>,
+    favoriteKeys: Set<String>,
     expanded: Boolean,
     reorderMode: Boolean,
     onToggleExpanded: () -> Unit,
@@ -580,6 +585,7 @@ private fun CategoryGroup(
                         SwipeToDeleteRow(onDelete = { onItemDelete(item) }) {
                           CompactItemRow(
                             item = item,
+                            isFavorite = favoriteKeys.contains(item.name.trim().lowercase()),
                             onToggle = { onItemToggle(item) },
                             onClick = { onItemClick(item) },
                             // The drag handle only appears in reorder mode (toggled from
@@ -639,6 +645,7 @@ private fun CategoryGroup(
 @Composable
 private fun CompactItemRow(
     item: ItemEntity,
+    isFavorite: Boolean,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     dragHandle: (@Composable () -> Unit)? = null,
@@ -668,7 +675,7 @@ private fun CompactItemRow(
             QuantityBadge(item.quantity)
             Spacer(Modifier.width(6.dp))
         }
-        if (item.favorite) {
+        if (isFavorite) {
             Icon(Icons.Default.Star, contentDescription = stringResource(R.string.favorite), tint = Sage, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
@@ -737,10 +744,6 @@ fun ItemRow(item: ItemEntity, onToggle: () -> Unit, onClick: () -> Unit, large: 
             if (!item.quantity.isNullOrBlank()) {
                 Spacer(Modifier.width(8.dp))
                 QuantityBadge(item.quantity)
-            }
-            if (item.favorite) {
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.Default.Star, contentDescription = stringResource(R.string.favorite), tint = Sage, modifier = Modifier.size(18.dp))
             }
         }
     }

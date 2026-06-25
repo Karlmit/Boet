@@ -56,6 +56,21 @@ export async function initSchema() {
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Household favorites — a standalone quick-add catalogue, NOT tied to any
+    -- list item. Deleting "Mjölk" from a list never touches the favorite. The id
+    -- is the normalized (lower/trim) name so both devices and the server converge
+    -- on one row per name without coordination. category_name (not id) is stored
+    -- because favorites are household-wide while categories are per-list.
+    CREATE TABLE IF NOT EXISTS favorites (
+      id            TEXT PRIMARY KEY,     -- normalized name key (lower, trimmed)
+      household_id  TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,        -- display name
+      category_name TEXT,
+      position      INTEGER NOT NULL DEFAULT 0,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     -- Learned name -> category-name mappings, shared across the household.
     CREATE TABLE IF NOT EXISTS learned_categories (
       household_id  TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
@@ -87,5 +102,21 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_items_list ON items(list_id);
     CREATE INDEX IF NOT EXISTS idx_categories_list ON categories(list_id);
     CREATE INDEX IF NOT EXISTS idx_lists_household ON lists(household_id);
+    CREATE INDEX IF NOT EXISTS idx_favorites_household ON favorites(household_id);
+  `);
+
+  // One-time backfill: seed the standalone favorites table from any items that
+  // were starred under the old (item-coupled) model, so existing favorites carry
+  // over on first boot after the upgrade. Runs only while favorites is empty.
+  await query(`
+    INSERT INTO favorites (id, household_id, name, category_name)
+    SELECT DISTINCT ON (lower(trim(i.name)))
+           lower(trim(i.name)), l.household_id, trim(i.name), c.name
+    FROM items i
+    JOIN lists l ON l.id = i.list_id
+    LEFT JOIN categories c ON c.id = i.category_id
+    WHERE i.favorite = true AND NOT EXISTS (SELECT 1 FROM favorites)
+    ORDER BY lower(trim(i.name)), i.updated_at DESC
+    ON CONFLICT (id) DO NOTHING
   `);
 }

@@ -36,11 +36,24 @@ data class ItemEntity(
     val quantity: String? = null,
     val note: String? = null,
     val checked: Boolean = false,
-    val favorite: Boolean = false,
     val position: Int = 0,
     val addedBy: String? = null,
     val modifiedBy: String? = null,
     val createdAt: String? = null,
+    val updatedAt: String? = null,
+)
+
+// Standalone household favorites catalogue, synced from the server (bootstrap +
+// WebSocket). Independent of list items — starring/unstarring or deleting an item
+// never changes this table. The id is the normalized name (lower/trim) so both
+// devices and the server converge on one row per name. categoryName (not id) is
+// stored because favorites are household-wide while categories are per-list.
+@Entity(tableName = "favorites")
+data class FavoriteEntity(
+    @PrimaryKey val id: String,        // normalized name key (name.trim().lowercase())
+    val name: String,                  // display name
+    val categoryName: String? = null,
+    val position: Int = 0,
     val updatedAt: String? = null,
 )
 

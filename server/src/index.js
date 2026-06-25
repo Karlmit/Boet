@@ -7,6 +7,7 @@ import { hub } from './hub.js';
 import { lists } from './routes/lists.js';
 import { categories } from './routes/categories.js';
 import { items } from './routes/items.js';
+import { favorites } from './routes/favorites.js';
 import { knowledge } from './routes/knowledge.js';
 import { media, UPLOAD_DIR } from './routes/media.js';
 
@@ -34,6 +35,7 @@ app.use('/api', knowledge);
 app.use('/api', lists);
 app.use('/api', categories);
 app.use('/api', items);
+app.use('/api', favorites);
 app.use('/api', media);
 
 // Central error handler so a thrown query never crashes the process.

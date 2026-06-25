@@ -57,9 +57,6 @@ interface ItemDao {
     @Query("SELECT * FROM items WHERE listId = :listId")
     suspend fun itemsForListOnce(listId: String): List<ItemEntity>
 
-    @Query("SELECT * FROM items WHERE favorite = 1 ORDER BY name")
-    suspend fun favorites(): List<ItemEntity>
-
     // Active (unchecked) item with this name in a list — used to merge favorites
     // into an existing row instead of adding a duplicate.
     @Query("SELECT * FROM items WHERE listId = :listId AND checked = 0 AND lower(name) = lower(:name) ORDER BY position LIMIT 1")
@@ -72,6 +69,21 @@ interface ItemDao {
     @Query("DELETE FROM items WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM items") suspend fun deleteAll()
     @Query("DELETE FROM items WHERE listId = :listId AND checked = 1") suspend fun clearChecked(listId: String)
+}
+
+@Dao
+interface FavoriteDao {
+    @Query("SELECT * FROM favorites ORDER BY position, name")
+    fun favorites(): Flow<List<FavoriteEntity>>
+
+    @Query("SELECT * FROM favorites WHERE id = :id")
+    suspend fun byId(id: String): FavoriteEntity?
+
+    @Upsert suspend fun upsert(favorite: FavoriteEntity)
+    @Upsert suspend fun upsertAll(favorites: List<FavoriteEntity>)
+    @Query("DELETE FROM favorites WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM favorites WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM favorites") suspend fun deleteAll()
 }
 
 @Dao

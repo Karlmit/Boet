@@ -26,6 +26,16 @@ export function categoryRow(r) {
   };
 }
 
+export function favoriteRow(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    categoryName: r.category_name,
+    position: r.position,
+    updatedAt: r.updated_at,
+  };
+}
+
 export function itemRow(r) {
   return {
     id: r.id,
@@ -35,7 +45,6 @@ export function itemRow(r) {
     quantity: r.quantity,
     note: r.note,
     checked: r.checked,
-    favorite: r.favorite,
     position: r.position,
     addedBy: r.added_by,
     modifiedBy: r.modified_by,

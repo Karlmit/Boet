@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.jabba.boet.R
-import se.jabba.boet.data.remote.ItemDto
+import se.jabba.boet.data.local.FavoriteEntity
 import se.jabba.boet.ui.theme.*
 
 // Quick-add favorites sheet. Opened from the empty + button on the add bar.
@@ -30,7 +30,7 @@ import se.jabba.boet.ui.theme.*
 @Composable
 fun FavoritesSheet(
     ui: FavoritesUiState,
-    onAdd: (ItemDto) -> Unit,
+    onAdd: (FavoriteEntity) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -105,7 +105,7 @@ fun FavoritesSheet(
 }
 
 @Composable
-private fun FavoriteRow(fav: ItemDto, addedCount: Int, onAdd: () -> Unit) {
+private fun FavoriteRow(fav: FavoriteEntity, addedCount: Int, onAdd: () -> Unit) {
     val added = addedCount > 0
     Surface(
         color = WarmWhite,

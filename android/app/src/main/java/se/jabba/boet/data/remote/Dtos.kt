@@ -2,6 +2,7 @@ package se.jabba.boet.data.remote
 
 import kotlinx.serialization.Serializable
 import se.jabba.boet.data.local.CategoryEntity
+import se.jabba.boet.data.local.FavoriteEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.local.ListEntity
 
@@ -44,14 +45,24 @@ data class ItemDto(
     val quantity: String? = null,
     val note: String? = null,
     val checked: Boolean = false,
-    val favorite: Boolean = false,
     val position: Int = 0,
     val addedBy: String? = null,
     val modifiedBy: String? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null,
 ) {
-    fun toEntity() = ItemEntity(id, listId, categoryId, name, quantity, note, checked, favorite, position, addedBy, modifiedBy, createdAt, updatedAt)
+    fun toEntity() = ItemEntity(id, listId, categoryId, name, quantity, note, checked, position, addedBy, modifiedBy, createdAt, updatedAt)
+}
+
+@Serializable
+data class FavoriteDto(
+    val id: String,
+    val name: String,
+    val categoryName: String? = null,
+    val position: Int = 0,
+    val updatedAt: String? = null,
+) {
+    fun toEntity() = FavoriteEntity(id, name, categoryName, position, updatedAt)
 }
 
 @Serializable
@@ -67,6 +78,7 @@ data class BootstrapDto(
     val categories: List<CategoryDto> = emptyList(),
     val items: List<ItemDto> = emptyList(),
     val learned: List<LearnedDto> = emptyList(),
+    val favorites: List<FavoriteDto> = emptyList(),
 )
 
 @Serializable
