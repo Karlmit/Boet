@@ -24,6 +24,39 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
   - The workstation also has Android Studio's own SDK at `C:\Users\KarlAlmqvist\AppData\Local\Android\Sdk` if a Windows build is ever needed (build there in `C:\BoetBuild\android`, write `local.properties` pointing at it). PowerShell over the connector: pass scripts via `--shell powershell --stdin`; inline `$var` in `opus connector run -- powershell "…"` gets eaten by the local workspace shell. `OneDrive - KWA\Bilder\Apps\Boet` holds only logo art, not code.
 - Default app server is `https://boet.jabba.se`; for on-device testing against this workspace, temporarily set `Prefs.DEFAULT_SERVER` to the LAN IP (revert before commit).
 
+### Releasing the app (this is what powers in-app auto-update)
+
+The app is sideloaded (no Play Store) and self-updates via `update/UpdateChecker`,
+which reads `https://api.github.com/repos/Karlmit/Boet/releases/latest`, compares
+the release version to the installed one, downloads the attached `.apk` (into
+`cacheDir/updates/`, served to the installer via the `…fileprovider`), and launches
+the system installer. **For that to keep working, every release MUST follow this
+convention** — break it and existing installs stop seeing updates:
+
+1. Bump **both** `versionCode` (monotonic int) and `versionName` (dotted, e.g.
+   `1.2`) in `android/app/build.gradle.kts`. The updater compares `versionName`
+   numerically (`versionFromTag` extracts `\d+(\.\d+)+` from the tag).
+2. Build the release APK:
+   ```bash
+   cd android && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ANDROID_HOME=/root/android-sdk
+   ./gradlew assembleDebug --no-daemon
+   ```
+3. Commit the version bump, then publish a GitHub Release:
+   ```bash
+   cp app/build/outputs/apk/debug/app-debug.apk /tmp/boet-<version>.apk
+   gh release create app-v<version> /tmp/boet-<version>.apk -R Karlmit/Boet \
+     --title "Boet <version>" --notes "…"
+   ```
+   - **Tag = `app-v<version>`** (e.g. `app-v1.2`). Do **not** use a `v*` tag — that
+     would trigger `docker-publish.yml` and rebuild/publish the *server* image.
+   - **Asset name = `boet-<version>.apk`.** The updater picks the first `*.apk`
+     asset on the latest release, so any `.apk` works, but keep the name consistent.
+4. The first install on a new phone is always manual (the updater ships *inside*
+   the app); subsequent updates are in-app. The APK is signed with the **debug**
+   key — fine for sideloading, but signing key must stay consistent or installs
+   fail with a signature mismatch (don't switch to a release keystore mid-stream
+   without coordinating a reinstall).
+
 ## Known design-fidelity gaps vs `.planning/Design/`
 
 In place: palette, Manrope, serif wordmark, nest icon, **compact grouped category
