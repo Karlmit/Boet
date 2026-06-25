@@ -259,6 +259,7 @@ fun ListScreen(
     if (voiceOpen) {
         VoiceSessionSheet(
             language = language,
+            serverSynced = conn == ConnState.CONNECTED,
             clean = { transcript -> vm.cleanSpoken(transcript) },
             onConfirm = { items -> vm.addVoiceItems(items) },
             onDismiss = { voiceOpen = false },

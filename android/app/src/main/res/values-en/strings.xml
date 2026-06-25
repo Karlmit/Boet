@@ -38,6 +38,7 @@
     <string name="voice_hint">Say e.g. “Add milk, eggs and bananas”</string>
     <string name="voice_paused">Paused</string>
     <string name="voice_continuous_hint">Keep talking – say one item at a time</string>
+    <string name="voice_freeform_hint">Just keep talking – it\'s all tidied into a list</string>
     <string name="voice_added_count">Added · %1$d</string>
     <string name="voice_heard_count">Heard · %1$d</string>
     <string name="voice_stop">Stop</string>

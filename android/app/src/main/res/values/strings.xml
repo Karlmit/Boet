@@ -43,6 +43,7 @@
     <string name="voice_hint">Säg t.ex. ”Lägg till mjölk, ägg och bananer”</string>
     <string name="voice_paused">Pausad</string>
     <string name="voice_continuous_hint">Fortsätt prata – säg en vara i taget</string>
+    <string name="voice_freeform_hint">Prata på – allt du säger städas till en lista</string>
     <string name="voice_added_count">Tillagda · %1$d</string>
     <string name="voice_heard_count">Hört · %1$d</string>
     <string name="voice_stop">Stoppa</string>

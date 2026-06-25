@@ -8,6 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -27,7 +29,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -46,6 +51,10 @@ private enum class Phase { Listening, Processing, Review }
 @Composable
 fun VoiceSessionSheet(
     language: String,
+    // When the device is synced to the server, cleaning runs through the household
+    // LLM on the *whole* transcript, so we show the full running voice-to-text string
+    // (what actually gets sent) instead of per-utterance bullets.
+    serverSynced: Boolean,
     clean: suspend (List<String>) -> List<VoiceItem>,
     onConfirm: (List<VoiceItem>) -> Unit,
     onDismiss: () -> Unit,
@@ -94,7 +103,7 @@ fun VoiceSessionSheet(
             }
 
             when (phase) {
-                Phase.Listening -> ListeningView(partial, transcript, onStop = { process() })
+                Phase.Listening -> ListeningView(partial, transcript, serverSynced, onStop = { process() })
                 Phase.Processing -> ProcessingView()
                 Phase.Review -> ReviewView(
                     items = items,
@@ -109,7 +118,12 @@ fun VoiceSessionSheet(
 }
 
 @Composable
-private fun BoxScope.ListeningView(partial: String, transcript: List<String>, onStop: () -> Unit) {
+private fun BoxScope.ListeningView(
+    partial: String,
+    transcript: List<String>,
+    serverSynced: Boolean,
+    onStop: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -118,28 +132,59 @@ private fun BoxScope.ListeningView(partial: String, transcript: List<String>, on
         PulsingMic()
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.listening), style = BoetType.headline, color = WarmWhite)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (partial.isNotBlank()) "”$partial”" else stringResource(R.string.voice_continuous_hint),
-            style = BoetType.body, color = Sage,
-        )
-        Spacer(Modifier.height(24.dp))
-        if (transcript.isNotEmpty()) {
-            Text(
-                stringResource(R.string.voice_heard_count, transcript.size),
-                style = BoetType.label, color = Stone, modifier = Modifier.align(Alignment.Start),
-            )
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(transcript.reversed()) { line ->
-                    Text("• $line", style = BoetType.body, color = Stone)
-                }
-            }
+        Spacer(Modifier.height(16.dp))
+        if (serverSynced) {
+            // The LLM cleans the whole transcript on Stop, so the split into separate
+            // utterances is irrelevant — show the full running string instead, so the
+            // user can confirm their words were picked up before sending.
+            LiveTranscript(transcript, partial, Modifier.weight(1f).fillMaxWidth())
         } else {
-            Spacer(Modifier.weight(1f))
+            Text(
+                if (partial.isNotBlank()) "”$partial”" else stringResource(R.string.voice_continuous_hint),
+                style = BoetType.body, color = Sage,
+            )
+            Spacer(Modifier.height(24.dp))
+            if (transcript.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.voice_heard_count, transcript.size),
+                    style = BoetType.label, color = Stone, modifier = Modifier.align(Alignment.Start),
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(transcript.reversed()) { line ->
+                        Text("• $line", style = BoetType.body, color = Stone)
+                    }
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
         }
         StopButton(onStop)
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+// The whole running voice-to-text string: finalized utterances in warm white with
+// the in-flight partial dimmed at the tail, auto-scrolled to the newest words. This
+// is the exact transcript handed to the cleaning LLM.
+@Composable
+private fun LiveTranscript(transcript: List<String>, partial: String, modifier: Modifier = Modifier) {
+    val finalized = transcript.joinToString(" ").trim()
+    val scroll = rememberScrollState()
+    val text = buildAnnotatedString {
+        append(finalized)
+        if (partial.isNotBlank()) {
+            if (finalized.isNotEmpty()) append(" ")
+            withStyle(SpanStyle(color = Sage)) { append(partial) }
+        }
+    }
+    LaunchedEffect(text.length) { scroll.animateScrollTo(scroll.maxValue) }
+    Box(modifier.verticalScroll(scroll)) {
+        if (text.isEmpty()) {
+            Text(stringResource(R.string.voice_freeform_hint), style = BoetType.body, color = Stone)
+        } else {
+            Text(text, style = BoetType.title, color = WarmWhite)
+        }
     }
 }
 
