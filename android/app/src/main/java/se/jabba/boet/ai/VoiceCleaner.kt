@@ -4,17 +4,19 @@ import android.util.Log
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-// A cleaned, ready-to-add grocery item parsed from speech.
-data class VoiceItem(val name: String, val quantity: Int = 1)
+// A cleaned, ready-to-add grocery item parsed from speech. `quantity` is the
+// freeform amount string ("2", "1 kg", "10 g") or null for a plain count of 1.
+data class VoiceItem(val name: String, val quantity: String? = null)
 
 // Turns raw voice transcript into a tidy shopping list using the on-device LLM:
 // fixes mis-hearings ("tonjäst" -> "torrjäst"), singularizes ("citroner" -> "Citron"),
-// parses quantities ("två citroner" -> qty 2), and drops anything that isn't a real
-// grocery. Falls back to a simple regex split when the LLM is unavailable or unsure.
+// parses amounts ("två citroner" -> qty 2; "ett kilo fläsk" -> 1 kg), and drops
+// anything that isn't a real grocery. Falls back to a simple regex split when the
+// LLM is unavailable or unsure.
 class VoiceCleaner(private val classifier: ItemClassifier?) {
 
     @Serializable
-    private data class CleanDto(val name: String = "", val qty: Int = 1)
+    private data class CleanDto(val name: String = "", val qty: String = "1", val unit: String = "")
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -40,10 +42,12 @@ class VoiceCleaner(private val classifier: ItemClassifier?) {
         append("- Behåll bara riktiga inköpsvaror (mat, dryck, hushåll). Ta bort allt annat.\n")
         append("- Rätta uppenbara taligenkänningsfel till rätt varunamn (ex: \"tonjäst\" -> \"torrjäst\").\n")
         append("- Använd singular grundform med stor första bokstav (ex: \"citroner\" -> \"Citron\").\n")
-        append("- Ange antal som heltal om det sägs (ex: \"två citroner\" -> qty 2), annars 1.\n")
-        append("- Slå ihop dubbletter och summera antal.\n")
+        append("- \"qty\" = antalet/mängden som siffra om det sägs (ex: \"två\" -> \"2\", \"tio\" -> \"10\"), annars \"1\".\n")
+        append("- \"unit\" = enheten om en vikt/volym/förpackning sägs, en av [kg, g, hg, l, dl, paket]. Annars tom sträng \"\".\n")
+        append("  Ex: \"ett kilo fläsk\" -> qty \"1\", unit \"kg\". \"tio gram saffran\" -> qty \"10\", unit \"g\". \"två äpplen\" -> qty \"2\", unit \"\".\n")
+        append("- Slå ihop dubbletter (summera bara rena antal, inte vikter/volymer).\n")
         append("Svara ENBART med en JSON-array, inget annat:\n")
-        append("[{\"name\":\"Citron\",\"qty\":2},{\"name\":\"Torrjäst\",\"qty\":1}]")
+        append("[{\"name\":\"Fläsk\",\"qty\":\"1\",\"unit\":\"kg\"},{\"name\":\"Saffran\",\"qty\":\"10\",\"unit\":\"g\"},{\"name\":\"Äpple\",\"qty\":\"2\",\"unit\":\"\"}]")
     }
 
     // Pull the first [...] block out of the model's reply and parse it leniently.
@@ -57,7 +61,11 @@ class VoiceCleaner(private val classifier: ItemClassifier?) {
                 .mapNotNull { d ->
                     val n = d.name.trim()
                     if (n.isEmpty() || n.length > 40) null
-                    else VoiceItem(n.replaceFirstChar { it.uppercaseChar() }, d.qty.coerceIn(1, 99))
+                    else {
+                        val value = (d.qty.replace(',', '.').toDoubleOrNull() ?: 1.0).coerceIn(0.0, 9999.0)
+                        val unit = d.unit.trim().lowercase().takeIf { it in UNITS }
+                        VoiceItem(n.replaceFirstChar { it.uppercaseChar() }, composeQuantity(value, unit))
+                    }
                 }
         }.getOrNull()
     }
@@ -69,16 +77,18 @@ class VoiceCleaner(private val classifier: ItemClassifier?) {
         return text.split(Regex(",|;|\\boch\\b|\\band\\b|&|\\bplus\\b"))
             .map { it.trim().removePrefix("och ").removePrefix("and ").trim() }
             .filter { it.isNotBlank() && it.length in 1..40 }
-            .map { VoiceItem(it.replaceFirstChar { c -> c.uppercaseChar() }, 1) }
+            .map { VoiceItem(it.replaceFirstChar { c -> c.uppercaseChar() }) }
     }
 
-    // Merge same-named items (case-insensitive), summing quantities.
+    // Merge same-named items (case-insensitive). Counts sum; units don't (see
+    // mergeQuantity).
     private fun dedup(items: List<VoiceItem>): List<VoiceItem> {
         val order = LinkedHashMap<String, VoiceItem>()
         for (it in items) {
             val key = it.name.lowercase()
             val existing = order[key]
-            order[key] = if (existing == null) it else existing.copy(quantity = (existing.quantity + it.quantity).coerceAtMost(99))
+            order[key] = if (existing == null) it
+                else existing.copy(quantity = mergeQuantity(existing.quantity, it.quantity))
         }
         return order.values.toList()
     }

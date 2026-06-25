@@ -126,6 +126,43 @@ cd android
 ./gradlew assembleDebug        # requires the Android SDK + JDK 17
 ```
 
+### Install on your phone (sideload)
+
+Boet isn't on the Play Store — you install the APK directly. Grab the latest
+`boet-*.apk` from the [**Releases**](https://github.com/Karlmit/Boet/releases)
+page, then on first launch pick **Kalle** or **Klara**; both phones sync through
+the same backend automatically.
+
+**On a Samsung phone (Galaxy S24, etc.)** there's one extra step — Samsung's
+**Auto Blocker** silently blocks sideloaded apps, so turn it off first:
+
+1. **Settings → Security and privacy → Auto Blocker → turn it off.**
+   (You can switch it back on afterwards.)
+2. Download `boet-latest.apk` from the Releases page (e.g. open the link in
+   Chrome, or send the file to yourself via Drive/email).
+3. Open the file from **My Files → Downloads** and tap it. When asked, **allow
+   installs from this source**.
+4. If **Play Protect** warns about an unknown app, tap **More details →
+   Install anyway**.
+
+On other Android phones it's the same minus the Auto Blocker step: just allow
+"install unknown apps" for whichever app opens the APK.
+
+### Updating
+
+The app updates itself. On launch it checks the latest GitHub Release and, if a
+newer version is available, offers to download and install it — no need to
+re-sideload manually. You can also trigger a check any time from
+**Settings → Om/About → Sök efter uppdatering**. (The very first install still
+has to be sideloaded by hand, since the in-app updater ships *inside* the app.)
+
+> **Cutting a release** (maintainer): bump `versionCode`/`versionName` in
+> [`android/app/build.gradle.kts`](android/app/build.gradle.kts), build the APK,
+> then publish a GitHub Release whose tag contains the version (e.g. `app-v1.1`)
+> with the APK attached as `boet-<version>.apk`. The in-app updater reads
+> `releases/latest` and picks up the first `.apk` asset. Tags are deliberately
+> **not** named `v*` so they don't trigger the server image workflow.
+
 ## V1 scope
 
 Two people, one household, no accounts. On first launch the app asks

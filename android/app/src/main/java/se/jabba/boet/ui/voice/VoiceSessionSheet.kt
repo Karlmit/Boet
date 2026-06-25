@@ -204,9 +204,11 @@ private fun BoxScope.ReviewView(
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(item.name, style = BoetType.title, color = WarmWhite, modifier = Modifier.weight(1f))
-                        if (item.quantity > 1) {
+                        val qty = item.quantity?.trim()
+                        if (!qty.isNullOrBlank()) {
+                            val label = if (qty.toIntOrNull() != null) "×$qty" else qty
                             Surface(color = Moss, shape = RoundedCornerShape(8.dp)) {
-                                Text("×${item.quantity}", style = BoetType.body, color = WarmWhite,
+                                Text(label, style = BoetType.body, color = WarmWhite,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                             }
                         }

@@ -793,11 +793,14 @@ fun BoetCheckbox(checked: Boolean, onToggle: () -> Unit, large: Boolean = false)
     }
 }
 
+// The "×" prefix only reads right for plain counts ("×2"). A measured amount
+// ("1 kg", "10 g") is shown verbatim.
 @Composable
 fun QuantityBadge(text: String) {
+    val label = if (text.trim().toIntOrNull() != null) "×$text" else text.trim()
     Surface(color = Stone, shape = RoundedCornerShape(8.dp)) {
         Text(
-            "×$text",
+            label,
             style = BoetType.body,
             color = Charcoal,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),

@@ -5,9 +5,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -16,6 +18,7 @@ import se.jabba.boet.data.local.Prefs
 import se.jabba.boet.data.local.Settings
 import se.jabba.boet.ui.common.Avatar
 import se.jabba.boet.ui.theme.*
+import se.jabba.boet.update.UpdateChecker
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +96,39 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.notifications), style = BoetType.body, color = Charcoal)
+            }
+
+            Spacer(Modifier.height(24.dp))
+            SectionLabel(stringResource(R.string.about))
+            val context = LocalContext.current
+            var checking by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.version, UpdateChecker.currentVersion(context)),
+                    style = BoetType.body,
+                    color = Charcoal,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    enabled = !checking,
+                    onClick = {
+                        checking = true
+                        scope.launch {
+                            val update = UpdateChecker.check(context)
+                            checking = false
+                            if (update == null) {
+                                Toast.makeText(context, context.getString(R.string.update_none), Toast.LENGTH_SHORT).show()
+                            } else if (UpdateChecker.ensureCanInstall(context)) {
+                                runCatching { UpdateChecker.downloadAndInstall(context, update) }
+                            }
+                        }
+                    },
+                ) {
+                    Text(
+                        stringResource(if (checking) R.string.update_checking else R.string.update_check),
+                        color = MossDeep,
+                    )
+                }
             }
         }
     }

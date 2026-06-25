@@ -2,6 +2,8 @@ package se.jabba.boet.ui.list
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,9 +17,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import se.jabba.boet.R
+import se.jabba.boet.ai.UNITS
+import se.jabba.boet.ai.composeQuantity
+import se.jabba.boet.ai.formatNumber
+import se.jabba.boet.ai.parseQuantity
 import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.ui.theme.*
@@ -32,15 +39,20 @@ fun ItemEditSheet(
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onSave: (String, String?, String?) -> Unit,
-    onQuantityChange: (Int) -> Unit,
+    onQuantityChange: (String?) -> Unit,
     onMove: (String) -> Unit,
     onDelete: () -> Unit,
     onFavorite: () -> Unit,
 ) {
     var name by remember { mutableStateOf(item.name) }
-    // Quantity is a simple count adjusted with the stepper; 1 is the default and
-    // is stored as "no quantity" (no ×N badge in the list).
-    var qty by remember { mutableStateOf(item.quantity?.toIntOrNull()?.coerceAtLeast(1) ?: 1) }
+    // Quantity is a number plus an optional unit. With no unit it's a plain count
+    // (stepper, 1 = "no quantity" / no badge). With a unit (kg, g, …) it's a
+    // measure whose number can be typed. Seed from the stored string so a measure
+    // isn't silently wiped on open.
+    val initialAmount = remember(item.id) { parseQuantity(item.quantity) }
+    var qtyValue by remember { mutableStateOf(initialAmount.value) }
+    var qtyUnit by remember { mutableStateOf(initialAmount.unit) }
+    var qtyText by remember { mutableStateOf(formatNumber(initialAmount.value)) }
     var note by remember { mutableStateOf(item.note ?: "") }
     var fav by remember { mutableStateOf(item.favorite) }
     // Selected category persists immediately on tap (autosave), so a correction
@@ -49,8 +61,30 @@ fun ItemEditSheet(
 
     // Persist name/note (keeps the existing name if blanked), then close.
     fun saveAndDismiss() {
-        onSave(name.trim().ifBlank { item.name }, if (qty > 1) qty.toString() else null, note.trim().ifBlank { null })
+        onSave(name.trim().ifBlank { item.name }, composeQuantity(qtyValue, qtyUnit), note.trim().ifBlank { null })
         onDismiss()
+    }
+
+    // Push the composed quantity live (autosave) so the badge updates behind the sheet.
+    fun emitQuantity() = onQuantityChange(composeQuantity(qtyValue, qtyUnit))
+
+    fun step(delta: Int) {
+        qtyValue = (qtyValue + delta).coerceAtLeast(1.0)
+        if (qtyUnit == null) qtyValue = qtyValue.toLong().toDouble() // counts stay whole
+        qtyText = formatNumber(qtyValue)
+        emitQuantity()
+    }
+
+    fun selectUnit(u: String?) {
+        qtyUnit = u
+        if (u == null) qtyValue = qtyValue.toLong().coerceAtLeast(1L).toDouble()
+        qtyText = formatNumber(qtyValue)
+        emitQuantity()
+    }
+
+    fun typeAmount(t: String) {
+        qtyText = t
+        t.replace(',', '.').toDoubleOrNull()?.let { if (it > 0) { qtyValue = it; emitQuantity() } }
     }
 
     ModalBottomSheet(onDismissRequest = { saveAndDismiss() }, containerColor = WarmWhite) {
@@ -68,8 +102,15 @@ fun ItemEditSheet(
             Spacer(Modifier.height(8.dp))
             field(name, { name = it }, stringResource(R.string.add_item_hint))
             Spacer(Modifier.height(12.dp))
-            // Stepper saves immediately so the ×N badge updates live behind the sheet.
-            QuantityStepper(qty, onChange = { qty = it; onQuantityChange(it) })
+            // Saves immediately so the badge updates live behind the sheet.
+            QuantityControl(
+                value = qtyValue,
+                unit = qtyUnit,
+                text = qtyText,
+                onStep = ::step,
+                onTextChange = ::typeAmount,
+                onUnitChange = ::selectUnit,
+            )
             Spacer(Modifier.height(12.dp))
             field(note, { note = it }, stringResource(R.string.note))
             if (categories.isNotEmpty()) {
@@ -118,30 +159,59 @@ private fun CategoryChip(name: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-// Quantity as a +/- stepper rather than free text. Floors at 1; 1 reads as the
-// plain item with no quantity badge.
+// Quantity as a +/- stepper plus a unit-chip row. With no unit ("st") it's a
+// plain count exactly as before (floors at 1; 1 reads as no badge). Pick a unit
+// (kg, g, …) and the number becomes a tappable field for precise amounts (250 g).
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
+private fun QuantityControl(
+    value: Double,
+    unit: String?,
+    text: String,
+    onStep: (Int) -> Unit,
+    onTextChange: (String) -> Unit,
+    onUnitChange: (String?) -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = WarmWhite,
         border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            Text(stringResource(R.string.quantity), style = BoetType.title, color = Charcoal, modifier = Modifier.weight(1f))
-            StepButton(Icons.Default.Remove, enabled = value > 1) { if (value > 1) onChange(value - 1) }
-            Text(
-                value.toString(),
-                style = BoetType.headline,
-                color = Charcoal,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(min = 48.dp),
-            )
-            StepButton(Icons.Default.Add, enabled = true) { onChange(value + 1) }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.quantity), style = BoetType.title, color = Charcoal, modifier = Modifier.weight(1f))
+                StepButton(Icons.Default.Remove, enabled = value > 1) { if (value > 1) onStep(-1) }
+                if (unit == null) {
+                    Text(
+                        formatNumber(value),
+                        style = BoetType.headline,
+                        color = Charcoal,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(min = 48.dp),
+                    )
+                } else {
+                    BasicTextField(
+                        value = text,
+                        onValueChange = onTextChange,
+                        textStyle = BoetType.headline.copy(color = Charcoal, textAlign = TextAlign.Center),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.widthIn(min = 48.dp).width(64.dp),
+                    )
+                }
+                StepButton(Icons.Default.Add, enabled = true) { onStep(+1) }
+            }
+            Spacer(Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CategoryChip(stringResource(R.string.unit_none), selected = unit == null) { onUnitChange(null) }
+                UNITS.forEach { u ->
+                    CategoryChip(u, selected = unit == u) { onUnitChange(u) }
+                }
+            }
         }
     }
 }

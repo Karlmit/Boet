@@ -152,9 +152,10 @@ class ListViewModel(
 
     fun toggle(item: ItemEntity) = viewModelScope.launch { repo.toggleChecked(item) }
     fun toggleFavorite(item: ItemEntity) = viewModelScope.launch { repo.toggleFavorite(item) }
-    // Live quantity update from the stepper; 1 clears the quantity (no ×N badge).
-    fun setQuantity(item: ItemEntity, count: Int) = viewModelScope.launch {
-        repo.setQuantity(item, if (count > 1) count.toString() else null)
+    // Live quantity update from the edit sheet; the sheet composes the freeform
+    // string ("2", "1 kg", or null for a plain count of 1 / no badge).
+    fun setQuantity(item: ItemEntity, quantity: String?) = viewModelScope.launch {
+        repo.setQuantity(item, quantity)
     }
     fun delete(item: ItemEntity) = viewModelScope.launch { repo.deleteItem(item) }
     fun edit(item: ItemEntity, name: String, qty: String?, note: String?) =

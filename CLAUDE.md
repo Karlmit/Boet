@@ -117,6 +117,9 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 
 ### Items
 - ✅ Name, ✅ quantity, ✅ notes
+- ✅ Quantity supports **units** (count *or* measure): freeform `quantity` string
+  ("2", "1 kg", "10 g"), shared `ai/Quantity.kt` helper; voice captures qty+unit;
+  edit sheet has a unit-chip row; badge shows `×N` for counts, verbatim for measures.
 
 ### Voice input
 - ✅ Quick voice add ("Lägg till mjölk, ägg och bananer")
@@ -165,6 +168,12 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ✅ GHCR publish workflow → `ghcr.io/karlmit/boet:latest` (Unraid update detection)
 - ✅ Unraid compose example (`/mnt/user/appdata/Boet`)
 - ✅ App builds & runs on a real device (verified)
+- ✅ **In-app self-update** (sideload-friendly): `update/UpdateChecker` reads the
+  repo's GitHub `releases/latest`, compares versions, downloads the `.apk` asset
+  and launches the system installer (REQUEST_INSTALL_PACKAGES + FileProvider).
+  Prompt on launch + manual check in Settings → About. Release tags are
+  `app-v<version>` (not `v*`, to avoid triggering the server image workflow);
+  attach the APK as `boet-<version>.apk`.
 
 ## Suggested next priorities
 

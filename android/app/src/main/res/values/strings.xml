@@ -31,6 +31,7 @@
 
     <!-- Item -->
     <string name="quantity">Antal</string>
+    <string name="unit_none">st</string>
     <string name="note">Anteckning</string>
     <string name="category">Kategori</string>
     <string name="added_by">Tillagd av %1$s</string>
@@ -65,6 +66,18 @@
     <string name="server_url">Serveradress</string>
     <string name="notifications">Notiser</string>
     <string name="background_image">Bakgrundsbild</string>
+
+    <!-- About / updates -->
+    <string name="about">Om</string>
+    <string name="version">Version %1$s</string>
+    <string name="update_check">Sök efter uppdatering</string>
+    <string name="update_checking">Söker…</string>
+    <string name="update_none">Du har den senaste versionen</string>
+    <string name="update_available">Ny version %1$s</string>
+    <string name="update_message">En uppdatering av Boet finns att hämta.</string>
+    <string name="update_now">Uppdatera</string>
+    <string name="update_downloading">Hämtar…</string>
+    <string name="update_later">Senare</string>
     <string name="blur">Oskärpa</string>
     <string name="overlay">Mörk overlay</string>
     <string name="preview">Förhandsvisning</string>

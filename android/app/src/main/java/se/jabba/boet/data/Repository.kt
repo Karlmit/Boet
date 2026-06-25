@@ -15,6 +15,7 @@ import se.jabba.boet.ai.CategoryEngine
 import se.jabba.boet.ai.ClassifierFactory
 import se.jabba.boet.ai.VoiceCleaner
 import se.jabba.boet.ai.VoiceItem
+import se.jabba.boet.ai.mergeQuantity
 import se.jabba.boet.data.local.*
 import se.jabba.boet.data.remote.*
 import java.util.UUID
@@ -174,10 +175,9 @@ class Repository(
                 if (name.isEmpty()) continue
                 val existing = itemDao.findActiveByName(listId, name)
                 if (existing != null) {
-                    val cur = existing.quantity?.toIntOrNull() ?: 1
-                    setQuantity(existing, (cur + it.quantity).toString())
+                    setQuantity(existing, mergeQuantity(existing.quantity, it.quantity))
                 } else {
-                    addItems(listId, listOf(name to (if (it.quantity > 1) it.quantity.toString() else null)))
+                    addItems(listId, listOf(name to it.quantity))
                 }
             }
         }
@@ -189,8 +189,8 @@ class Repository(
         withContext(Dispatchers.IO) {
             val existing = itemDao.findActiveByName(listId, name.trim())
             if (existing != null) {
-                val current = existing.quantity?.toIntOrNull() ?: 1
-                setQuantity(existing, (current + 1).toString())
+                // Bump the count by one; a measured quantity (e.g. "1 kg") is kept as-is.
+                setQuantity(existing, mergeQuantity(existing.quantity, null))
             } else {
                 addItems(listId, listOf(name to null))
             }

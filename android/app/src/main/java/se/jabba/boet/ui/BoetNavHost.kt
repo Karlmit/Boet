@@ -14,6 +14,7 @@ import se.jabba.boet.ui.lists.ListsScreen
 import se.jabba.boet.ui.onboarding.OnboardingScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
+import se.jabba.boet.update.UpdatePrompt
 import kotlinx.coroutines.launch
 
 @Composable
@@ -107,5 +108,8 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                 ListSettingsScreen(repo = repo, listId = id, serverUrl = settings.serverUrl, onBack = { nav.popBackStack() })
             }
         }
+
+        // Offer a self-update once the user is past onboarding.
+        if (settings.identity != null) UpdatePrompt()
     }
 }
