@@ -17,6 +17,7 @@
     <string name="add_with_voice">Add with voice</string>
     <string name="shopping_mode">Shop</string>
     <string name="auto_sort">Sort</string>
+    <string name="reorder_items">Reorder items</string>
     <string name="completed">Completed</string>
     <string name="show_completed">Show completed (%1$d)</string>
     <string name="hide_completed">Hide completed</string>

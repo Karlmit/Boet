@@ -20,6 +20,7 @@
     <string name="add_with_voice">Lägg till med röst</string>
     <string name="shopping_mode">Handla</string>
     <string name="auto_sort">Sortera</string>
+    <string name="reorder_items">Ordna om varor</string>
     <string name="completed">Klara</string>
     <string name="show_completed">Visa klara (%1$d)</string>
     <string name="hide_completed">Dölj klara</string>

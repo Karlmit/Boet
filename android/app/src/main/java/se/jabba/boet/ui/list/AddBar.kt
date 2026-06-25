@@ -3,13 +3,17 @@ package se.jabba.boet.ui.list
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,18 +27,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.ui.theme.*
 
@@ -47,6 +46,7 @@ fun AddBar(
     onShowFavorites: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
 
     // Voice needs RECORD_AUDIO; request it, then open the full-screen session.
     val micPermission = rememberLauncherForActivityResult(
@@ -57,102 +57,89 @@ fun AddBar(
         if (text.isNotBlank()) { onAdd(text); text = "" }
     }
 
-    // The bottom bar is now focused purely on adding: a prominent voice pill and a
-    // text field. Shopping Mode moved up to the banner; auto-sort is automatic.
+    // A single compact row: text field, a small mic circle, and the add/favorites
+    // button. The mic collapses away when the field is focused so the text box gets
+    // the full width exactly when the user needs the room to type.
     Surface(color = WarmWhite, shadowElevation = 8.dp, modifier = Modifier.imePadding().navigationBarsPadding()) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            VoiceButton(onTap = { micPermission.launch(Manifest.permission.RECORD_AUDIO) })
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text(stringResource(R.string.add_item_hint), color = CharcoalMuted) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Moss,
-                        unfocusedBorderColor = Stone,
-                        focusedContainerColor = WarmWhite,
-                        unfocusedContainerColor = WarmWhite,
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                // Tap with text → add it; tap while empty → open the favorites
-                // quick-add sheet so saved items are one tap away.
-                Surface(color = MossDeep, shape = CircleShape, modifier = Modifier.size(52.dp)) {
-                    IconButton(onClick = { if (text.isBlank()) onShowFavorites() else submit() }) {
-                        Icon(
-                            if (text.isBlank()) Icons.Default.Star else Icons.Default.Add,
-                            contentDescription = if (text.isBlank()) stringResource(R.string.favorites) else stringResource(R.string.add),
-                            tint = WarmWhite,
-                        )
-                    }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text(stringResource(R.string.add_item_hint), color = CharcoalMuted) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Moss,
+                    unfocusedBorderColor = Stone,
+                    focusedContainerColor = WarmWhite,
+                    unfocusedContainerColor = WarmWhite,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { focused = it.isFocused },
+            )
+            // Mic sits just left of the add button; hidden while typing.
+            AnimatedVisibility(
+                visible = !focused,
+                enter = expandHorizontally() + fadeIn(),
+                exit = shrinkHorizontally() + fadeOut(),
+            ) {
+                Row {
+                    Spacer(Modifier.width(8.dp))
+                    CircleIconButton(
+                        onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
+                        container = Leaf,
+                        tint = MossDeep,
+                        icon = Icons.Default.Mic,
+                        contentDescription = stringResource(R.string.add_with_voice),
+                    )
                 }
             }
+            Spacer(Modifier.width(8.dp))
+            // Tap with text → add it; tap while empty → open the favorites quick-add
+            // sheet so saved items are one tap away.
+            CircleIconButton(
+                onClick = { if (text.isBlank()) onShowFavorites() else submit() },
+                container = MossDeep,
+                tint = WarmWhite,
+                icon = if (text.isBlank()) Icons.Default.Star else Icons.Default.Add,
+                contentDescription = if (text.isBlank()) stringResource(R.string.favorites) else stringResource(R.string.add),
+            )
         }
     }
 }
 
-// Prominent full-width voice entry. It's pressed only occasionally, so it earns a
-// little delight (emilkowalski): a soft Moss ripple emanates from the tap point and
-// the pill dips on press — feedback that makes the button feel special and alive.
+// 52dp circular action button with a press-dip + haptic (emilkowalski tap feedback).
 @Composable
-private fun VoiceButton(onTap: () -> Unit) {
-    val scope = rememberCoroutineScope()
+private fun CircleIconButton(
+    onClick: () -> Unit,
+    container: androidx.compose.ui.graphics.Color,
+    tint: androidx.compose.ui.graphics.Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+) {
     val haptic = LocalHapticFeedback.current
-    var center by remember { mutableStateOf(Offset.Zero) }
-    val ripple = remember { Animatable(0f) }
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, spring(stiffness = Spring.StiffnessMedium), label = "voiceScale")
-
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.9f else 1f, spring(stiffness = Spring.StiffnessHigh), label = "circlePress")
     Surface(
-        color = Leaf,
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale },
+        color = container,
+        shape = CircleShape,
+        modifier = Modifier
+            .size(52.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interaction, indication = null) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .drawWithContent {
-                    drawContent()
-                    if (ripple.value > 0f) {
-                        drawCircle(
-                            color = MossDeep.copy(alpha = (1f - ripple.value) * 0.22f),
-                            radius = size.maxDimension * ripple.value,
-                            center = center,
-                        )
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            pressed = true
-                            tryAwaitRelease()
-                            pressed = false
-                        },
-                        onTap = { pos ->
-                            center = pos
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            scope.launch {
-                                ripple.snapTo(0f)
-                                ripple.animateTo(1f, tween(durationMillis = 480, easing = FastOutSlowInEasing))
-                            }
-                            onTap()
-                        },
-                    )
-                }
-                .padding(vertical = 13.dp),
-        ) {
-            Icon(Icons.Default.Mic, contentDescription = null, tint = MossDeep, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.add_with_voice), color = MossDeep, style = BoetType.title, fontWeight = FontWeight.SemiBold)
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(24.dp))
         }
     }
 }

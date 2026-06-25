@@ -94,6 +94,8 @@ fun ListScreen(
     val favorites by vm.favorites.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
     var completedExpanded by remember { mutableStateOf(false) }
+    // Manual drag-to-reorder is off by default; toggled from the ⋮ menu.
+    var reorderMode by remember { mutableStateOf(false) }
     // Per-category collapse state; absent = expanded (default).
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -140,6 +142,14 @@ fun ListScreen(
                                     Icon(Icons.Default.MoreVert, contentDescription = "Mer", tint = Charcoal)
                                 }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.reorder_items)) },
+                                        leadingIcon = { Icon(Icons.Default.DragHandle, contentDescription = null, tint = MossDeep) },
+                                        trailingIcon = {
+                                            if (reorderMode) Icon(Icons.Default.Check, contentDescription = null, tint = Moss)
+                                        },
+                                        onClick = { reorderMode = !reorderMode; menuOpen = false },
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Sortera kategorier") },
                                         onClick = { menuOpen = false; onOpenCategories() },
@@ -193,6 +203,7 @@ fun ListScreen(
                         name = section.name,
                         items = section.items,
                         expanded = expanded,
+                        reorderMode = reorderMode,
                         onToggleExpanded = { collapsed[key] = expanded },
                         onItemToggle = { vm.toggle(it) },
                         onItemClick = { editing = it },
@@ -489,12 +500,13 @@ private fun GroupDivider() {
 }
 
 // A category: glanceable icon + name + collapse chevron, above one grouped card.
-// Items reorder by long-pressing the trailing drag handle.
+// In reorder mode each row shows a drag handle for manual ordering.
 @Composable
 private fun CategoryGroup(
     name: String,
     items: List<ItemEntity>,
     expanded: Boolean,
+    reorderMode: Boolean,
     onToggleExpanded: () -> Unit,
     onItemToggle: (ItemEntity) -> Unit,
     onItemClick: (ItemEntity) -> Unit,
@@ -534,32 +546,37 @@ private fun CategoryGroup(
                 order.forEachIndexed { index, item ->
                     val isDragging = item.id == draggingId
                     if (index > 0) GroupDivider()
-                    Box(
+                    // Stable identity per row: without this, reordering the list mid-drag
+                    // restarts the gesture node, so the dragged row froze on top of its
+                    // neighbour instead of following the finger and settling into place.
+                    key(item.id) {
+                      Box(
                         Modifier
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
                             .onSizeChanged { rowHeights[item.id] = it.height },
-                    ) {
-                      SwipeToDeleteRow(onDelete = { onItemDelete(item) }) {
-                        CompactItemRow(
+                      ) {
+                        SwipeToDeleteRow(onDelete = { onItemDelete(item) }) {
+                          CompactItemRow(
                             item = item,
                             onToggle = { onItemToggle(item) },
                             onClick = { onItemClick(item) },
-                            dragHandle = {
-                                // Big, immediate grab target: drag starts the moment
-                                // you move the handle (no long-press wait), with a
-                                // haptic tick on grab so it's easy and obvious to sort.
+                            // The drag handle only appears in reorder mode (toggled from
+                            // the ⋮ menu); hidden by default to keep rows clean.
+                            dragHandle = if (!reorderMode) null else ({
+                                // Big, immediate grab target: drag starts the moment you
+                                // move the handle (no long-press wait), haptic on grab.
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
                                         .size(44.dp)
-                                        .pointerInput(item.id) {
+                                        .pointerInput(Unit) {
                                             detectDragGestures(
                                                 onDragStart = {
                                                     draggingId = item.id; dragOffset = 0f
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 },
-                                                onDragEnd = { draggingId = null; dragOffset = 0f; onReorder(order.map { it.id }) },
+                                                onDragEnd = { onReorder(order.map { it.id }); draggingId = null; dragOffset = 0f },
                                                 onDragCancel = { draggingId = null; dragOffset = 0f },
                                                 onDrag = { change, drag ->
                                                     change.consume()
@@ -586,8 +603,9 @@ private fun CategoryGroup(
                                         modifier = Modifier.size(24.dp),
                                     )
                                 }
-                            },
-                        )
+                            }),
+                          )
+                        }
                       }
                     }
                 }
