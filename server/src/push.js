@@ -45,8 +45,11 @@ export async function registerDevice(token, memberId, platform) {
 export async function notifyOthers(actorMemberId, title, body, data = {}) {
   const fcm = await getMessaging();
   if (!fcm) return;
+  // Exclude the actor's own devices. Tokens register their member_id lowercased,
+  // but actor ids arrive verbatim from the client (e.g. "Kalle"), so compare
+  // case-insensitively — otherwise the actor notifies themselves.
   const { rows } = await query(
-    `SELECT token FROM device_tokens WHERE member_id IS DISTINCT FROM $1`,
+    `SELECT token FROM device_tokens WHERE lower(member_id) IS DISTINCT FROM lower($1)`,
     [actorMemberId]
   );
   const tokens = rows.map((r) => r.token);
