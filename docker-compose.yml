@@ -33,19 +33,34 @@ services:
       # disable and fall back to deterministic cleaning.
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
+      # Keep the model warm so an idle gap doesn't cold-start (and fall back) the
+      # next voice add. "-1" = always resident; "5m" = unload after 5 min idle.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
     volumes:
       - boet-uploads:/data/uploads
     ports:
       # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
       - "3020:3020"
 
-  # Household-local LLM. After first `up`, pull the model once:
-  #   docker compose exec ollama ollama pull qwen3:4b-instruct
+  # Household-local LLM for voice cleaning. The model is auto-pulled by the
+  # ollama-pull sidecar below — no manual step.
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:
       - boet-ollama:/root/.ollama
+
+  # One-shot: waits for Ollama, pulls the voice model on every `up`, then exits.
+  # Idempotent, so it self-heals if a recreate/volume wipe ever drops the model.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull ${OLLAMA_MODEL:-qwen3:4b-instruct}"
+    restart: "no"
 
 volumes:
   boet-db:

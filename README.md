@@ -74,6 +74,12 @@ services:
       # then falls back to deterministic cleaning).
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3:4b-instruct
+      # Keep the model resident so a long gap between shops doesn't cold-start the
+      # next voice add (a cold load can outrun the request timeout and silently
+      # fall back to deterministic cleaning). "-1" = always warm (~2.5–3 GB RAM
+      # held); "5m" = unload after 5 min idle to free RAM at the cost of a slow
+      # first request afterwards.
+      OLLAMA_KEEP_ALIVE: "-1"
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
@@ -93,12 +99,28 @@ services:
     restart: unless-stopped
     volumes:
       - /mnt/user/appdata/Boet/ollama:/root/.ollama
+
+  # One-shot: waits for Ollama, then pulls the voice model on every `up` and exits.
+  # `ollama pull` is idempotent (a no-op once the model is present), so this both
+  # provisions a fresh box AND self-heals — if a stack recreate or volume wipe ever
+  # drops the model, the next `up` re-pulls it instead of voice silently degrading
+  # to the deterministic fallback. Shows as "exited (0)" in the Docker tab when done.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434   # pull runs as a client into the ollama server's volume
+    entrypoint: ["/bin/sh", "-c"]
+    command: "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull qwen3:4b-instruct"
+    restart: "no"
 ```
 
 ```bash
 docker compose pull && docker compose up -d
-# Pull the voice model once (~2.5 GB, stored in the ollama volume):
-docker compose exec ollama ollama pull qwen3:4b-instruct
+# The ollama-pull sidecar downloads the voice model (~2.5 GB) on first start —
+# give it a few minutes. Follow along with:
+docker compose logs -f ollama-pull
 ```
 
 Put a reverse proxy in front if you want HTTPS/remote access; enable

@@ -45,8 +45,12 @@ services:
       # then falls back to deterministic cleaning).
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
+      # Keep the model resident so a long idle gap doesn't cold-start the next
+      # voice add (a cold load can outrun the timeout and fall back to the
+      # deterministic split). "-1" = always warm (~2.5–3 GB RAM held); "5m" =
+      # unload after 5 min idle to free RAM (slow first request afterwards).
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
       # Optional tuning (sensible defaults in code):
-      #   OLLAMA_KEEP_ALIVE: "5m"   # "-1" keep warm (snappy, ~2.5GB held) / "0" unload now (frees RAM)
       #   OLLAMA_NUM_CTX:    "4096" # context window; smaller = a touch less RAM
       #   OLLAMA_TIMEOUT_MS: "30000"
     volumes:
@@ -55,9 +59,8 @@ services:
     ports:
       - "3020:3020"
 
-  # Household-local LLM (Ollama) for voice cleaning. After the first `up`, pull the
-  # model once (downloads ~2.5 GB into the boet-ollama volume):
-  #   docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen3:4b-instruct
+  # Household-local LLM (Ollama) for voice cleaning. The model is pulled
+  # automatically by the ollama-pull sidecar below — no manual step needed.
   # If the Unraid box has an NVIDIA GPU + container toolkit, uncomment the deploy
   # block for much faster inference.
   ollama:
@@ -65,6 +68,20 @@ services:
     restart: unless-stopped
     volumes:
       - boet-ollama:/root/.ollama
+
+  # One-shot: waits for Ollama, then pulls the voice model on every `up` and exits.
+  # `ollama pull` is idempotent (a no-op once present), so this provisions a fresh
+  # box AND self-heals — if a recreate/volume wipe drops the model, the next `up`
+  # re-pulls it instead of voice silently degrading to the deterministic fallback.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434   # pull runs as a client into the ollama server's volume
+    entrypoint: ["/bin/sh", "-c"]
+    command: "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull ${OLLAMA_MODEL:-qwen3:4b-instruct}"
+    restart: "no"
     # RAM: qwen3:4b (Q4) needs ~2.5–3 GB while loaded. Don't hard-cap memory — a
     # `mem_limit` below the model size triggers OOM-kills mid-inference. To free RAM
     # between uses, set OLLAMA_KEEP_ALIVE on the server (above) instead. A *soft*
