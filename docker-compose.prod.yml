@@ -45,6 +45,10 @@ services:
       # then falls back to deterministic cleaning).
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b-instruct}
+      # Optional tuning (sensible defaults in code):
+      #   OLLAMA_KEEP_ALIVE: "5m"   # "-1" keep warm (snappy, ~2.5GB held) / "0" unload now (frees RAM)
+      #   OLLAMA_NUM_CTX:    "4096" # context window; smaller = a touch less RAM
+      #   OLLAMA_TIMEOUT_MS: "30000"
     volumes:
       - boet-uploads:/data/uploads
       # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json
@@ -61,7 +65,12 @@ services:
     restart: unless-stopped
     volumes:
       - boet-ollama:/root/.ollama
-    # deploy:
+    # RAM: qwen3:4b (Q4) needs ~2.5–3 GB while loaded. Don't hard-cap memory — a
+    # `mem_limit` below the model size triggers OOM-kills mid-inference. To free RAM
+    # between uses, set OLLAMA_KEEP_ALIVE on the server (above) instead. A *soft*
+    # reservation is fine; an example (uncomment if you use it):
+    # mem_reservation: 3g
+    # deploy:                       # uncomment for NVIDIA GPU acceleration
     #   resources:
     #     reservations:
     #       devices:
