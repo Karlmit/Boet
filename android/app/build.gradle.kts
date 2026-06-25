@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,6 +10,18 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+// App signing. The release keystore + its credentials live in a git-ignored
+// keystore.properties (see CLAUDE.md "Releasing the app"). When it's present we
+// sign with the stable release key — used for ALL builds, including the debug
+// build type, so the shipped APK is release-signed *and* still debuggable, and
+// so auto-update never hits a signature mismatch. Without the file (e.g. a fresh
+// clone that lacks the key) the build falls back to the default debug signing.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
+}
+val hasReleaseKeystore = keystorePropsFile.exists()
+
 android {
     namespace = "se.jabba.boet"
     compileSdk = 34
@@ -15,15 +30,31 @@ android {
         applicationId = "se.jabba.boet"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            // Debuggable as always, but signed with the release key when available.
+            if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
 

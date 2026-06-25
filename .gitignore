@@ -11,6 +11,11 @@ android/local.properties
 android/.idea/
 android/captures/
 *.iml
+
+# App signing — NEVER commit these. Back them up out-of-band.
+android/keystore.properties
+*.jks
+*.keystore
 .DS_Store
 
 # Env

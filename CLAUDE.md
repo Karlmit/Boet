@@ -52,10 +52,25 @@ convention** — break it and existing installs stop seeing updates:
    - **Asset name = `boet-<version>.apk`.** The updater picks the first `*.apk`
      asset on the latest release, so any `.apk` works, but keep the name consistent.
 4. The first install on a new phone is always manual (the updater ships *inside*
-   the app); subsequent updates are in-app. The APK is signed with the **debug**
-   key — fine for sideloading, but signing key must stay consistent or installs
-   fail with a signature mismatch (don't switch to a release keystore mid-stream
-   without coordinating a reinstall).
+   the app); subsequent updates are in-app.
+
+**Signing (critical for auto-update continuity).** Since `app-v1.2` the build is
+signed with a **stable release keystore**, not the per-machine debug key. The
+`debug` build type's `signingConfig` is pointed at the release key, so the shipped
+`assembleDebug` APK is release-signed **and** still `debuggable` (full `adb`/
+debugger access preserved). Android treats a different key as a different app, so
+the key must never change or updates fail with a signature mismatch.
+- Keystore: `android/boet-release.jks`; credentials: `android/keystore.properties`
+  (alias `boet`). **Both are git-ignored** (`*.jks`, `keystore.properties`) and
+  exist **only in this workspace** — back them up off-site. Losing them means you
+  can never ship a compatible update again (forced uninstall+reinstall for everyone).
+- Release cert SHA-256 `ED:D5:31:1F:9C:03:0B:9F:4B:96:FE:F5:81:6B:48:59:73:EF:A2:DB:B8:81:6C:86:FC:92:BC:6D:0C:98:1A:1A`.
+- A fresh clone without `keystore.properties` falls back to debug signing
+  (`build.gradle.kts` guards on the file's presence) — fine for local dev, but
+  **release builds must be done in this workspace** (or wherever the keystore is).
+- The `1.1 → 1.2` bump was the one-time key switch: it required uninstall+reinstall
+  on both phones (data is server-synced, so only a re-onboarding). Future updates
+  are seamless again.
 
 ## Known design-fidelity gaps vs `.planning/Design/`
 
