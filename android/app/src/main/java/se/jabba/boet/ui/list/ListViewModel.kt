@@ -162,6 +162,11 @@ class ListViewModel(
         viewModelScope.launch { repo.editItem(item, name, qty, note) }
     fun move(item: ItemEntity, categoryId: String) = viewModelScope.launch { repo.moveItem(item, categoryId) }
     fun clearChecked() = viewModelScope.launch { repo.clearChecked(listId) }
+    // Auto-complete: check off every remaining (unchecked) item in one tap. Reuses
+    // the per-item toggle so each one syncs household-wide exactly like a manual check.
+    fun completeRemaining() = viewModelScope.launch {
+        state.value.sections.flatMap { it.items }.forEach { repo.toggleChecked(it) }
+    }
     fun autoSort() = viewModelScope.launch { repo.autoSort(listId) }
     fun reorderItems(orderedIds: List<String>) = viewModelScope.launch { repo.reorderItems(listId, orderedIds) }
     fun reorderCategories(order: List<String>) = viewModelScope.launch { repo.reorderCategories(listId, order) }

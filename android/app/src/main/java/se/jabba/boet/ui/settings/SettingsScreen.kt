@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import android.widget.Toast
 import androidx.compose.runtime.*
@@ -11,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
@@ -96,6 +99,39 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.notifications), style = BoetType.body, color = Charcoal)
+            }
+
+            Spacer(Modifier.height(24.dp))
+            SectionLabel(stringResource(R.string.auto_complete_threshold))
+            Text(
+                stringResource(R.string.auto_complete_threshold_desc),
+                style = BoetType.body,
+                color = Stone,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        scope.launch { prefs.setAutoCompleteThreshold(settings.autoCompleteThreshold - 1) }
+                    },
+                    enabled = settings.autoCompleteThreshold > 0,
+                ) {
+                    Icon(Icons.Filled.Remove, contentDescription = "-", tint = MossDeep)
+                }
+                Text(
+                    settings.autoCompleteThreshold.toString(),
+                    style = BoetType.headline,
+                    color = Charcoal,
+                    modifier = Modifier.widthIn(min = 40.dp).padding(horizontal = 8.dp),
+                    textAlign = TextAlign.Center,
+                )
+                IconButton(
+                    onClick = {
+                        scope.launch { prefs.setAutoCompleteThreshold(settings.autoCompleteThreshold + 1) }
+                    },
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "+", tint = MossDeep)
+                }
             }
 
             Spacer(Modifier.height(24.dp))

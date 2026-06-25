@@ -25,6 +25,7 @@
     <string name="shopping_done">Looks like shopping is finished.</string>
     <string name="remove_completed">Remove completed</string>
     <string name="keep_list">Keep list</string>
+    <string name="auto_complete">Check off the rest (%1$d)</string>
 
     <string name="quantity">Quantity</string>
     <string name="unit_none">pcs</string>
@@ -58,6 +59,8 @@
     <string name="lang_english">English</string>
     <string name="server_url">Server address</string>
     <string name="notifications">Notifications</string>
+    <string name="auto_complete_threshold">Check off the rest</string>
+    <string name="auto_complete_threshold_desc">Show the \"Check off the rest\" button when this many items are left</string>
     <string name="background_image">Background image</string>
 
     <!-- About / updates -->

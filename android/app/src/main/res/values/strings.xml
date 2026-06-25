@@ -28,6 +28,7 @@
     <string name="shopping_done">Det ser ut som att handlingen är klar.</string>
     <string name="remove_completed">Ta bort klara</string>
     <string name="keep_list">Behåll listan</string>
+    <string name="auto_complete">Bocka av resten (%1$d)</string>
 
     <!-- Item -->
     <string name="quantity">Antal</string>
@@ -65,6 +66,8 @@
     <string name="lang_english">Engelska</string>
     <string name="server_url">Serveradress</string>
     <string name="notifications">Notiser</string>
+    <string name="auto_complete_threshold">Bocka av resten</string>
+    <string name="auto_complete_threshold_desc">Visa knappen \"Bocka av resten\" när så här många varor är kvar</string>
     <string name="background_image">Bakgrundsbild</string>
 
     <!-- About / updates -->

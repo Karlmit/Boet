@@ -94,6 +94,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     serverUrl = settings.serverUrl,
                     prefs = app.prefs,
                     initialHideCompleted = settings.shoppingHideCompleted,
+                    autoCompleteThreshold = settings.autoCompleteThreshold,
                     onBack = { nav.popBackStack() },
                 )
             }

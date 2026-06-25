@@ -53,6 +53,7 @@ fun ShoppingScreen(
     serverUrl: String,
     prefs: Prefs,
     initialHideCompleted: Boolean,
+    autoCompleteThreshold: Int,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -147,6 +148,14 @@ fun ShoppingScreen(
                         onKeep = { dismissedDone = true },
                     )
                 }
+                // Auto-complete: once only a few items remain, offer to check off the
+                // rest in one tap. Threshold is per-device (Settings); 0 disables it.
+                if (autoCompleteThreshold > 0 && state.remaining in 1..autoCompleteThreshold) {
+                    AutoCompleteButton(
+                        remaining = state.remaining,
+                        onComplete = { vm.completeRemaining() },
+                    )
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -235,6 +244,23 @@ private fun ShoppingItemRow(item: ItemEntity, onToggle: () -> Unit) {
                 QuantityBadge(item.quantity)
             }
         }
+    }
+}
+
+@Composable
+private fun AutoCompleteButton(remaining: Int, onComplete: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Button(
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onComplete()
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = MossDeep, contentColor = WarmWhite),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(stringResource(R.string.auto_complete, remaining))
     }
 }
 
