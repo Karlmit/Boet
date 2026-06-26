@@ -3,12 +3,30 @@ import { nanoid } from 'nanoid';
 import { query, tx } from '../db.js';
 import { hub } from '../hub.js';
 import { itemRow } from '../serialize.js';
-import { resolveCategoryId, learnCategory, learnCategoryAI, learnedCategoryFor, recordPurchase } from '../categorizer.js';
+import { resolveCategoryId, learnCategory, learnCategoryAI, learnedCategoryRecordFor, recordPurchase } from '../categorizer.js';
 import { notifyOthers } from '../push.js';
 import { ollamaEnabled } from '../ollama.js';
 import { llmCategorize } from '../llm-categorize.js';
 
 export const items = Router();
+
+const OTHER_CATEGORY = 'övrigt';
+
+const SEMANTIC_CATEGORY_KEYWORDS = [
+  {
+    category: ['dryck', 'drycker', 'dricka', 'drycker & snacks'],
+    words: ['cola', 'cuba cola', 'läsk', 'soda', 'saft', 'juice', 'must', 'vatten', 'mineralvatten', 'bubbelvatten', 'energidryck', 'öl', 'vin', 'cider'],
+  },
+];
+
+function semanticCategoryFor(name, byName) {
+  const key = String(name || '').toLowerCase();
+  for (const rule of SEMANTIC_CATEGORY_KEYWORDS) {
+    const category = rule.category.map((c) => byName.get(c)).find(Boolean);
+    if (category && rule.words.some((word) => key.includes(word))) return category;
+  }
+  return null;
+}
 
 items.get('/lists/:listId/items', async (req, res) => {
   const { rows } = await query(
@@ -160,7 +178,9 @@ items.post('/lists/:listId/autosort', async (req, res) => {
 
   const untrusted = [];
   for (const item of existing) {
-    if (!(await learnedCategoryFor(item.name))) untrusted.push(item);
+    const learned = await learnedCategoryRecordFor(item.name);
+    const isAiOther = learned?.source === 'llm' && learned.categoryName.toLowerCase() === OTHER_CATEGORY;
+    if (!learned || isAiOther) untrusted.push(item);
   }
 
   const rawAiAssignments = ollamaEnabled()
@@ -176,7 +196,10 @@ items.post('/lists/:listId/autosort', async (req, res) => {
     const aiCategory = aiCategoryName ? byName.get(aiCategoryName.toLowerCase()) : null;
     if (aiCategory) await learnCategoryAI(item.name, aiCategory.name);
 
-    const categoryId = aiCategory?.id || (await resolveCategoryId(listId, item.name));
+    const semanticCategory = semanticCategoryFor(item.name, byName);
+    if (!aiCategory && semanticCategory) await learnCategoryAI(item.name, semanticCategory.name);
+
+    const categoryId = aiCategory?.id || semanticCategory?.id || (await resolveCategoryId(listId, item.name));
     if (categoryId && categoryId !== item.category_id) {
       const { rows } = await query(
         `UPDATE items SET category_id=$1, updated_at=now() WHERE id=$2 RETURNING *`,

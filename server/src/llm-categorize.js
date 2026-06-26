@@ -1,10 +1,15 @@
 import { ollamaEnabled, ollamaGenerate } from './ollama.js';
 
+const OTHER_CATEGORY = 'övrigt';
+
 function buildPrompt(names, categoryNames) {
+  const primaryCategories = categoryNames.filter((name) => name.toLowerCase() !== OTHER_CATEGORY);
+  const fallbackCategories = categoryNames.filter((name) => name.toLowerCase() === OTHER_CATEGORY);
   return [
     'Du kategoriserar varor i en svensk inköpslista.',
-    'Tillåtna kategorier:',
-    ...categoryNames.map((name) => `- ${name}`),
+    'Vanliga kategorier:',
+    ...primaryCategories.map((name) => `- ${name}`),
+    ...(fallbackCategories.length ? ['', 'Fallback-kategori, bara när inget annat passar:', ...fallbackCategories.map((name) => `- ${name}`)] : []),
     '',
     'Varor:',
     ...names.map((name) => `- ${name}`),
@@ -13,8 +18,10 @@ function buildPrompt(names, categoryNames) {
     '- Tilldela varje vara exakt en av de tillåtna kategorierna utifrån betydelse.',
     '- Hitta aldrig på en ny kategori.',
     '- Använd kategorinamnen exakt som de står i listan.',
+    '- Använd Övrigt endast som sista utväg när ingen annan kategori passar. Övrigt betyder osorterat, inte en riktig varugrupp.',
+    '- Drycker som cola, läsk, juice, öl, vin och vatten ska till Drycker om den kategorin finns.',
     '- Exempel: köttbullar ska till en kött/frys-kategori om en sådan finns, inte Bröd, även om ordet innehåller "bullar".',
-    `Svara ENBART med JSON på formen {"items":[{"name":"köttbullar","category":"${categoryNames[0]}"}]}.`,
+    `Svara ENBART med JSON på formen {"items":[{"name":"köttbullar","category":"${primaryCategories[0] || categoryNames[0]}"}]}.`,
   ].join('\n');
 }
 
@@ -68,7 +75,7 @@ export async function llmCategorize(names, categoryNames) {
     const category = String(row?.category ?? row?.kategori ?? '').trim();
     if (!name || !requested.has(name.toLowerCase())) continue;
     const validCategory = allowed.get(category.toLowerCase());
-    if (validCategory) assignments[name] = validCategory;
+    if (validCategory && validCategory.toLowerCase() !== OTHER_CATEGORY) assignments[name] = validCategory;
   }
   return assignments;
 }

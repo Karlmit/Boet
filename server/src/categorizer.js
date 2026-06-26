@@ -60,10 +60,22 @@ export async function learnedCategoryFor(name) {
   const key = normalizeKey(name);
   if (!key) return null;
   const { rows } = await query(
-    `SELECT category_name FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
+    `SELECT category_name, source FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
     [HOUSEHOLD_ID, key]
   );
+  if (rows[0]?.source === 'llm' && rows[0].category_name.toLowerCase() === 'övrigt') return null;
   return rows[0]?.category_name || null;
+}
+
+export async function learnedCategoryRecordFor(name) {
+  const key = normalizeKey(name);
+  if (!key) return null;
+  const { rows } = await query(
+    `SELECT category_name, source FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
+    [HOUSEHOLD_ID, key]
+  );
+  if (!rows.length) return null;
+  return { categoryName: rows[0].category_name, source: rows[0].source || 'manual' };
 }
 
 export async function recordPurchase(name) {
