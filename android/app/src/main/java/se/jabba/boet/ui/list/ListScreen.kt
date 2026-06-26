@@ -201,6 +201,7 @@ fun ListScreen(
                         overlay = state.list?.bgOverlay ?: 0,
                         conn = conn,
                         pending = pending,
+                        onSyncClick = { repo.realtime.reconnectNow() },
                         onShopping = onOpenShopping,
                     )
                 }
@@ -449,6 +450,7 @@ private fun ListHeaderBand(
     overlay: Int,
     conn: ConnState,
     pending: Int,
+    onSyncClick: () -> Unit,
     onShopping: () -> Unit,
 ) {
     val hasImage = bgImageUrl != null
@@ -484,7 +486,7 @@ private fun ListHeaderBand(
         ) {
             AnimatedVisibility(visible = showSync) {
                 Column(horizontalAlignment = Alignment.End) {
-                    SyncChip(conn, pending)
+                    SyncChip(conn, pending, onClick = onSyncClick)
                     Spacer(Modifier.height(8.dp))
                 }
             }

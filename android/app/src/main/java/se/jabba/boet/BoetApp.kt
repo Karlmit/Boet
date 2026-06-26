@@ -44,10 +44,11 @@ class BoetApp : Application() {
 
         // Keep snapshots and the realtime connection in sync with settings.
         prefs.settings.onEach { s ->
+            val changedServer = serverUrl != s.serverUrl
             serverUrl = s.serverUrl
             val changedIdentity = identity != s.identity
             identity = s.identity
-            if (s.identity != null && changedIdentity) {
+            if (s.identity != null && (changedIdentity || changedServer)) {
                 repository.realtime.connect(s.identity.lowercase(), s.identity)
                 registerFcmToken()
             }

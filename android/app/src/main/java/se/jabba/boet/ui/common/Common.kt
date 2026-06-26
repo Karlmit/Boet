@@ -1,6 +1,7 @@
 package se.jabba.boet.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,14 +78,18 @@ fun CategoryHeader(name: String, modifier: Modifier = Modifier, color: androidx.
 
 // Small status chip pairing icon + text (never colour alone).
 @Composable
-fun SyncChip(state: ConnState, pending: Int) {
+fun SyncChip(state: ConnState, pending: Int, onClick: (() -> Unit)? = null) {
     val (label, dot) = when {
         state == ConnState.CONNECTED && pending == 0 -> "Synkad" to Moss
         state == ConnState.CONNECTING -> "Synkar…" to Sage
         pending > 0 -> "$pending väntar" to Sage
         else -> "Offline" to CharcoalMuted
     }
-    Surface(color = Leaf, shape = RoundedCornerShape(999.dp)) {
+    Surface(
+        color = Leaf,
+        shape = RoundedCornerShape(999.dp),
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),

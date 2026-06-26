@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.TimeUnit
 
 // A single change event pushed by the server.
@@ -45,6 +46,7 @@ class RealtimeClient(
     // a member's presence the instant their socket closes.
     private var lastStatus: String? = null
     private var lastListId: String? = null
+    private val reconnectGeneration = AtomicInteger(0)
 
     private val _state = MutableStateFlow(ConnState.OFFLINE)
     val state: StateFlow<ConnState> = _state
@@ -54,6 +56,8 @@ class RealtimeClient(
         this.memberName = memberName
         closed = false
         everConnected = false
+        reconnectGeneration.incrementAndGet()
+        ws?.cancel()
         open()
     }
 
@@ -117,11 +121,21 @@ class RealtimeClient(
     private fun scheduleReconnect() {
         if (closed) return
         val delay = backoffMs
+        val generation = reconnectGeneration.get()
         backoffMs = (backoffMs * 2).coerceAtMost(15000L)
         Thread {
             Thread.sleep(delay)
-            if (!closed) open()
+            if (!closed && generation == reconnectGeneration.get()) open()
         }.start()
+    }
+
+    fun reconnectNow() {
+        if (memberId == null || memberName == null) return
+        closed = false
+        backoffMs = 1000L
+        reconnectGeneration.incrementAndGet()
+        ws?.cancel()
+        open()
     }
 
     fun sendPresence(status: String, listId: String?) {
@@ -138,6 +152,7 @@ class RealtimeClient(
 
     fun close() {
         closed = true
+        reconnectGeneration.incrementAndGet()
         ws?.close(1000, "bye")
         _state.value = ConnState.OFFLINE
     }
