@@ -299,10 +299,10 @@ class Repository(
         enqueue("PATCH", "/api/lists/${list.id}", buildJson(mapOf("bgImageUrl" to url, "bgBlur" to blur, "bgOverlay" to overlay)))
     }
 
-    suspend fun addCategory(listId: String, name: String) = withContext(Dispatchers.IO) {
+    suspend fun addCategory(listId: String, name: String, icon: String? = null) = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID().toString()
-        categoryDao.upsert(CategoryEntity(id = id, listId = listId, name = name))
-        enqueue("POST", "/api/lists/$listId/categories", buildJson(mapOf("id" to id, "name" to name)))
+        categoryDao.upsert(CategoryEntity(id = id, listId = listId, name = name, icon = icon))
+        enqueue("POST", "/api/lists/$listId/categories", buildJson(mapOf("id" to id, "name" to name, "icon" to icon)))
     }
 
     suspend fun reorderCategories(listId: String, order: List<String>) = withContext(Dispatchers.IO) {
@@ -321,6 +321,11 @@ class Repository(
     suspend fun renameCategory(category: CategoryEntity, name: String) = withContext(Dispatchers.IO) {
         categoryDao.upsert(category.copy(name = name))
         enqueue("PATCH", "/api/categories/${category.id}", buildJson(mapOf("name" to name)))
+    }
+
+    suspend fun setCategoryIcon(category: CategoryEntity, icon: String?) = withContext(Dispatchers.IO) {
+        categoryDao.upsert(category.copy(icon = icon))
+        enqueue("PATCH", "/api/categories/${category.id}", buildJson(mapOf("icon" to icon)))
     }
 
     suspend fun deleteCategory(category: CategoryEntity) = withContext(Dispatchers.IO) {

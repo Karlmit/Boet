@@ -21,6 +21,7 @@ import se.jabba.boet.data.local.ListEntity
 data class CategorySection(
     val id: String?,
     val name: String,
+    val icon: String? = null,
     val items: List<ItemEntity>,
 )
 
@@ -63,11 +64,11 @@ class ListViewModel(
         val sections = buildList {
             for (cat in ordered) {
                 val its = (byCat[cat.id] ?: emptyList()).sortedBy { it.position }
-                add(CategorySection(cat.id, cat.name, its))
+                add(CategorySection(cat.id, cat.name, cat.icon, its))
             }
             // Uncategorized active items (no matching category).
             val orphan = active.filter { it.categoryId == null || ordered.none { c -> c.id == it.categoryId } }
-            if (orphan.isNotEmpty()) add(CategorySection(null, "Övrigt", orphan.sortedBy { it.position }))
+            if (orphan.isNotEmpty()) add(CategorySection(null, "Övrigt", "other", orphan.sortedBy { it.position }))
         }
         // Shopping Mode sections: include checked items in their own category, sunk
         // to the bottom of the group (unchecked first by position, then checked).
@@ -76,11 +77,11 @@ class ListViewModel(
             for (cat in ordered) {
                 val its = (allByCat[cat.id] ?: emptyList())
                     .sortedWith(compareBy({ it.checked }, { it.position }))
-                add(CategorySection(cat.id, cat.name, its))
+                add(CategorySection(cat.id, cat.name, cat.icon, its))
             }
             val orphan = items.filter { it.categoryId == null || ordered.none { c -> c.id == it.categoryId } }
             if (orphan.isNotEmpty()) {
-                add(CategorySection(null, "Övrigt", orphan.sortedWith(compareBy({ it.checked }, { it.position }))))
+                add(CategorySection(null, "Övrigt", "other", orphan.sortedWith(compareBy({ it.checked }, { it.position }))))
             }
         }
         // Completed items live in a separate, newest-first bucket.
@@ -178,7 +179,7 @@ class ListViewModel(
     fun autoSort() = viewModelScope.launch { repo.autoSort(listId) }
     fun reorderItems(orderedIds: List<String>) = viewModelScope.launch { repo.reorderItems(listId, orderedIds) }
     fun reorderCategories(order: List<String>) = viewModelScope.launch { repo.reorderCategories(listId, order) }
-    fun addCategory(name: String) = viewModelScope.launch { repo.addCategory(listId, name) }
+    fun addCategory(name: String, icon: String? = null) = viewModelScope.launch { repo.addCategory(listId, name, icon) }
 
     companion object {
         fun factory(repo: Repository, listId: String) = viewModelFactory {

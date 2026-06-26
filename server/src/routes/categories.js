@@ -15,16 +15,16 @@ categories.get('/lists/:listId/categories', async (req, res) => {
 });
 
 categories.post('/lists/:listId/categories', async (req, res) => {
-  const { id: clientId, name } = req.body || {};
+  const { id: clientId, name, icon = null } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const { rows: pos } = await query(
     `SELECT COALESCE(MAX(position), -1)+1 AS p FROM categories WHERE list_id=$1`,
     [req.params.listId]
   );
   const { rows } = await query(
-    `INSERT INTO categories (id, list_id, name, position) VALUES ($1,$2,$3,$4)
-     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name RETURNING *`,
-    [clientId || nanoid(), req.params.listId, name.trim(), pos[0].p]
+    `INSERT INTO categories (id, list_id, name, icon, position) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, icon=EXCLUDED.icon RETURNING *`,
+    [clientId || nanoid(), req.params.listId, name.trim(), icon || null, pos[0].p]
   );
   const payload = categoryRow(rows[0]);
   hub.emit('create', 'category', payload);
@@ -32,11 +32,18 @@ categories.post('/lists/:listId/categories', async (req, res) => {
 });
 
 categories.patch('/categories/:id', async (req, res) => {
-  const { name } = req.body || {};
-  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  const { name, icon } = req.body || {};
+  if (name !== undefined && !name?.trim()) return res.status(400).json({ error: 'name required' });
+  if (name === undefined && icon === undefined) return res.status(400).json({ error: 'no valid fields' });
+  const sets = [];
+  const vals = [];
+  let i = 1;
+  if (name !== undefined) { sets.push(`name=$${i++}`); vals.push(name.trim()); }
+  if (icon !== undefined) { sets.push(`icon=$${i++}`); vals.push(icon || null); }
+  vals.push(req.params.id);
   const { rows } = await query(
-    `UPDATE categories SET name=$1 WHERE id=$2 RETURNING *`,
-    [name.trim(), req.params.id]
+    `UPDATE categories SET ${sets.join(', ')} WHERE id=$${i} RETURNING *`,
+    vals
   );
   if (rows.length === 0) return res.status(404).json({ error: 'not found' });
   const payload = categoryRow(rows[0]);

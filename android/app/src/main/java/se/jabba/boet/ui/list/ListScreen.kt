@@ -217,6 +217,7 @@ fun ListScreen(
                 item(key = "cat-$key") {
                     CategoryGroup(
                         name = section.name,
+                        icon = section.icon,
                         items = section.items,
                         favoriteKeys = favoriteKeys,
                         expanded = expanded,
@@ -535,6 +536,7 @@ private fun GroupDivider() {
 @Composable
 private fun CategoryGroup(
     name: String,
+    icon: String?,
     items: List<ItemEntity>,
     favoriteKeys: Set<String>,
     expanded: Boolean,
@@ -555,7 +557,7 @@ private fun CategoryGroup(
                 .clickable(onClick = onToggleExpanded)
                 .padding(horizontal = 6.dp, vertical = 6.dp),
         ) {
-            Icon(categoryIcon(name), contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+            Icon(categoryIcon(icon, name), contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(name.uppercase(), style = BoetType.label, color = MossDeep, modifier = Modifier.weight(1f))
             Icon(

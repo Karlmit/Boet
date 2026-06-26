@@ -24,6 +24,7 @@ data class CategoryEntity(
     @PrimaryKey val id: String,
     val listId: String,
     val name: String,
+    val icon: String? = null,
     val position: Int = 0,
 )
 

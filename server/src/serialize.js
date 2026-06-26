@@ -22,6 +22,7 @@ export function categoryRow(r) {
     id: r.id,
     listId: r.list_id,
     name: r.name,
+    icon: r.icon,
     position: r.position,
   };
 }

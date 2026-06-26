@@ -25,7 +25,7 @@ import se.jabba.boet.ui.theme.*
 
 // Reorder, rename, add and remove categories. Reordering teaches the per-list
 // store layout (spec: "Store Layout Learning").
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CategoryManageScreen(
     repo: Repository,
@@ -38,7 +38,9 @@ fun CategoryManageScreen(
     // Local working copy so up/down feels instant; committed to the repo on change.
     var order by remember(remote.map { it.id }) { mutableStateOf(remote) }
     var newName by remember { mutableStateOf("") }
+    var newIcon by remember { mutableStateOf("label") }
     var renaming by remember { mutableStateOf<CategoryEntity?>(null) }
+    var iconEditing by remember { mutableStateOf<CategoryEntity?>(null) }
 
     fun commit(newOrder: List<CategoryEntity>) {
         order = newOrder
@@ -65,9 +67,18 @@ fun CategoryManageScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
             ) {
+                IconPickerButton(
+                    icon = newIcon,
+                    name = newName.ifBlank { "Ny kategori" },
+                    onClick = { iconEditing = CategoryEntity(id = "", listId = listId, name = newName.ifBlank { "Ny kategori" }, icon = newIcon) },
+                )
+                Spacer(Modifier.width(8.dp))
                 OutlinedTextField(
                     value = newName,
-                    onValueChange = { newName = it },
+                    onValueChange = {
+                        newName = it
+                        if (newIcon == "label") newIcon = defaultCategoryIconKey(it)
+                    },
                     placeholder = { Text("Ny kategori", color = CharcoalMuted) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -77,7 +88,12 @@ fun CategoryManageScreen(
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(
                     onClick = {
-                        if (newName.isNotBlank()) { scope.launch { repo.addCategory(listId, newName.trim()) }; newName = "" }
+                        if (newName.isNotBlank()) {
+                            val name = newName.trim()
+                            scope.launch { repo.addCategory(listId, name, newIcon) }
+                            newName = ""
+                            newIcon = "label"
+                        }
                     },
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MossDeep, contentColor = WarmWhite),
                 ) { Icon(Icons.Default.Add, contentDescription = "Lägg till kategori") }
@@ -97,6 +113,12 @@ fun CategoryManageScreen(
                         ) {
                             Icon(Icons.Default.DragHandle, contentDescription = null, tint = CharcoalMuted)
                             Spacer(Modifier.width(12.dp))
+                            IconPickerButton(
+                                icon = cat.icon,
+                                name = cat.name,
+                                onClick = { iconEditing = cat },
+                            )
+                            Spacer(Modifier.width(8.dp))
                             Text(cat.name, style = BoetType.title, color = Charcoal, modifier = Modifier.weight(1f))
 
                             IconButton(
@@ -151,4 +173,86 @@ fun CategoryManageScreen(
             dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.cancel), color = Charcoal) } },
         )
     }
+
+    iconEditing?.let { cat ->
+        IconPickerDialog(
+            title = if (cat.id.isBlank()) "Ikon för ny kategori" else cat.name,
+            selected = cat.icon ?: defaultCategoryIconKey(cat.name),
+            onPick = { icon ->
+                if (cat.id.isBlank()) newIcon = icon
+                else scope.launch { repo.setCategoryIcon(cat, icon) }
+                iconEditing = null
+            },
+            onDismiss = { iconEditing = null },
+        )
+    }
+}
+
+@Composable
+private fun IconPickerButton(
+    icon: String?,
+    name: String,
+    onClick: () -> Unit,
+) {
+    OutlinedIconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = MossDeep),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
+    ) {
+        Icon(categoryIcon(icon, name), contentDescription = "Välj ikon")
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun IconPickerDialog(
+    title: String,
+    selected: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        containerColor = WarmWhite,
+        onDismissRequest = onDismiss,
+        title = { Text(title, style = BoetType.headline) },
+        text = {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CATEGORY_ICON_OPTIONS.forEach { option ->
+                    val isSelected = option.key == selected
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onPick(option.key) },
+                        label = { Text(option.label) },
+                        leadingIcon = {
+                            Icon(
+                                option.image,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Leaf,
+                            selectedLabelColor = Charcoal,
+                            selectedLeadingIconColor = MossDeep,
+                            labelColor = Charcoal,
+                            iconColor = MossDeep,
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Stone,
+                            selectedBorderColor = Moss,
+                        ),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Charcoal) }
+        },
+    )
 }

@@ -36,6 +36,7 @@ export async function initSchema() {
       id          TEXT PRIMARY KEY,
       list_id     TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
       name        TEXT NOT NULL,
+      icon        TEXT,
       position    INTEGER NOT NULL DEFAULT 0,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -111,6 +112,11 @@ export async function initSchema() {
   await query(`
     ALTER TABLE learned_categories
       ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual'
+  `);
+
+  await query(`
+    ALTER TABLE categories
+      ADD COLUMN IF NOT EXISTS icon TEXT
   `);
 
   await query(`

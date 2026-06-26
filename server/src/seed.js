@@ -4,6 +4,18 @@ import { DEFAULT_CATEGORIES } from './categorize.js';
 
 export const HOUSEHOLD_ID = 'home';
 
+const CATEGORY_ICONS = {
+  'Frukt & grönt': 'leaf',
+  'Bröd': 'bread',
+  'Mejeri': 'dairy',
+  'Kött & fisk': 'protein',
+  'Frys': 'frozen',
+  'Torrvaror': 'pantry',
+  'Snacks': 'snacks',
+  'Hushåll': 'home',
+  'Övrigt': 'other',
+};
+
 // Ensure the single V1 household, its two members, and a default grocery list.
 export async function seed() {
   await tx(async (c) => {
@@ -41,9 +53,9 @@ export async function seed() {
       let pos = 0;
       for (const cat of DEFAULT_CATEGORIES) {
         await c.query(
-          `INSERT INTO categories (id, list_id, name, position)
-           VALUES ($1, $2, $3, $4)`,
-          [nanoid(), listId, cat, pos++]
+          `INSERT INTO categories (id, list_id, name, icon, position)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [nanoid(), listId, cat, CATEGORY_ICONS[cat] || null, pos++]
         );
       }
     }

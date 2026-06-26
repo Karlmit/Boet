@@ -9,6 +9,18 @@ import { parseSortPrompt } from '../ai.js';
 
 export const lists = Router();
 
+const CATEGORY_ICONS = {
+  'Frukt & grönt': 'leaf',
+  'Bröd': 'bread',
+  'Mejeri': 'dairy',
+  'Kött & fisk': 'protein',
+  'Frys': 'frozen',
+  'Torrvaror': 'pantry',
+  'Snacks': 'snacks',
+  'Hushåll': 'home',
+  'Övrigt': 'other',
+};
+
 // All lists (optionally including archived).
 lists.get('/lists', async (req, res) => {
   const includeArchived = req.query.archived === 'true';
@@ -53,8 +65,8 @@ lists.post('/lists', async (req, res) => {
     let pos = 0;
     for (const cat of cats) {
       const { rows: cr } = await c.query(
-        `INSERT INTO categories (id, list_id, name, position) VALUES ($1,$2,$3,$4) RETURNING *`,
-        [nanoid(), id, cat, pos++]
+        `INSERT INTO categories (id, list_id, name, icon, position) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+        [nanoid(), id, cat, CATEGORY_ICONS[cat] || null, pos++]
       );
       catRows.push(cr[0]);
     }

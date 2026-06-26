@@ -31,9 +31,10 @@ data class CategoryDto(
     val id: String,
     val listId: String,
     val name: String,
+    val icon: String? = null,
     val position: Int = 0,
 ) {
-    fun toEntity() = CategoryEntity(id, listId, name, position)
+    fun toEntity() = CategoryEntity(id, listId, name, icon, position)
 }
 
 @Serializable
