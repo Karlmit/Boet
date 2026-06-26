@@ -36,6 +36,7 @@ export async function resolveCategoryId(listId, name) {
 export async function learnCategory(name, categoryName) {
   const key = normalizeKey(name);
   if (!key || !categoryName) return;
+  if (categoryName.toLowerCase() === 'övrigt') return;
   await query(
     `INSERT INTO learned_categories (household_id, item_key, category_name, source, hits)
      VALUES ($1,$2,$3,'manual',1)
@@ -48,6 +49,7 @@ export async function learnCategory(name, categoryName) {
 export async function learnCategoryAI(name, categoryName) {
   const key = normalizeKey(name);
   if (!key || !categoryName) return;
+  if (categoryName.toLowerCase() === 'övrigt') return;
   await query(
     `INSERT INTO learned_categories (household_id, item_key, category_name, source, hits)
      VALUES ($1,$2,$3,'llm',1)
@@ -63,7 +65,7 @@ export async function learnedCategoryFor(name) {
     `SELECT category_name, source FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
     [HOUSEHOLD_ID, key]
   );
-  if (rows[0]?.source === 'llm' && rows[0].category_name.toLowerCase() === 'övrigt') return null;
+  if (rows[0]?.category_name.toLowerCase() === 'övrigt') return null;
   return rows[0]?.category_name || null;
 }
 

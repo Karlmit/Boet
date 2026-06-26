@@ -179,8 +179,8 @@ items.post('/lists/:listId/autosort', async (req, res) => {
   const untrusted = [];
   for (const item of existing) {
     const learned = await learnedCategoryRecordFor(item.name);
-    const isAiOther = learned?.source === 'llm' && learned.categoryName.toLowerCase() === OTHER_CATEGORY;
-    if (!learned || isAiOther) untrusted.push(item);
+    const isOther = learned?.categoryName.toLowerCase() === OTHER_CATEGORY;
+    if (!learned || isOther) untrusted.push(item);
   }
 
   const rawAiAssignments = ollamaEnabled()
