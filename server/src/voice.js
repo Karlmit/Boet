@@ -34,6 +34,44 @@ function parseQuantity(s) {
   return { value: Number.isFinite(value) ? value : 1, unit: UNITS.includes(rawUnit) ? rawUnit : null };
 }
 
+const QUANTITY_CUE_RE = new RegExp([
+  String.raw`\d+(?:[.,]\d+)?`,
+  String.raw`\b(en|ett|två|tre|fyra|fem|sex|sju|åtta|atta|nio|tio|elva|tolv)\b`,
+  String.raw`\b(kilo|kilot|kilogram|gram|hekto|hektogram|liter|litern|deciliter|dl|cl|ml|kg|g|hg|l|paket|pack)\b`,
+].join('|'), 'iu');
+
+function normalizeLoose(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function hasExplicitQuantityForItem(raw, name) {
+  const itemKey = normalizeLoose(name);
+  if (!itemKey) return false;
+  const segments = String(raw || '')
+    .split(/,|;|\boch\b|\band\b|&|\bplus\b/iu)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const segment of segments) {
+    const segmentKey = normalizeLoose(segment);
+    if ((segmentKey.includes(itemKey) || itemKey.includes(segmentKey)) && QUANTITY_CUE_RE.test(segment)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function stripInventedQuantities(items, raw) {
+  return items.map((item) => (
+    item.quantity && !hasExplicitQuantityForItem(raw, item.name)
+      ? { ...item, quantity: null }
+      : item
+  ));
+}
+
 // Merge two quantities for the same item. Both bare counts -> sum; if either side
 // carries a unit, prefer the incoming measure, else keep existing (never add
 // across units).
@@ -71,6 +109,8 @@ function buildPrompt(raw, categoryNames = []) {
     '- Använd singular grundform med stor första bokstav (ex: "citroner" -> "Citron").',
     '- "qty" = antalet/mängden som siffra om det sägs (ex: "två" -> "2", "tio" -> "10"), annars "1".',
     '- "unit" = enheten om en vikt/volym/förpackning sägs, en av [kg, g, hg, l, dl, paket]. Annars tom sträng "".',
+    '- Gissa aldrig standardstorlek, vikt eller volym. Om användaren inte uttryckligen säger mängd/enhet ska qty vara "1" och unit vara "".',
+    '- Ex: "Pepsi, Cocacola, grädde" -> qty "1", unit "" för alla tre. Skriv inte 1 l eller 1 kg om det inte sades.',
     '  Ex: "ett kilo fläsk" -> qty "1", unit "kg". "tio gram saffran" -> qty "10", unit "g". "två äpplen" -> qty "2", unit "".',
     '- Slå ihop dubbletter (summera bara rena antal, inte vikter/volymer).',
     ...categoryLines,
@@ -165,7 +205,7 @@ export async function cleanVoice(transcript, categoryNames = []) {
     const out = await ollamaGenerate(buildPrompt(raw, [...allowedCategories.values()]), { format: 'json' });
     const parsed = out && parseModelItems(out);
     if (parsed && parsed.length) {
-      const items = dedup(parsed).map((item) => {
+      const items = stripInventedQuantities(dedup(parsed), raw).map((item) => {
         const category = item.category ? allowedCategories.get(item.category.toLowerCase()) : null;
         return category ? { ...item, category } : { name: item.name, quantity: item.quantity };
       });

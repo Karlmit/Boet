@@ -44,7 +44,7 @@ class VoiceCleaner(
         val c = classifier
         if (c != null && c.available) {
             val out = runCatching { c.generate(buildPrompt(raw)) }.getOrNull()
-            val parsed = out?.let { parseJson(it) }
+            val parsed = out?.let { parseJson(it, raw) }
             if (!parsed.isNullOrEmpty()) return dedup(parsed)
             Log.w(TAG, "LLM clean returned nothing usable; falling back to regex")
         }
@@ -63,6 +63,8 @@ class VoiceCleaner(
         append("- Använd singular grundform med stor första bokstav (ex: \"citroner\" -> \"Citron\").\n")
         append("- \"qty\" = antalet/mängden som siffra om det sägs (ex: \"två\" -> \"2\", \"tio\" -> \"10\"), annars \"1\".\n")
         append("- \"unit\" = enheten om en vikt/volym/förpackning sägs, en av [kg, g, hg, l, dl, paket]. Annars tom sträng \"\".\n")
+        append("- Gissa aldrig standardstorlek, vikt eller volym. Om användaren inte uttryckligen säger mängd/enhet ska qty vara \"1\" och unit vara \"\".\n")
+        append("- Ex: \"Pepsi, Cocacola, grädde\" -> qty \"1\", unit \"\" för alla tre. Skriv inte 1 l eller 1 kg om det inte sades.\n")
         append("  Ex: \"ett kilo fläsk\" -> qty \"1\", unit \"kg\". \"tio gram saffran\" -> qty \"10\", unit \"g\". \"två äpplen\" -> qty \"2\", unit \"\".\n")
         append("- Slå ihop dubbletter (summera bara rena antal, inte vikter/volymer).\n")
         append("Svara ENBART med en JSON-array, inget annat:\n")
@@ -70,7 +72,7 @@ class VoiceCleaner(
     }
 
     // Pull the first [...] block out of the model's reply and parse it leniently.
-    private fun parseJson(text: String): List<VoiceItem>? {
+    private fun parseJson(text: String, raw: String): List<VoiceItem>? {
         val start = text.indexOf('[')
         val end = text.lastIndexOf(']')
         if (start < 0 || end <= start) return null
@@ -83,11 +85,31 @@ class VoiceCleaner(
                     else {
                         val value = (d.qty.replace(',', '.').toDoubleOrNull() ?: 1.0).coerceIn(0.0, 9999.0)
                         val unit = d.unit.trim().lowercase().takeIf { it in UNITS }
-                        VoiceItem(n.replaceFirstChar { it.uppercaseChar() }, composeQuantity(value, unit))
+                        val displayName = n.replaceFirstChar { it.uppercaseChar() }
+                        val quantity = composeQuantity(value, unit)
+                            .takeIf { hasExplicitQuantityForItem(raw, displayName) }
+                        VoiceItem(displayName, quantity)
                     }
                 }
         }.getOrNull()
     }
+
+    private fun hasExplicitQuantityForItem(raw: String, name: String): Boolean {
+        val itemKey = looseKey(name)
+        if (itemKey.isEmpty()) return false
+        return raw.split(Regex(",|;|\\boch\\b|\\band\\b|&|\\bplus\\b", RegexOption.IGNORE_CASE))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .any { segment ->
+                val segmentKey = looseKey(segment)
+                (segmentKey.contains(itemKey) || itemKey.contains(segmentKey)) && QUANTITY_CUE_RE.containsMatchIn(segment)
+            }
+    }
+
+    private fun looseKey(s: String): String =
+        java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .replace(Regex("[^\\p{L}\\p{N}]+"), "")
 
     // Deterministic fallback: split one utterance into item names, no correction.
     private fun regexItems(utterance: String): List<VoiceItem> {
@@ -112,5 +134,11 @@ class VoiceCleaner(
         return order.values.toList()
     }
 
-    companion object { private const val TAG = "BoetVoice" }
+    companion object {
+        private const val TAG = "BoetVoice"
+        private val QUANTITY_CUE_RE = Regex(
+            "\\d+(?:[.,]\\d+)?|\\b(en|ett|två|tre|fyra|fem|sex|sju|åtta|atta|nio|tio|elva|tolv)\\b|\\b(kilo|kilot|kilogram|gram|hekto|hektogram|liter|litern|deciliter|dl|cl|ml|kg|g|hg|l|paket|pack)\\b",
+            RegexOption.IGNORE_CASE,
+        )
+    }
 }
