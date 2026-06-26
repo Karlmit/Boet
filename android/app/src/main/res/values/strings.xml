@@ -21,6 +21,9 @@
     <string name="shopping_mode">Handla</string>
     <string name="auto_sort">Sortera</string>
     <string name="sort_with_ai">Sortera med AI</string>
+    <string name="auto_sort_done">AI sorterade %1$d varor</string>
+    <string name="auto_sort_no_changes">Inget behövde sorteras om</string>
+    <string name="auto_sort_failed">Kunde inte sortera med AI just nu</string>
     <string name="reorder_items">Ordna om varor</string>
     <string name="completed">Klara</string>
     <string name="show_completed">Visa klara (%1$d)</string>

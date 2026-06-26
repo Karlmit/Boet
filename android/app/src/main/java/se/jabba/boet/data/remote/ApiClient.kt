@@ -73,8 +73,19 @@ class ApiClient(private val baseUrlProvider: () -> String) {
         }
     }
 
-    fun autoSort(listId: String): AutoSortResponse =
-        request("POST", "/api/lists/$listId/autosort", null)
+    fun autoSort(listId: String): AutoSortResponse {
+        val client = http.newBuilder()
+            .readTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(70, TimeUnit.SECONDS)
+            .build()
+        val req = Request.Builder().url(url("/api/lists/$listId/autosort"))
+            .post("".toRequestBody(jsonMedia)).build()
+        client.newCall(req).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw HttpException(resp.code, text)
+            return json.decodeFromString(AutoSortResponse.serializer(), text)
+        }
+    }
 }
 
 @kotlinx.serialization.Serializable

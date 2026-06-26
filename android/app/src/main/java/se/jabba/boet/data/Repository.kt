@@ -20,6 +20,11 @@ import se.jabba.boet.data.local.*
 import se.jabba.boet.data.remote.*
 import java.util.UUID
 
+data class AutoSortResult(
+    val updated: Int = 0,
+    val ok: Boolean = true,
+)
+
 // Single source of truth. The UI always reads from Room; mutations write to Room
 // optimistically, enqueue a server call in the outbox, and flush opportunistically.
 class Repository(
@@ -121,9 +126,13 @@ class Repository(
 
     // Server-backed AI re-sort. Network-only by design; websocket/bootstrap will
     // also reconcile the same updates idempotently.
-    suspend fun autoSort(listId: String) = withContext(Dispatchers.IO) {
+    suspend fun autoSort(listId: String): AutoSortResult = withContext(Dispatchers.IO) {
         runCatching {
-            api.autoSort(listId).items.forEach { itemDao.upsert(it.toEntity()) }
+            val response = api.autoSort(listId)
+            response.items.forEach { itemDao.upsert(it.toEntity()) }
+            AutoSortResult(updated = response.updated, ok = true)
+        }.getOrElse {
+            AutoSortResult(ok = false)
         }
     }
 

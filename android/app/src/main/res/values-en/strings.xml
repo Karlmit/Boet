@@ -18,6 +18,9 @@
     <string name="shopping_mode">Shop</string>
     <string name="auto_sort">Sort</string>
     <string name="sort_with_ai">Sort with AI</string>
+    <string name="auto_sort_done">AI sorted %1$d items</string>
+    <string name="auto_sort_no_changes">Nothing needed re-sorting</string>
+    <string name="auto_sort_failed">Couldn\'t sort with AI right now</string>
     <string name="reorder_items">Reorder items</string>
     <string name="completed">Completed</string>
     <string name="show_completed">Show completed (%1$d)</string>

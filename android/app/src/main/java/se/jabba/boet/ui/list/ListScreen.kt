@@ -104,6 +104,10 @@ fun ListScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val autoSortDoneText = stringResource(R.string.auto_sort_done)
+    val autoSortNoChangesText = stringResource(R.string.auto_sort_no_changes)
+    val autoSortFailedText = stringResource(R.string.auto_sort_failed)
 
     // Mark presence as "viewing" while this screen is composed.
     LaunchedEffect(listId) {
@@ -129,6 +133,7 @@ fun ListScreen(
     ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(color = WarmWhite) {
                 Column {
@@ -161,7 +166,19 @@ fun ListScreen(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.sort_with_ai)) },
                                         leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MossDeep) },
-                                        onClick = { menuOpen = false; vm.autoSort() },
+                                        onClick = {
+                                            menuOpen = false
+                                            scope.launch {
+                                                val result = vm.autoSort()
+                                                snackbarHostState.showSnackbar(
+                                                    when {
+                                                        !result.ok -> autoSortFailedText
+                                                        result.updated > 0 -> autoSortDoneText.format(result.updated)
+                                                        else -> autoSortNoChangesText
+                                                    }
+                                                )
+                                            }
+                                        },
                                     )
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.background_image)) },

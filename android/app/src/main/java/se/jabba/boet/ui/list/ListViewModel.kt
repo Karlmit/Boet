@@ -176,7 +176,7 @@ class ListViewModel(
     fun completeRemaining() = viewModelScope.launch {
         state.value.sections.flatMap { it.items }.forEach { repo.toggleChecked(it) }
     }
-    fun autoSort() = viewModelScope.launch { repo.autoSort(listId) }
+    suspend fun autoSort() = repo.autoSort(listId)
     fun reorderItems(orderedIds: List<String>) = viewModelScope.launch { repo.reorderItems(listId, orderedIds) }
     fun reorderCategories(order: List<String>) = viewModelScope.launch { repo.reorderCategories(listId, order) }
     fun addCategory(name: String, icon: String? = null) = viewModelScope.launch { repo.addCategory(listId, name, icon) }
