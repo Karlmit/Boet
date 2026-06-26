@@ -47,7 +47,20 @@ function mergeQuantity(existing, incoming) {
 
 // --- model path ------------------------------------------------------------
 
-function buildPrompt(raw) {
+function buildPrompt(raw, categoryNames = []) {
+  const categoryLines = categoryNames.length
+    ? [
+        '- Lägg till fältet "category" för varje vara.',
+        '- "category" måste vara exakt en av de tillåtna kategorierna och väljas utifrån betydelse.',
+        '- Hitta aldrig på en kategori.',
+        '- Exempel: köttbullar ska till en kött/frys-kategori om en sådan finns, inte Bröd, även om ordet innehåller "bullar".',
+        'Tillåtna kategorier:',
+        ...categoryNames.map((name) => `- ${name}`),
+      ]
+    : [];
+  const exampleItem = categoryNames.length
+    ? `{"name":"Fläsk","qty":"1","unit":"kg","category":"${categoryNames[0]}"}`
+    : '{"name":"Fläsk","qty":"1","unit":"kg"}';
   return [
     'Du städar en röstinspelad svensk inköpslista.',
     'Råtext (kan ha taligenkänningsfel, utfyllnadsord och sånt som inte är varor):',
@@ -60,8 +73,9 @@ function buildPrompt(raw) {
     '- "unit" = enheten om en vikt/volym/förpackning sägs, en av [kg, g, hg, l, dl, paket]. Annars tom sträng "".',
     '  Ex: "ett kilo fläsk" -> qty "1", unit "kg". "tio gram saffran" -> qty "10", unit "g". "två äpplen" -> qty "2", unit "".',
     '- Slå ihop dubbletter (summera bara rena antal, inte vikter/volymer).',
+    ...categoryLines,
     'Svara ENBART med ett JSON-objekt på formen {"items":[...]}, inget annat:',
-    '{"items":[{"name":"Fläsk","qty":"1","unit":"kg"},{"name":"Saffran","qty":"10","unit":"g"},{"name":"Äpple","qty":"2","unit":""}]}',
+    `{"items":[${exampleItem},{"name":"Saffran","qty":"10","unit":"g"},{"name":"Äpple","qty":"2","unit":""}]}`,
   ].join('\n');
 }
 
@@ -95,6 +109,7 @@ function parseModelItems(text) {
       return {
         name: name.charAt(0).toUpperCase() + name.slice(1),
         quantity: composeQuantity(value, UNITS.includes(unit) ? unit : null),
+        category: String(d?.category ?? '').trim() || undefined,
       };
     })
     .filter(Boolean);
@@ -126,7 +141,7 @@ function dedup(items) {
   for (const it of items) {
     const key = it.name.toLowerCase();
     const existing = order.get(key);
-    order.set(key, existing ? { ...existing, quantity: mergeQuantity(existing.quantity, it.quantity) } : it);
+    order.set(key, existing ? { ...existing, quantity: mergeQuantity(existing.quantity, it.quantity), category: existing.category || it.category } : it);
   }
   return [...order.values()];
 }
@@ -134,18 +149,28 @@ function dedup(items) {
 // --- public API ------------------------------------------------------------
 
 // transcript: array of utterance strings (or a single string). Returns
-// { items: [{name, quantity}], engine }. engine names the source for diagnostics.
-export async function cleanVoice(transcript) {
+// { items: [{name, quantity, category?}], engine }. engine names the source for diagnostics.
+export async function cleanVoice(transcript, categoryNames = []) {
   const lines = (Array.isArray(transcript) ? transcript : [transcript])
     .map((s) => String(s ?? '').trim())
     .filter(Boolean);
   const raw = lines.join('. ').trim();
   if (!raw) return { items: [], engine: 'empty' };
 
+  const allowedCategories = new Map(
+    (categoryNames || []).map((name) => String(name ?? '').trim()).filter(Boolean).map((name) => [name.toLowerCase(), name])
+  );
+
   if (ollamaEnabled()) {
-    const out = await ollamaGenerate(buildPrompt(raw), { format: 'json' });
+    const out = await ollamaGenerate(buildPrompt(raw, [...allowedCategories.values()]), { format: 'json' });
     const parsed = out && parseModelItems(out);
-    if (parsed && parsed.length) return { items: dedup(parsed), engine: ollamaModel() };
+    if (parsed && parsed.length) {
+      const items = dedup(parsed).map((item) => {
+        const category = item.category ? allowedCategories.get(item.category.toLowerCase()) : null;
+        return category ? { ...item, category } : { name: item.name, quantity: item.quantity };
+      });
+      return { items, engine: ollamaModel() };
+    }
   }
   return { items: dedup(lines.flatMap(fallbackItems)), engine: 'fallback' };
 }

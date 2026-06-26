@@ -3,8 +3,10 @@ import { nanoid } from 'nanoid';
 import { query, tx } from '../db.js';
 import { hub } from '../hub.js';
 import { itemRow } from '../serialize.js';
-import { resolveCategoryId, learnCategory, recordPurchase } from '../categorizer.js';
+import { resolveCategoryId, learnCategory, learnCategoryAI, learnedCategoryFor, recordPurchase } from '../categorizer.js';
 import { notifyOthers } from '../push.js';
+import { ollamaEnabled } from '../ollama.js';
+import { llmCategorize } from '../llm-categorize.js';
 
 export const items = Router();
 
@@ -138,18 +140,43 @@ items.post('/lists/:listId/clear-checked', async (req, res) => {
   res.json({ removed: rows.length });
 });
 
-// Auto-sort: re-categorize every item in the list using the household knowledge
-// base (learned mappings + KB). No learning side-effect. Placeholder hook for a
-// future local-LLM sorter — the endpoint contract stays the same.
+// Auto-sort: re-categorize unchecked, untrusted items with the household-local LLM.
+// Learned mappings (manual or prior LLM) are trusted and left alone; LLM choices are
+// persisted as learned mappings so future adds land correctly across the household.
 items.post('/lists/:listId/autosort', async (req, res) => {
   const listId = req.params.listId;
   const { rows: listExists } = await query(`SELECT 1 FROM lists WHERE id=$1`, [listId]);
   if (listExists.length === 0) return res.status(404).json({ error: 'list not found' });
 
-  const { rows: existing } = await query(`SELECT * FROM items WHERE list_id=$1`, [listId]);
-  const updated = [];
+  const { rows: categories } = await query(
+    `SELECT id, name FROM categories WHERE list_id=$1 ORDER BY position`,
+    [listId]
+  );
+  const byName = new Map(categories.map((c) => [c.name.toLowerCase(), c]));
+  const { rows: existing } = await query(
+    `SELECT * FROM items WHERE list_id=$1 AND checked=false`,
+    [listId]
+  );
+
+  const untrusted = [];
   for (const item of existing) {
-    const categoryId = await resolveCategoryId(listId, item.name);
+    if (!(await learnedCategoryFor(item.name))) untrusted.push(item);
+  }
+
+  const rawAiAssignments = ollamaEnabled()
+    ? await llmCategorize(untrusted.map((item) => item.name), categories.map((c) => c.name))
+    : {};
+  const aiAssignments = new Map(
+    Object.entries(rawAiAssignments).map(([name, categoryName]) => [name.toLowerCase(), categoryName])
+  );
+
+  const updated = [];
+  for (const item of untrusted) {
+    const aiCategoryName = aiAssignments.get(item.name.toLowerCase());
+    const aiCategory = aiCategoryName ? byName.get(aiCategoryName.toLowerCase()) : null;
+    if (aiCategory) await learnCategoryAI(item.name, aiCategory.name);
+
+    const categoryId = aiCategory?.id || (await resolveCategoryId(listId, item.name));
     if (categoryId && categoryId !== item.category_id) {
       const { rows } = await query(
         `UPDATE items SET category_id=$1, updated_at=now() WHERE id=$2 RETURNING *`,

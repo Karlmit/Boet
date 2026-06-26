@@ -159,6 +159,11 @@ fun ListScreen(
                                         onClick = { menuOpen = false; onOpenCategories() },
                                     )
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sort_with_ai)) },
+                                        leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MossDeep) },
+                                        onClick = { menuOpen = false; vm.autoSort() },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.background_image)) },
                                         onClick = { menuOpen = false; onOpenListSettings() },
                                     )

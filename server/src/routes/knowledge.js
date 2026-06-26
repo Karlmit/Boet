@@ -65,10 +65,10 @@ knowledge.get('/history', async (req, res) => {
 
 // Clean a raw voice transcript into tidy grocery items using the household's local
 // LLM (Ollama / qwen3:4b-instruct), so phones without an on-device model still get
-// good cleaning. body: { transcript: [] } -> { items: [{name, quantity}], engine }.
+// good cleaning. body: { transcript: [], categories: [] } -> { items: [{name, quantity, category?}], engine }.
 knowledge.post('/voice/clean', async (req, res) => {
-  const { transcript } = req.body || {};
-  res.json(await cleanVoice(transcript));
+  const { transcript, categories = [] } = req.body || {};
+  res.json(await cleanVoice(transcript, categories));
 });
 
 // Recipe -> suggested items (approval flow happens in the app; nothing is added here).

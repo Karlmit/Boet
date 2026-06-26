@@ -146,7 +146,8 @@ class ListViewModel(
 
     // Voice approval flow: clean a raw transcript with the on-device LLM, then add
     // the items the user approved (reusing/incrementing existing rows by name).
-    suspend fun cleanSpoken(transcript: List<String>): List<VoiceItem> = repo.cleanSpoken(transcript)
+    suspend fun cleanSpoken(transcript: List<String>): List<VoiceItem> =
+        repo.cleanSpoken(transcript, state.value.categories.map { it.name })
     fun addVoiceItems(items: List<VoiceItem>) {
         if (items.isEmpty()) return
         viewModelScope.launch { repo.addOrIncrementItems(listId, items) }

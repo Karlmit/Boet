@@ -45,9 +45,9 @@ class Repository(
     // household-local LLM (works on every phone), falls back to the on-device LLM,
     // then a deterministic split. The server lambda returns null when offline so
     // the on-device path takes over.
-    private val voiceCleaner = VoiceCleaner(classifier) { transcript ->
+    private val voiceCleaner = VoiceCleaner(classifier) { transcript, categoryNames ->
         withContext(Dispatchers.IO) {
-            runCatching { api.cleanVoice(transcript).items.map { VoiceItem(it.name, it.quantity) } }
+            runCatching { api.cleanVoice(transcript, categoryNames).items.map { VoiceItem(it.name, it.quantity, it.category) } }
                 .getOrNull()
         }
     }
@@ -119,48 +119,60 @@ class Repository(
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
     }
 
-    // On-device re-categorization: re-run every item through the engine (learned ->
-    // KB -> on-device LLM). Works offline; each moved item is PATCHed with
-    // autosort:true so the server doesn't mistake it for a manual correction.
+    // Server-backed AI re-sort. Network-only by design; websocket/bootstrap will
+    // also reconcile the same updates idempotently.
     suspend fun autoSort(listId: String) = withContext(Dispatchers.IO) {
-        val items = itemDao.itemsForListOnce(listId)
-        for (item in items) {
-            val g = engine.guess(listId, item.name)
-            var targetId = g.categoryId
-            // Only consult the LLM for items the deterministic layers couldn't place.
-            if (!g.confident) {
-                engine.llmCategoryId(listId, item.name)?.let { targetId = it }
-            }
-            if (targetId != null && targetId != item.categoryId) {
-                autoMove(item, targetId!!)
-            }
+        runCatching {
+            api.autoSort(listId).items.forEach { itemDao.upsert(it.toEntity()) }
         }
     }
 
     // Mutations -------------------------------------------------------------
-    suspend fun addItems(listId: String, names: List<Pair<String, String?>>) = withContext(Dispatchers.IO) {
+    suspend fun addItems(
+        listId: String,
+        names: List<Pair<String, String?>>,
+        categoryHints: Map<String, String?> = emptyMap(),
+    ) = withContext(Dispatchers.IO) {
         val who = identityProvider()
+        val categories = categoryDao.categoriesForListOnce(listId)
+        val categoriesByName = categories.associateBy { it.name.trim().lowercase() }
+        val hintsByName = categoryHints.mapKeys { it.key.trim().lowercase() }
         // Categorize each new item on-device, immediately, so it lands in the right
         // group even offline (the server respects a client-provided categoryId).
+        val hintedIds = mutableSetOf<String>()
         val entities = names
             .filter { it.first.isNotBlank() }
             .map { (name, qty) ->
                 val trimmed = name.trim()
-                val g = engine.guess(listId, trimmed)
+                val hintedCategoryId = hintsByName[trimmed.lowercase()]
+                    ?.trim()
+                    ?.lowercase()
+                    ?.let { categoriesByName[it]?.id }
+                if (hintedCategoryId != null) hintedIds += trimmed.lowercase()
+                val guessedCategoryId = hintedCategoryId ?: engine.guess(listId, trimmed).categoryId
                 ItemEntity(id = UUID.randomUUID().toString(), listId = listId, name = trimmed,
-                    quantity = qty, categoryId = g.categoryId, addedBy = who, modifiedBy = who)
+                    quantity = qty, categoryId = guessedCategoryId, addedBy = who, modifiedBy = who)
             }
         if (entities.isEmpty()) return@withContext
         entities.forEach { itemDao.upsert(it) }
         val dtos = entities.map { ItemDto(id = it.id, listId = listId, categoryId = it.categoryId, name = it.name, quantity = it.quantity, addedBy = who) }
         val body = api.json.encodeToString(AddItemsRequest.serializer(), AddItemsRequest(dtos, who))
         enqueue("POST", "/api/lists/$listId/items", body)
+        // A server voice category is trusted AI knowledge. The add POST stores the
+        // category id, and this normal PATCH path teaches the server mapping so
+        // future typed/offline adds resolve the same way household-wide.
+        entities
+            .filter { it.categoryId != null && it.name.trim().lowercase() in hintedIds }
+            .forEach {
+                enqueue("PATCH", "/api/items/${it.id}", buildJson(mapOf("categoryId" to it.categoryId, "modifiedBy" to who)))
+            }
 
         // Background upgrade: for items the KB couldn't confidently place, ask the
         // on-device LLM and quietly move them if it has a better answer.
         if (engine.llmAvailable) {
             scope.launch(Dispatchers.Default) {
                 for (e in entities) {
+                    if (e.name.trim().lowercase() in hintedIds) continue
                     val g = engine.guess(listId, e.name)
                     if (g.confident) continue
                     val better = runCatching { engine.llmCategoryId(listId, e.name) }.getOrNull()
@@ -181,7 +193,8 @@ class Repository(
     }
 
     // Voice: clean a raw transcript into corrected {name, qty} grocery items.
-    suspend fun cleanSpoken(transcript: List<String>): List<VoiceItem> = voiceCleaner.clean(transcript)
+    suspend fun cleanSpoken(transcript: List<String>, categoryNames: List<String> = emptyList()): List<VoiceItem> =
+        voiceCleaner.clean(transcript, categoryNames)
 
     // Add a batch of (already-approved) voice items. Reuses an existing active item
     // with the same name by bumping its quantity, instead of adding a duplicate row.
@@ -194,7 +207,7 @@ class Repository(
                 if (existing != null) {
                     setQuantity(existing, mergeQuantity(existing.quantity, it.quantity))
                 } else {
-                    addItems(listId, listOf(name to it.quantity))
+                    addItems(listId, listOf(name to it.quantity), mapOf(name to it.category))
                 }
             }
         }

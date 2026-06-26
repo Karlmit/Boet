@@ -109,6 +109,11 @@ export async function initSchema() {
   // were starred under the old (item-coupled) model, so existing favorites carry
   // over on first boot after the upgrade. Runs only while favorites is empty.
   await query(`
+    ALTER TABLE learned_categories
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual'
+  `);
+
+  await query(`
     INSERT INTO favorites (id, household_id, name, category_name)
     SELECT DISTINCT ON (lower(trim(i.name)))
            lower(trim(i.name)), l.household_id, trim(i.name), c.name

@@ -69,6 +69,9 @@ data class FavoriteDto(
 data class AddItemsRequest(val items: List<ItemDto>, val addedBy: String? = null)
 
 @Serializable
+data class AutoSortResponse(val updated: Int = 0, val items: List<ItemDto> = emptyList())
+
+@Serializable
 data class LearnedDto(val key: String, val category: String)
 
 @Serializable
@@ -91,7 +94,7 @@ data class RecipeResponse(val suggestions: List<RecipeSuggestion> = emptyList())
 // transcript with the household's local LLM and returns ready-to-add items. The
 // quantity string is already composed ("2", "1 kg") — same format the app uses.
 @Serializable
-data class VoiceCleanItem(val name: String, val quantity: String? = null)
+data class VoiceCleanItem(val name: String, val quantity: String? = null, val category: String? = null)
 
 @Serializable
 data class VoiceCleanResponse(val items: List<VoiceCleanItem> = emptyList(), val engine: String? = null)

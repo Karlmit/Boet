@@ -16,12 +16,9 @@ export async function resolveCategoryId(listId, name) {
 
   // 1. Learned mapping for the household.
   if (key) {
-    const { rows: learned } = await query(
-      `SELECT category_name FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
-      [HOUSEHOLD_ID, key]
-    );
-    if (learned.length) {
-      const id = byName.get(learned[0].category_name.toLowerCase());
+    const learned = await learnedCategoryFor(name);
+    if (learned) {
+      const id = byName.get(learned.toLowerCase());
       if (id) return id;
     }
   }
@@ -40,12 +37,33 @@ export async function learnCategory(name, categoryName) {
   const key = normalizeKey(name);
   if (!key || !categoryName) return;
   await query(
-    `INSERT INTO learned_categories (household_id, item_key, category_name, hits)
-     VALUES ($1,$2,$3,1)
+    `INSERT INTO learned_categories (household_id, item_key, category_name, source, hits)
+     VALUES ($1,$2,$3,'manual',1)
      ON CONFLICT (household_id, item_key)
-     DO UPDATE SET category_name=$3, hits=learned_categories.hits+1, updated_at=now()`,
+     DO UPDATE SET category_name=$3, source='manual', hits=learned_categories.hits+1, updated_at=now()`,
     [HOUSEHOLD_ID, key, categoryName]
   );
+}
+
+export async function learnCategoryAI(name, categoryName) {
+  const key = normalizeKey(name);
+  if (!key || !categoryName) return;
+  await query(
+    `INSERT INTO learned_categories (household_id, item_key, category_name, source, hits)
+     VALUES ($1,$2,$3,'llm',1)
+     ON CONFLICT (household_id, item_key) DO NOTHING`,
+    [HOUSEHOLD_ID, key, categoryName]
+  );
+}
+
+export async function learnedCategoryFor(name) {
+  const key = normalizeKey(name);
+  if (!key) return null;
+  const { rows } = await query(
+    `SELECT category_name FROM learned_categories WHERE household_id=$1 AND item_key=$2`,
+    [HOUSEHOLD_ID, key]
+  );
+  return rows[0]?.category_name || null;
 }
 
 export async function recordPurchase(name) {

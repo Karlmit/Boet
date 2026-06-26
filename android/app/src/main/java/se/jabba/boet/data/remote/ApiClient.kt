@@ -46,8 +46,8 @@ class ApiClient(private val baseUrlProvider: () -> String) {
     // a longer read timeout than the shared client because local model inference
     // can take several seconds. Throws on transport/HTTP errors so the caller can
     // fall back to the on-device path.
-    fun cleanVoice(transcript: List<String>): VoiceCleanResponse {
-        val body = json.encodeToString(VoiceCleanReq.serializer(), VoiceCleanReq(transcript))
+    fun cleanVoice(transcript: List<String>, categories: List<String> = emptyList()): VoiceCleanResponse {
+        val body = json.encodeToString(VoiceCleanReq.serializer(), VoiceCleanReq(transcript, categories))
         val client = http.newBuilder()
             .readTimeout(45, TimeUnit.SECONDS)
             .callTimeout(50, TimeUnit.SECONDS)
@@ -72,10 +72,13 @@ class ApiClient(private val baseUrlProvider: () -> String) {
             return text
         }
     }
+
+    fun autoSort(listId: String): AutoSortResponse =
+        request("POST", "/api/lists/$listId/autosort", null)
 }
 
 @kotlinx.serialization.Serializable
 private data class RecipeReq(val text: String)
 
 @kotlinx.serialization.Serializable
-private data class VoiceCleanReq(val transcript: List<String>)
+private data class VoiceCleanReq(val transcript: List<String>, val categories: List<String> = emptyList())

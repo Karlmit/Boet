@@ -6,7 +6,7 @@ import kotlinx.serialization.json.Json
 
 // A cleaned, ready-to-add grocery item parsed from speech. `quantity` is the
 // freeform amount string ("2", "1 kg", "10 g") or null for a plain count of 1.
-data class VoiceItem(val name: String, val quantity: String? = null)
+data class VoiceItem(val name: String, val quantity: String? = null, val category: String? = null)
 
 // Turns raw voice transcript into a tidy shopping list: fixes mis-hearings
 // ("tonjäst" -> "torrjäst"), singularizes ("citroner" -> "Citron"), parses amounts
@@ -20,7 +20,7 @@ data class VoiceItem(val name: String, val quantity: String? = null)
 // server is unreachable/offline so we degrade gracefully.
 class VoiceCleaner(
     private val classifier: ItemClassifier?,
-    private val serverClean: (suspend (List<String>) -> List<VoiceItem>?)? = null,
+    private val serverClean: (suspend (List<String>, List<String>) -> List<VoiceItem>?)? = null,
 ) {
 
     @Serializable
@@ -28,14 +28,14 @@ class VoiceCleaner(
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    suspend fun clean(transcript: List<String>): List<VoiceItem> {
+    suspend fun clean(transcript: List<String>, categoryNames: List<String> = emptyList()): List<VoiceItem> {
         val raw = transcript.joinToString(". ") { it.trim() }.trim()
         if (raw.isEmpty()) return emptyList()
 
         // 1. Server-side local LLM — consistent quality on every device.
         val sc = serverClean
         if (sc != null) {
-            val server = runCatching { sc(transcript) }.getOrNull()
+            val server = runCatching { sc(transcript, categoryNames) }.getOrNull()
             if (!server.isNullOrEmpty()) return dedup(server)
             Log.w(TAG, "server clean unavailable; trying on-device")
         }
