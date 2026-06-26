@@ -3,7 +3,9 @@ package se.jabba.boet.ui.list
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -107,41 +109,56 @@ fun CategoryManageScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
-                            Icon(Icons.Default.DragHandle, contentDescription = null, tint = CharcoalMuted)
-                            Spacer(Modifier.width(12.dp))
-                            IconPickerButton(
-                                icon = cat.icon,
-                                name = cat.name,
-                                onClick = { iconEditing = cat },
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(cat.name, style = BoetType.title, color = Charcoal, modifier = Modifier.weight(1f))
-
-                            IconButton(
-                                enabled = index > 0,
-                                onClick = {
-                                    val m = order.toMutableList()
-                                    m.add(index - 1, m.removeAt(index)); commit(m)
-                                },
-                            ) { Icon(Icons.Default.ArrowUpward, contentDescription = "Flytta upp", tint = if (index > 0) MossDeep else Stone) }
-
-                            IconButton(
-                                enabled = index < order.lastIndex,
-                                onClick = {
-                                    val m = order.toMutableList()
-                                    m.add(index + 1, m.removeAt(index)); commit(m)
-                                },
-                            ) { Icon(Icons.Default.ArrowDownward, contentDescription = "Flytta ner", tint = if (index < order.lastIndex) MossDeep else Stone) }
-
-                            IconButton(onClick = { renaming = cat }) {
-                                Text("Aa", style = BoetType.label, color = MossDeep)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.DragHandle, contentDescription = null, tint = CharcoalMuted)
+                                Spacer(Modifier.width(10.dp))
+                                IconPickerButton(
+                                    icon = cat.icon,
+                                    name = cat.name,
+                                    onClick = { iconEditing = cat },
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    cat.name,
+                                    style = BoetType.title,
+                                    color = Charcoal,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(onClick = { scope.launch { repo.deleteCategory(cat) } }) {
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = CharcoalMuted)
+                                }
                             }
-                            IconButton(onClick = { scope.launch { repo.deleteCategory(cat) } }) {
-                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = CharcoalMuted)
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 82.dp),
+                            ) {
+                                IconButton(
+                                    enabled = index > 0,
+                                    onClick = {
+                                        val m = order.toMutableList()
+                                        m.add(index - 1, m.removeAt(index)); commit(m)
+                                    },
+                                ) { Icon(Icons.Default.ArrowUpward, contentDescription = "Flytta upp", tint = if (index > 0) MossDeep else Stone) }
+
+                                IconButton(
+                                    enabled = index < order.lastIndex,
+                                    onClick = {
+                                        val m = order.toMutableList()
+                                        m.add(index + 1, m.removeAt(index)); commit(m)
+                                    },
+                                ) { Icon(Icons.Default.ArrowDownward, contentDescription = "Flytta ner", tint = if (index < order.lastIndex) MossDeep else Stone) }
+
+                                IconButton(onClick = { renaming = cat }) {
+                                    Text("Aa", style = BoetType.label, color = MossDeep)
+                                }
                             }
                         }
                     }
@@ -216,37 +233,50 @@ private fun IconPickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = BoetType.headline) },
         text = {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Column(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
             ) {
-                CATEGORY_ICON_OPTIONS.forEach { option ->
-                    val isSelected = option.key == selected
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onPick(option.key) },
-                        label = { Text(option.label) },
-                        leadingIcon = {
-                            Icon(
-                                option.image,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Leaf,
-                            selectedLabelColor = Charcoal,
-                            selectedLeadingIconColor = MossDeep,
-                            labelColor = Charcoal,
-                            iconColor = MossDeep,
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = Stone,
-                            selectedBorderColor = Moss,
-                        ),
-                    )
+                CATEGORY_ICON_GROUPS.forEach { group ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(group.title.uppercase(), style = BoetType.label, color = MossDeep)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            group.options.forEach { option ->
+                                val isSelected = option.key == selected
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onPick(option.key) },
+                                    label = { Text(option.label) },
+                                    leadingIcon = {
+                                        Icon(
+                                            option.image,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Leaf,
+                                        selectedLabelColor = Charcoal,
+                                        selectedLeadingIconColor = MossDeep,
+                                        labelColor = Charcoal,
+                                        iconColor = MossDeep,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = Stone,
+                                        selectedBorderColor = Moss,
+                                    ),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
