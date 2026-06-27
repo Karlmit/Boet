@@ -17,11 +17,8 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
     ./gradlew assembleDebug --no-daemon   # ~1.5 min; APK → app/build/outputs/apk/debug/app-debug.apk
     ```
     Toolchain note: ML Kit GenAI (`genai-prompt`/`genai-common` betas) ship **Kotlin 2.2.0** metadata, so the project is on **Kotlin 2.2.0** + **KSP2** (`ksp.useKSP2=true` in `gradle.properties`) + **Room 2.7.2** (KSP1/Room 2.6.1 fail on Kotlin 2.2). compileSdk 34 is fine. `local.properties` is git-ignored.
-  - **Deploy to the device via the "Windows Workstation" connector.** Connected device = **Kalle's OnePlus 15** (`adb` model `CPH2747`, serial `3B161H00NNQ00000`); Klara has a Samsung S24. Workstation staging dir `C:\BoetBuild\` (space-free — Gradle dislikes the `OneDrive - KWA` path). Deploy the locally-built APK:
-    1. `opus connector put app/build/outputs/apk/debug/app-debug.apk "Windows Workstation:C:/BoetBuild/app-debug.apk"`
-    2. `opus connector run "Windows Workstation" -- cmd "adb install -r C:\BoetBuild\app-debug.apk"`
-    3. Drive/verify with `adb shell input` + `screencap`; check the on-device LLM probe with `adb logcat -s BoetLLM` (`status=AVAILABLE/DOWNLOADABLE/UNAVAILABLE` — tells us if Gemini Nano runs on the OnePlus 15).
-  - The workstation also has Android Studio's own SDK at `C:\Users\KarlAlmqvist\AppData\Local\Android\Sdk` if a Windows build is ever needed (build there in `C:\BoetBuild\android`, write `local.properties` pointing at it). PowerShell over the connector: pass scripts via `--shell powershell --stdin`; inline `$var` in `opus connector run -- powershell "…"` gets eaten by the local workspace shell. `OneDrive - KWA\Bilder\Apps\Boet` holds only logo art, not code.
+  - **Deploy through GitHub, not through an Opus connector or ADB.** Bump `versionCode` and `versionName`, commit, and push to `main`. The Android release workflow publishes the signed APK, and the phones install it through the app's auto-updater.
+  - Use a device connector only when the user explicitly requests on-device debugging or verification; it is not part of the normal deployment path.
 - Default app server is `https://boet.jabba.se`; for on-device testing against this workspace, temporarily set `Prefs.DEFAULT_SERVER` to the LAN IP (revert before commit).
 
 ### Releasing the app (this is what powers in-app auto-update)

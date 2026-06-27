@@ -1,5 +1,7 @@
 package se.jabba.boet.ui.voice
 
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -81,13 +83,23 @@ fun VoiceSessionSheet(
     }
 
     DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        val wasKeepingScreenOn = window?.attributes?.flags
+            ?.and(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         recognizer.start(language, continuous = true, object : VoiceRecognizer.Callbacks {
             override fun onPartial(t: String) { partial = t }
             override fun onResult(t: String) { transcript.add(t.trim()); partial = "" }
             override fun onError(code: Int) {}
             override fun onEnd() {}
         })
-        onDispose { recognizer.stop() }
+        onDispose {
+            recognizer.stop()
+            if (!wasKeepingScreenOn) {
+                window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
     }
 
     Dialog(
