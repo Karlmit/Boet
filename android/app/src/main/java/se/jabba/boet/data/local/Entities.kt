@@ -58,6 +58,23 @@ data class FavoriteEntity(
     val updatedAt: String? = null,
 )
 
+// A household recipe, synced from the server (bootstrap + WebSocket). The full
+// recipe document is stored verbatim as a JSON string in `data` (parsed to a
+// RecipeDoc on demand); `name`/`image` are denormalized for cheap grid rendering
+// and ordering, and `categoryName`/`position` are list-view metadata mutated
+// independently of the body.
+@Entity(tableName = "recipes")
+data class RecipeEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val image: String? = null,
+    val categoryName: String? = null,
+    val position: Int = 0,
+    val data: String,                  // RecipeDoc serialized as JSON
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+)
+
 // Household "knowledge base" of learned item→category mappings, synced down from
 // the server on bootstrap. Lets the on-device categorizer honour corrections
 // ("Mjölk → Mejeri" that Kalle set) even while offline, for both members.

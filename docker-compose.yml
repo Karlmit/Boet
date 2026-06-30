@@ -36,11 +36,19 @@ services:
       # Keep the model warm so an idle gap doesn't cold-start (and fall back) the
       # next voice add. "-1" = always resident; "5m" = unload after 5 min idle.
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      # EN->SV translation sidecar for recipe import. Unset to disable (recipes
+      # then stay in their parsed language).
+      TRANSLATE_URL: ${TRANSLATE_URL:-http://translate:7000}
     volumes:
       - boet-uploads:/data/uploads
     ports:
       # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
       - "3020:3020"
+
+  # EN->SV recipe translation sidecar (opus-mt). Built from server/translate/.
+  translate:
+    build: ./server/translate
+    restart: unless-stopped
 
   # Household-local LLM for voice cleaning. The model is auto-pulled by the
   # ollama-pull sidecar below — no manual step.

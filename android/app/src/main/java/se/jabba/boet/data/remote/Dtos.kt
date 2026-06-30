@@ -1,10 +1,13 @@
 package se.jabba.boet.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.FavoriteEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.local.ListEntity
+import se.jabba.boet.data.local.RecipeEntity
 
 @Serializable
 data class MemberDto(val id: String, val name: String)
@@ -66,6 +69,73 @@ data class FavoriteDto(
     fun toEntity() = FavoriteEntity(id, name, categoryName, position, updatedAt)
 }
 
+// A recipe as it travels over the wire and is mirrored in Room. `name` and
+// `image` are server-derived from the document for cheap grid rendering; `data`
+// is the canonical recipe document (see RecipeDoc) and is stored verbatim as a
+// JSON string so the Room mirror is a single row regardless of recipe size.
+@Serializable
+data class RecipeDto(
+    val id: String,
+    val name: String = "",
+    val image: String? = null,
+    val categoryName: String? = null,
+    val position: Int = 0,
+    val data: JsonObject = JsonObject(emptyMap()),
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+) {
+    fun toEntity() = RecipeEntity(id, name, image, categoryName, position, data.toString(), createdAt, updatedAt)
+}
+
+// The recipe document (the JSONB `data` blob). A Boet-flavoured, camelCase
+// simplification of the Mealie format. Ingredients carry a stable `id` so steps
+// can reference them (ingredientRefs) for inline amounts; steps may carry a
+// timer. The editor (manual create) and the AI parser both produce this shape,
+// and the detail view renders it.
+@Serializable
+data class RecipeDoc(
+    val name: String = "",
+    val description: String? = null,
+    val image: String? = null,
+    val servings: Double? = null,
+    val totalTime: String? = null,
+    val sourceUrl: String? = null,
+    val ingredients: List<RecipeIngredient> = emptyList(),
+    val steps: List<RecipeStep> = emptyList(),
+)
+
+@Serializable
+data class RecipeIngredient(
+    val id: String,
+    val quantity: Double? = null,
+    val unit: String? = null,
+    val food: String = "",
+    val display: String = "",
+    val note: String? = null,
+)
+
+@Serializable
+data class RecipeStep(
+    val id: String,
+    val text: String = "",
+    val ingredientRefs: List<String> = emptyList(),
+    val timerSeconds: Int? = null,
+)
+
+// Decode/encode the recipe document stored as a JSON string in RecipeEntity.data.
+// Lenient on read so a document written by a newer client (extra fields) still
+// loads on an older one.
+object RecipeJson {
+    val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    fun decode(data: String): RecipeDoc =
+        runCatching { json.decodeFromString(RecipeDoc.serializer(), data) }.getOrDefault(RecipeDoc())
+}
+
+// Response from POST /api/recipes/parse — the AI-structured document for the
+// editor to review before saving. `recipe` is null when the parser is unavailable.
+@Serializable
+data class RecipeParseResponse(val recipe: RecipeDoc? = null)
+
 @Serializable
 data class AddItemsRequest(val items: List<ItemDto>, val addedBy: String? = null)
 
@@ -83,6 +153,7 @@ data class BootstrapDto(
     val items: List<ItemDto> = emptyList(),
     val learned: List<LearnedDto> = emptyList(),
     val favorites: List<FavoriteDto> = emptyList(),
+    val recipes: List<RecipeDto> = emptyList(),
 )
 
 @Serializable

@@ -30,8 +30,8 @@ android {
         applicationId = "se.jabba.boet"
         minSdk = 26
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.14"
+        versionCode = 16
+        versionName = "1.15"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -93,6 +93,10 @@ dependencies {
 
     // On-device LLM (Gemini Nano via AICore) for categorizing unknown grocery items.
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
+
+    // On-device OCR (Latin script) for the "add recipe from photo" path: the image
+    // is read to text on-device, then sent to the server AI parser like pasted text.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

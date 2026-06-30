@@ -37,6 +37,23 @@ export function favoriteRow(r) {
   };
 }
 
+export function recipeRow(r) {
+  const data = r.data || {};
+  return {
+    id: r.id,
+    // name + image are derived from the document so the app's recipe grid can
+    // render without parsing the full `data` blob; `data` carries the canonical
+    // recipe content (ingredients, steps, refs, timers).
+    name: data.name || '',
+    image: data.image || null,
+    categoryName: r.category_name,
+    position: r.position,
+    data,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 export function itemRow(r) {
   return {
     id: r.id,

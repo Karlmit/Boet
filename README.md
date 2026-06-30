@@ -5,16 +5,20 @@ household list app for a two-person home (Kalle & Klara).
 
 Boet ("the nest") makes grocery shopping effortless through real-time sync (<1s),
 offline-first editing, intelligent Swedish grocery sorting, voice-first item
-entry, and on-device categorization. Swedish-first (English optional), running
-against the household's own Unraid server — no third-party cloud, no accounts.
+entry, on-device categorization, and an **AI recipe book** that turns any pasted
+recipe (or a photo of one) into structured, Swedish, ready-to-cook instructions —
+then drops the ingredients straight onto the shopping list. Swedish-first (English
+optional), running against the household's own Unraid server — no third-party
+cloud, no accounts.
 
 ## Repository layout
 
 ```
 Boet/
 ├── server/              Node.js backend (REST + WebSocket + Postgres)
+│   └── translate/       EN→SV recipe translation sidecar (opus-mt)
 ├── android/             Kotlin / Jetpack Compose app
-├── docker-compose.yml   Postgres + server, exposes :3020
+├── docker-compose.yml   Postgres + server + ollama + translate, exposes :3020
 └── README.md
 ```
 
@@ -80,6 +84,9 @@ services:
       # held); "5m" = unload after 5 min idle to free RAM at the cost of a slow
       # first request afterwards.
       OLLAMA_KEEP_ALIVE: "-1"
+      # EN->SV translation sidecar for AI recipe import (opus-mt). Unset to disable
+      # (imported recipes then stay in their original language).
+      TRANSLATE_URL: http://translate:7000
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
@@ -88,6 +95,14 @@ services:
       # - /mnt/user/appdata/Boet/fcm.json:/secrets/fcm.json:ro
     ports:
       - "3020:3020"
+
+  # EN->SV recipe translation sidecar (Helsinki-NLP/opus-mt-en-sv). The model
+  # (~300 MB) is baked into the image at build time, so it needs no network at
+  # runtime and holds well under 1 GB RAM. No prebuilt image is published, so it
+  # builds from the repo on first `up` (a few minutes).
+  translate:
+    build: https://github.com/Karlmit/Boet.git#main:server/translate
+    restart: unless-stopped
 
   # Household-local LLM (Ollama) that cleans voice input into tidy items, so phones
   # without an on-device model still get good results. Stays on the LAN — nothing
@@ -144,7 +159,14 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
 - **REST + WebSocket** real-time sync with presence ("Kalle handlar").
 - **Swedish grocery categorization** knowledge base (ICA/Coop/Hemköp/Willys).
 - **Learning**: moving an item teaches the household; all devices benefit.
-- **Recipe → list** and **natural-language sort rules**, parsed deterministically.
+- **AI recipe import** (`POST /api/recipes/parse`) turns free recipe text into a
+  structured recipe — a multi-step pipeline that plays to each tool's strength:
+  the local LLM extracts the structure (ingredients, steps, step↔ingredient links,
+  timers) in the original language, **units are converted in code** (cups→dl,
+  tbsp→msk, oz→g — never trusted to the LLM, which relabels without doing the math),
+  and the text is translated EN→SV by the **opus-mt sidecar**. Recipes themselves
+  are stored as JSON documents (`/api/recipes` CRUD) and synced like everything else.
+- **Natural-language sort rules**, parsed deterministically.
 - **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
   tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),
   so phones without an on-device model get the same quality — and no third-party
@@ -242,7 +264,17 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ **Auto-sortera** button → re-categorizes via the KB (placeholder for a future local LLM)
 - 🟡 Natural-language sort rules for custom lists (deterministic; no AI yet)
 - ⬜ On-device AI categorization · ⬜ store-layout "suggest update" detection
-- ⏸ Recipe → list deferred to V2 (removed from UI)
+
+**Recipes (V2)**
+- ✅ Recipe book reached from the drawer; shopping stays the home screen
+- ✅ Create three ways: manual editor · **AI from pasted text** · **AI from a photo** (on-device OCR)
+- ✅ AI pipeline: local LLM structures the recipe → **units converted in code** → **opus-mt EN→SV translation**
+- ✅ Mealie-style detail view (image, description, ingredients, numbered steps)
+- ✅ **Inline ingredient amounts in steps** (AI-linked) that **scale with the serving count**
+- ✅ Add ingredients to the **Matkasse** list (one tap, runs through the same categorization)
+- ✅ Per-step **timers** (AI-detected or set by hand) · keep-screen-awake while cooking
+- ✅ Optional recipe categories · stored as JSON documents, synced offline-first
+- 🟡 URL scrape (import from a recipe link) ⬜ · "discover" via TheMealDB ⬜ (future)
 
 **Voice**
 - ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred

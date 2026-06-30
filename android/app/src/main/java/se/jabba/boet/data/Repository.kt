@@ -10,7 +10,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import se.jabba.boet.ai.CategoryEngine
 import se.jabba.boet.ai.ClassifierFactory
 import se.jabba.boet.ai.VoiceCleaner
@@ -39,6 +41,7 @@ class Repository(
     private val categoryDao = db.categoryDao()
     private val itemDao = db.itemDao()
     private val favoriteDao = db.favoriteDao()
+    private val recipeDao = db.recipeDao()
     private val learnedDao = db.learnedDao()
     private val outboxDao = db.outboxDao()
     private val flushMutex = Mutex()
@@ -91,9 +94,26 @@ class Repository(
     fun categories(listId: String) = categoryDao.categoriesForList(listId)
     fun items(listId: String) = itemDao.itemsForList(listId)
     fun favorites() = favoriteDao.favorites()
+    fun recipes() = recipeDao.recipes()
+    fun recipeById(id: String) = recipeDao.recipeById(id)
     fun pendingCount() = outboxDao.count()
 
     suspend fun firstListId(): String? = withContext(Dispatchers.IO) { listDao.anyListId() }
+
+    // The default grocery list (Matkasse) — where recipe ingredients are added.
+    // Falls back to any list so add-to-list still works on an unusual setup.
+    suspend fun groceryListId(): String? = withContext(Dispatchers.IO) {
+        listDao.firstGroceryListId() ?: listDao.anyListId()
+    }
+
+    // Add one recipe ingredient to the grocery list, running it through the same
+    // on-device categorization as any other add. Merges into an existing active row
+    // of the same name instead of duplicating. Returns false if there's no list.
+    suspend fun addIngredientToList(name: String, quantity: String?): Boolean = withContext(Dispatchers.IO) {
+        val listId = groceryListId() ?: return@withContext false
+        addOrIncrementItems(listId, listOf(VoiceItem(name.trim(), quantity, null)))
+        true
+    }
 
     // Initial sync ----------------------------------------------------------
     suspend fun bootstrap() = withContext(Dispatchers.IO) {
@@ -107,6 +127,7 @@ class Repository(
             categoryDao.upsertAll(data.categories.map { it.toEntity() })
             itemDao.upsertAll(data.items.map { it.toEntity() })
             favoriteDao.upsertAll(data.favorites.map { it.toEntity() })
+            recipeDao.upsertAll(data.recipes.map { it.toEntity() })
 
             // Refresh the on-device learned-mappings mirror (small table; replace wholesale).
             learnedDao.deleteAll()
@@ -121,6 +142,8 @@ class Repository(
             if (itemIds.isEmpty()) itemDao.deleteAll() else itemDao.deleteNotIn(itemIds)
             val favIds = data.favorites.map { it.id }
             if (favIds.isEmpty()) favoriteDao.deleteAll() else favoriteDao.deleteNotIn(favIds)
+            val recipeIds = data.recipes.map { it.id }
+            if (recipeIds.isEmpty()) recipeDao.deleteAll() else recipeDao.deleteNotIn(recipeIds)
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
     }
 
@@ -379,6 +402,48 @@ class Repository(
         runCatching { api.history() }.getOrDefault(emptyList())
     }
 
+    // Recipes ---------------------------------------------------------------
+    // Create or update a recipe. Optimistic Room write + outbox POST (the server
+    // upserts on id, so this same path serves create and "save edits"). The full
+    // document goes out as a raw JSON object under `data`; name/image are
+    // denormalized into columns for the grid. Returns the recipe id.
+    suspend fun saveRecipe(doc: RecipeDoc, id: String? = null, categoryName: String? = null): String =
+        withContext(Dispatchers.IO) {
+            val rid = id ?: UUID.randomUUID().toString()
+            val existing = recipeDao.byIdOnce(rid)
+            val dataElement = api.json.encodeToJsonElement(RecipeDoc.serializer(), doc)
+            val resolvedCategory = categoryName ?: existing?.categoryName
+            recipeDao.upsert(
+                RecipeEntity(
+                    id = rid,
+                    name = doc.name,
+                    image = doc.image,
+                    categoryName = resolvedCategory,
+                    position = existing?.position ?: 0,
+                    data = dataElement.toString(),
+                )
+            )
+            val body = buildJsonObject {
+                put("id", rid)
+                put("data", dataElement)
+                if (resolvedCategory != null) put("categoryName", resolvedCategory)
+            }.toString()
+            enqueue("POST", "/api/recipes", body)
+            rid
+        }
+
+    suspend fun deleteRecipe(id: String) = withContext(Dispatchers.IO) {
+        recipeDao.delete(id)
+        enqueue("DELETE", "/api/recipes/$id", null)
+    }
+
+    // AI-parse free recipe text into a structured document (server-side LLM +
+    // translation). Network-only; returns null when the parser is unavailable or
+    // the device is offline, so the UI can fall back to the manual editor.
+    suspend fun aiParseRecipe(text: String): RecipeDoc? = withContext(Dispatchers.IO) {
+        runCatching { api.parseRecipeAi(text).recipe }.getOrNull()
+    }
+
     // Outbox ----------------------------------------------------------------
     private suspend fun enqueue(method: String, path: String, body: String?) {
         outboxDao.enqueue(OutboxOp(method = method, path = path, body = body))
@@ -421,6 +486,10 @@ class Repository(
                 "favorite" -> when (ev.event) {
                     "create", "update" -> runCatching { favoriteDao.upsert(api.json.decodeFromString(FavoriteDto.serializer(), ev.data.toString()).toEntity()) }
                     "delete" -> ev.data.str("id")?.let { favoriteDao.delete(it) }
+                }
+                "recipe" -> when (ev.event) {
+                    "create", "update" -> runCatching { recipeDao.upsert(api.json.decodeFromString(RecipeDto.serializer(), ev.data.toString()).toEntity()) }
+                    "delete" -> ev.data.str("id")?.let { recipeDao.delete(it) }
                 }
             }
         }

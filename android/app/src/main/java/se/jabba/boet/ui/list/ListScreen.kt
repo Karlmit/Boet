@@ -78,6 +78,7 @@ fun ListScreen(
     onOpenShopping: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenListSettings: () -> Unit,
+    onOpenRecipes: () -> Unit,
     onSelectList: (String) -> Unit,
 ) {
     val vm: ListViewModel = viewModel(
@@ -127,6 +128,7 @@ fun ListScreen(
                 currentId = listId,
                 onSelect = { scope.launch { drawerState.close() }; onSelectList(it) },
                 onManage = { scope.launch { drawerState.close() }; onOpenLists() },
+                onRecipes = { scope.launch { drawerState.close() }; onOpenRecipes() },
                 onSettings = { scope.launch { drawerState.close() }; onOpenSettings() },
             )
         },
@@ -321,6 +323,7 @@ private fun ListsDrawer(
     currentId: String,
     onSelect: (String) -> Unit,
     onManage: () -> Unit,
+    onRecipes: () -> Unit,
     onSettings: () -> Unit,
 ) {
     ModalDrawerSheet(drawerContainerColor = WarmWhite) {
@@ -350,6 +353,15 @@ private fun ListsDrawer(
                 icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MossDeep) },
                 selected = false,
                 onClick = onManage,
+                colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = WarmWhite),
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+            )
+
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.recipes_title), style = BoetType.body, color = MossDeep) },
+                icon = { Icon(Icons.Default.Restaurant, contentDescription = null, tint = MossDeep) },
+                selected = false,
+                onClick = onRecipes,
                 colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = WarmWhite),
                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             )

@@ -12,6 +12,10 @@ import se.jabba.boet.ui.list.ListScreen
 import se.jabba.boet.ui.list.ListSettingsScreen
 import se.jabba.boet.ui.lists.ListsScreen
 import se.jabba.boet.ui.onboarding.OnboardingScreen
+import se.jabba.boet.ui.recipes.RecipeAiScreen
+import se.jabba.boet.ui.recipes.RecipeDetailScreen
+import se.jabba.boet.ui.recipes.RecipeEditorScreen
+import se.jabba.boet.ui.recipes.RecipesScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
 import se.jabba.boet.update.UpdatePrompt
@@ -69,6 +73,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         onOpenShopping = { nav.navigate("shopping/$listId") },
                         onOpenCategories = { nav.navigate("categories/$listId") },
                         onOpenListSettings = { nav.navigate("listsettings/$listId") },
+                        onOpenRecipes = { nav.navigate("recipes") },
                         onSelectList = { selectedListId = it },
                     )
                 }
@@ -84,6 +89,57 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
 
             composable("settings") {
                 SettingsScreen(prefs = app.prefs, settings = settings, onBack = { nav.popBackStack() })
+            }
+
+            composable("recipes") {
+                RecipesScreen(
+                    repo = repo,
+                    onOpenRecipe = { id -> nav.navigate("recipe/$id") },
+                    onCreate = { nav.navigate("recipe/new") },
+                    onAiCreate = { nav.navigate("recipe/ai") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/ai") {
+                RecipeAiScreen(
+                    repo = repo,
+                    // Open the saved draft in the editor for review, dropping the AI
+                    // screen from the back stack.
+                    onParsed = { id -> nav.navigate("recipe/$id/edit") { popUpTo("recipes") } },
+                    onManual = { nav.navigate("recipe/new") { popUpTo("recipes") } },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/new") {
+                RecipeEditorScreen(
+                    repo = repo,
+                    recipeId = null,
+                    // Land on the new recipe's detail; drop the editor from the back stack.
+                    onSaved = { id -> nav.navigate("recipe/$id") { popUpTo("recipes") } },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/{id}") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                RecipeDetailScreen(
+                    repo = repo,
+                    recipeId = id,
+                    onEdit = { nav.navigate("recipe/$id/edit") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/{id}/edit") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                RecipeEditorScreen(
+                    repo = repo,
+                    recipeId = id,
+                    onSaved = { nav.popBackStack() },
+                    onBack = { nav.popBackStack() },
+                )
             }
 
             composable("shopping/{listId}") { entry ->

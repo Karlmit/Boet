@@ -53,11 +53,20 @@ services:
       # Optional tuning (sensible defaults in code):
       #   OLLAMA_NUM_CTX:    "4096" # context window; smaller = a touch less RAM
       #   OLLAMA_TIMEOUT_MS: "30000"
+      # EN->SV translation sidecar for recipe import (opus-mt). Unset to disable
+      # (recipes then stay in their parsed language).
+      TRANSLATE_URL: ${TRANSLATE_URL:-http://translate:7000}
     volumes:
       - boet-uploads:/data/uploads
       # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json
     ports:
       - "3020:3020"
+
+  # EN->SV recipe translation sidecar (opus-mt, ~300 MB model baked into the
+  # image at build time). Holds well under 1 GB RAM; safe to keep always-on.
+  translate:
+    build: ./server/translate
+    restart: unless-stopped
 
   # Household-local LLM (Ollama) for voice cleaning. The model is pulled
   # automatically by the ollama-pull sidecar below — no manual step needed.

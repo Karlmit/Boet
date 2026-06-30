@@ -100,10 +100,28 @@ export async function initSchema() {
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Household recipes. The whole recipe document (name, description, image,
+    -- servings, ingredients with structured quantity/unit/food + reference ids,
+    -- and steps with ingredient_refs + timers) lives in the JSONB data blob —
+    -- recipes are read and synced as a single unit, so a document keeps the
+    -- Android Room mirror trivial (one row = one JSON string). Only list-view
+    -- metadata that's mutated independently of the body (category, manual order)
+    -- gets its own column. name/image are derived from data in the serializer.
+    CREATE TABLE IF NOT EXISTS recipes (
+      id            TEXT PRIMARY KEY,
+      household_id  TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      data          JSONB NOT NULL DEFAULT '{}'::jsonb,
+      category_name TEXT,
+      position      INTEGER NOT NULL DEFAULT 0,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_items_list ON items(list_id);
     CREATE INDEX IF NOT EXISTS idx_categories_list ON categories(list_id);
     CREATE INDEX IF NOT EXISTS idx_lists_household ON lists(household_id);
     CREATE INDEX IF NOT EXISTS idx_favorites_household ON favorites(household_id);
+    CREATE INDEX IF NOT EXISTS idx_recipes_household ON recipes(household_id);
   `);
 
   // One-time backfill: seed the standalone favorites table from any items that

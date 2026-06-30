@@ -42,6 +42,24 @@ class ApiClient(private val baseUrlProvider: () -> String) {
     fun parseRecipe(text: String): RecipeResponse =
         request("POST", "/api/recipe/parse", json.encodeToString(RecipeReq.serializer(), RecipeReq(text)))
 
+    // AI recipe parse (POST /api/recipes/parse). Uses a generous timeout because
+    // the server runs the local LLM + translation; throws on transport/HTTP errors
+    // (e.g. 503 when the parser is unavailable) so the caller can fall back to manual.
+    fun parseRecipeAi(text: String): RecipeParseResponse {
+        val body = json.encodeToString(RecipeReq.serializer(), RecipeReq(text))
+        val client = http.newBuilder()
+            .readTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(130, TimeUnit.SECONDS)
+            .build()
+        val req = Request.Builder().url(url("/api/recipes/parse"))
+            .post(body.toRequestBody(jsonMedia)).build()
+        client.newCall(req).execute().use { resp ->
+            val text2 = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw HttpException(resp.code, text2)
+            return json.decodeFromString(RecipeParseResponse.serializer(), text2)
+        }
+    }
+
     // Clean a raw voice transcript server-side via the household's local LLM. Uses
     // a longer read timeout than the shared client because local model inference
     // can take several seconds. Throws on transport/HTTP errors so the caller can

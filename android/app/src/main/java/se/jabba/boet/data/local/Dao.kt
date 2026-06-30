@@ -24,6 +24,7 @@ interface ListDao {
     @Query("DELETE FROM lists WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM lists") suspend fun deleteAll()
     @Query("SELECT id FROM lists LIMIT 1") suspend fun anyListId(): String?
+    @Query("SELECT id FROM lists WHERE kind = 'grocery' AND archived = 0 ORDER BY position LIMIT 1") suspend fun firstGroceryListId(): String?
 }
 
 @Dao
@@ -84,6 +85,24 @@ interface FavoriteDao {
     @Query("DELETE FROM favorites WHERE id = :id") suspend fun delete(id: String)
     @Query("DELETE FROM favorites WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM favorites") suspend fun deleteAll()
+}
+
+@Dao
+interface RecipeDao {
+    @Query("SELECT * FROM recipes ORDER BY position, name")
+    fun recipes(): Flow<List<RecipeEntity>>
+
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    fun recipeById(id: String): Flow<RecipeEntity?>
+
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    suspend fun byIdOnce(id: String): RecipeEntity?
+
+    @Upsert suspend fun upsert(recipe: RecipeEntity)
+    @Upsert suspend fun upsertAll(recipes: List<RecipeEntity>)
+    @Query("DELETE FROM recipes WHERE id = :id") suspend fun delete(id: String)
+    @Query("DELETE FROM recipes WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM recipes") suspend fun deleteAll()
 }
 
 @Dao

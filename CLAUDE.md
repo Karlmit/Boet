@@ -209,10 +209,22 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 ### Purchase history
 - 🟡 Backend `GET /api/history` + repo call exist; ⬜ no UI to view / re-add frequent items
 
-### Recipe → grocery list
-- ⏸ **Deferred to V2** — removed from the UI (didn't work as intended). The
-  RecipeScreen + `/api/recipe/parse` code still exist, unused. Its slot now holds
-  the **Auto-sortera** button (→ `/autosort`, placeholder for the future local LLM).
+### Recipes (V2) — recipe book + AI import
+- ✅ **Recipe book** reached from the drawer (shopping stays home). Recipes are JSON
+  documents in a `recipes` table (`/api/recipes` CRUD + `/api/recipes/parse`), synced
+  offline-first like everything else (Room mirror, bootstrap + WebSocket `entity:"recipe"`).
+- ✅ **Create**: manual editor · AI from pasted text · AI from a photo (on-device ML Kit OCR → text).
+- ✅ **AI pipeline** (`recipe-ai.js`): local LLM (`qwen3:4b`) extracts STRUCTURE in the
+  original language → **units converted in code** (`recipe-units.js`: cups→dl, tbsp→msk,
+  oz/lb→g — never the LLM, which relabels without doing the math) → **opus-mt EN→SV**
+  translation via the `translate` sidecar (`server/translate/`, `TRANSLATE_URL`). Degrades
+  to no-translation if the sidecar is unset.
+- ✅ Mealie-style detail (image/description/ingredients/steps), **inline ingredient amounts
+  in steps** that **scale with servings**, add-to-Matkasse per ingredient (reuses
+  `CategoryEngine`), per-step **timers**, keep-screen-awake, optional categories.
+- ⬜ URL scrape · ⬜ TheMealDB "discover" (future). The old orphaned RecipeScreen +
+  `/api/recipe/parse` stub were superseded by this clean rebuild.
+- **NOT yet device-tested**: AI parse against the real household ollama, and on-device OCR.
 
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)
