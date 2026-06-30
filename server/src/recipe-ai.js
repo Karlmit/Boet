@@ -35,6 +35,25 @@ function safeParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
+// Whether the source text is Swedish. opus-mt-en-sv hallucinates training-corpus
+// garbage (EU/Europarl boilerplate) when fed non-English input, so translation
+// must run ONLY on clearly-English text — never on the LLM's self-reported `lang`,
+// which qwen tends to echo from the prompt example.
+function looksSwedish(text) {
+  const t = (text || '').toLowerCase();
+  if (/[åäö]/.test(t)) return true;
+  const sv = [' och ', ' med ', ' tills ', ' eller ', ' rör ', ' vispa', ' stek', ' koka',
+    ' portioner', ' enligt ', ' samt ', ' under ', ' skala', ' tsk', ' msk', ' dl'];
+  return sv.filter((w) => t.includes(w)).length >= 2;
+}
+
+function looksEnglish(text) {
+  const t = (text || '').toLowerCase();
+  const en = [' the ', ' and ', ' with ', ' until ', ' minutes', ' cups', ' cup ',
+    ' tablespoon', ' teaspoon', ' bake', ' stir', ' add ', ' preheat', ' oven', ' heat '];
+  return en.filter((w) => t.includes(w)).length >= 2;
+}
+
 // Pull the JSON object out of the model reply, tolerant of <think> blocks,
 // ```json fences, or stray prose around it.
 function parseRecipeObject(text) {
@@ -58,11 +77,74 @@ function composeDisplay(quantity, unit, food) {
   return [formatQty(quantity), unit || '', food || ''].map((s) => String(s).trim()).filter(Boolean).join(' ');
 }
 
-export async function parseRecipeText(text) {
-  const raw = String(text || '').trim();
-  if (!raw || !ollamaEnabled()) return null;
+// Fast path: the input is already a Mealie recipe export (the format Boet's own
+// document derives from), so map it directly — no LLM, no translation, instant and
+// exact. Returns a RecipeDoc, or null if the text isn't a Mealie recipe.
+function tryMealie(raw) {
+  if (!raw.includes('recipe_ingredient') && !raw.includes('recipe_instructions')) return null;
+  let j;
+  try { j = JSON.parse(raw); } catch { return null; }
+  if (!j || typeof j !== 'object') return null;
+  const rawIng = Array.isArray(j.recipe_ingredient) ? j.recipe_ingredient : [];
+  const rawSteps = Array.isArray(j.recipe_instructions) ? j.recipe_instructions : [];
+  if (rawIng.length === 0 && rawSteps.length === 0) return null;
 
-  const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json' });
+  const ingredients = rawIng.map((x, i) => {
+    const id = String(x?.reference_id || `i${i + 1}`);
+    const q = asNumber(x?.quantity);
+    const unit = typeof x?.unit === 'string' ? x.unit : (x?.unit?.abbreviation || x?.unit?.name || null);
+    const food = typeof x?.food === 'string' ? x.food : (x?.food?.name || null);
+    const display = String(x?.display || x?.note || food || '').trim();
+    return {
+      id,
+      quantity: q && q > 0 ? q : null,
+      unit: unit || null,
+      food: food || display,
+      display: display || composeDisplay(q && q > 0 ? q : null, unit, food),
+      note: x?.note ? String(x.note).trim() : null,
+    };
+  });
+  const validIds = new Set(ingredients.map((x) => x.id));
+
+  const steps = rawSteps.map((s, i) => {
+    const refs = (Array.isArray(s?.ingredient_references) ? s.ingredient_references : [])
+      .map((r) => String(r?.reference_id ?? r)).filter((r) => validIds.has(r));
+    return { id: String(s?.id || `s${i + 1}`), text: String(s?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: null };
+  }).filter((s) => s.text);
+
+  return {
+    name: String(j.name ?? '').trim(),
+    description: j.description ? String(j.description).trim() : null,
+    image: null,
+    servings: asNumber(j.recipe_servings),
+    totalTime: j.total_time ? String(j.total_time).trim() : null,
+    sourceUrl: j.org_url ? String(j.org_url).trim() : null,
+    ingredients,
+    steps,
+  };
+}
+
+// Cap the input the model sees. A real recipe's text fits easily; the cap stops a
+// pathological paste (an entire web page, or a 5 KB structured-JSON export) from
+// running CPU inference past the request timeout. Kept under the model's context.
+const MAX_INPUT_CHARS = 6000;
+
+export async function parseRecipeText(text) {
+  const full = String(text || '').trim();
+  if (!full) return null;
+
+  // Already a Mealie export? Map it directly — instant and exact, no model needed.
+  const mealie = tryMealie(full);
+  if (mealie) return mealie;
+
+  const raw = full.slice(0, MAX_INPUT_CHARS);
+  if (!ollamaEnabled()) return null;
+
+  // Recipe parsing is heavier than voice cleaning, so give it a bigger context and
+  // a longer-but-bounded timeout. The bound stays under the app's 120s read timeout
+  // (plus translation/network headroom) so a slow parse fails fast as a 503 instead
+  // of the app hanging then erroring anyway.
+  const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json', timeoutMs: 90000, numCtx: 8192 });
   const obj = parseRecipeObject(reply);
   if (!obj || typeof obj !== 'object') return null;
 
@@ -100,8 +182,13 @@ export async function parseRecipeText(text) {
   const servings = asNumber(obj.servings);
   const lang = String(obj.lang ?? '').trim().toLowerCase();
 
-  // --- translation (EN->SV) only when needed ----------------------------
-  if (lang && lang !== 'sv' && translateEnabled()) {
+  // --- translation (EN->SV) only for clearly-English source -------------
+  // Gate on the raw text, not the model's `lang`: translate only when the source
+  // is English-looking and NOT Swedish-looking, so a Swedish recipe is never fed
+  // through the EN->SV model (which would hallucinate it into garbage).
+  const wantTranslate = translateEnabled() && !looksSwedish(raw) &&
+    (looksEnglish(raw) || lang.startsWith('en'));
+  if (wantTranslate) {
     // One batched call: [name, description, ...ingredient foods, ...step texts].
     const batch = [name, description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
     const tr = await translateBatch(batch);

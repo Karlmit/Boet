@@ -23,10 +23,12 @@ export const ollamaModel = () => OLLAMA_MODEL;
 
 // Single-shot generation. Returns the model's text, or null on any failure
 // (unset URL, timeout, non-2xx, malformed body) so callers fall back gracefully.
-export async function ollamaGenerate(prompt, { format } = {}) {
+export async function ollamaGenerate(prompt, { format, timeoutMs, numCtx } = {}) {
   if (!OLLAMA_URL) return null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+  // Per-call overrides let heavier tasks (recipe parsing) ask for a longer timeout
+  // and a bigger context window than the voice-cleaning defaults.
+  const timer = setTimeout(() => controller.abort(), timeoutMs || OLLAMA_TIMEOUT_MS);
   try {
     const res = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
@@ -39,7 +41,7 @@ export async function ollamaGenerate(prompt, { format } = {}) {
         keep_alive: OLLAMA_KEEP_ALIVE,
         // temperature low -> near-deterministic, which is what we want for
         // structured JSON output rather than creative text.
-        options: { temperature: 0.1, num_ctx: OLLAMA_NUM_CTX },
+        options: { temperature: 0.1, num_ctx: numCtx || OLLAMA_NUM_CTX },
       }),
       signal: controller.signal,
     });
