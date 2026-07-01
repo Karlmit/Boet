@@ -159,13 +159,21 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
 - **REST + WebSocket** real-time sync with presence ("Kalle handlar").
 - **Swedish grocery categorization** knowledge base (ICA/Coop/Hemköp/Willys).
 - **Learning**: moving an item teaches the household; all devices benefit.
-- **AI recipe import** (`POST /api/recipes/parse`) turns free recipe text into a
-  structured recipe — a multi-step pipeline that plays to each tool's strength:
-  the local LLM extracts the structure (ingredients, steps, step↔ingredient links,
-  timers) in the original language, **units are converted in code** (cups→dl,
-  tbsp→msk, oz→g — never trusted to the LLM, which relabels without doing the math),
-  and the text is translated EN→SV by the **opus-mt sidecar**. Recipes themselves
-  are stored as JSON documents (`/api/recipes` CRUD) and synced like everything else.
+- **AI recipe import** (`POST /api/recipes/parse`) turns free recipe text — or a
+  pasted Mealie / schema.org recipe JSON — into a structured recipe. A multi-step
+  pipeline that plays to each tool's strength: the LLM extracts structure
+  (ingredients, steps, step↔ingredient links, timers) in the original language,
+  **units are converted in code** (cups→dl, tbsp→msk, oz→g — never trusted to the
+  LLM, which relabels without doing the math), and the text is translated EN→SV by
+  the **opus-mt sidecar**. For a pasted recipe JSON the step texts are kept as-is
+  and the model only *tags* them (which ingredients + timers), so it stays fast even
+  on a CPU box. Recipes are stored as JSON documents (`/api/recipes` CRUD) and synced
+  like everything else.
+  - **LLM backend** is the local ollama by default (nothing leaves home). Optionally,
+    set a free **NVIDIA NIM** key (`NVIDIA_API_KEY`, from https://build.nvidia.com) to
+    run *recipe parsing only* on datacenter GPUs — seconds instead of a minute of local
+    CPU inference. Voice cleaning always stays local. This is the one place Boet reaches
+    a third-party cloud, and only when you opt in with a key.
 - **Natural-language sort rules**, parsed deterministically.
 - **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
   tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),

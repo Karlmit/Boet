@@ -8,7 +8,7 @@
 // Returns a RecipeDoc-shaped object (see Android RecipeDoc), or null if the local
 // model is unavailable / the reply can't be parsed (caller falls back to manual).
 
-import { ollamaEnabled, ollamaGenerate } from './ollama.js';
+import { recipeLlmEnabled, recipeGenerate } from './recipe-llm.js';
 import { convertUnit, formatQty } from './recipe-units.js';
 import { translateEnabled, translateBatch } from './translate.js';
 
@@ -241,8 +241,7 @@ async function finalize({ name, description, servings, ingredients, steps, full,
 // refs/timers back onto OUR step texts by step number. Falls back to the direct
 // structural map if the model is unavailable or returns nothing usable.
 async function parseStructured(ex, full) {
-  const reply = await ollamaGenerate(buildStructuredPrompt(ex.ingredientLines, ex.stepLines),
-    { format: 'json', timeoutMs: 100000, numCtx: 8192 });
+  const reply = await recipeGenerate(buildStructuredPrompt(ex.ingredientLines, ex.stepLines), { timeoutMs: 100000 });
   const obj = parseRecipeObject(reply);
   const rawIng = obj && Array.isArray(obj.ingredients) ? obj.ingredients : [];
   if (rawIng.length === 0) return tryMealie(full);
@@ -287,16 +286,16 @@ export async function parseRecipeText(text) {
   // them, which is far cheaper on a slow CPU. Without a model, map Mealie directly.
   const ex = extractRecipeJson(full);
   if (ex) {
-    if (!ollamaEnabled()) return tryMealie(full);
+    if (!recipeLlmEnabled()) return tryMealie(full);
     return parseStructured(ex, full);
   }
 
   // Plain-text paste: the model has to split AND structure it. Bigger context and a
   // longer-but-bounded timeout (under the app's 120s read timeout so a slow parse
   // fails fast as a 503 instead of the app hanging then erroring anyway).
-  if (!ollamaEnabled()) return null;
+  if (!recipeLlmEnabled()) return null;
   const raw = full.slice(0, MAX_INPUT_CHARS);
-  const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json', timeoutMs: 100000, numCtx: 8192 });
+  const reply = await recipeGenerate(buildPrompt(raw), { timeoutMs: 100000 });
   const obj = parseRecipeObject(reply);
   if (!obj || typeof obj !== 'object') return null;
 

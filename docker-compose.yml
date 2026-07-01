@@ -39,6 +39,12 @@ services:
       # EN->SV translation sidecar for recipe import. Unset to disable (recipes
       # then stay in their parsed language).
       TRANSLATE_URL: ${TRANSLATE_URL:-http://translate:7000}
+      # OPT-IN cloud LLM for RECIPE parsing only (voice stays local). Set a free
+      # NVIDIA NIM key (https://build.nvidia.com) to parse recipes on datacenter
+      # GPUs in seconds instead of ~minute-long local CPU inference. Unset = local
+      # ollama, nothing leaves home.
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
     volumes:
       - boet-uploads:/data/uploads
     ports:
