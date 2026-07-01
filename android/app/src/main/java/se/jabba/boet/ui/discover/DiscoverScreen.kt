@@ -16,8 +16,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
@@ -36,12 +36,14 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
+import se.jabba.boet.data.local.ListEntity
 import se.jabba.boet.data.local.Prefs
 import se.jabba.boet.data.remote.MealCategory
 import se.jabba.boet.data.remote.MealDetail
 import se.jabba.boet.data.remote.MealIngredientRef
 import se.jabba.boet.data.remote.MealSummary
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.list.ListsDrawer
 import se.jabba.boet.ui.theme.*
 
 // Discover: browse/search TheMealDB and import a meal into the household's own
@@ -49,15 +51,23 @@ import se.jabba.boet.ui.theme.*
 // Browse (the default hub: featured pick, a reshufflable ten, category/area
 // chips) and Results (whatever the user just searched/filtered for) — so
 // clearing a search is instant and never loses the browse scroll position.
+// Hosts the SAME drawer (hamburger, not a back arrow) as the shopping list and
+// the recipe book, so switching between them never requires backing out first.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     repo: Repository,
     prefs: Prefs,
+    lists: List<ListEntity>,
+    currentListId: String?,
     onOpenMeal: (String) -> Unit,
-    onBack: () -> Unit,
+    onSelectList: (String) -> Unit,
+    onManageLists: () -> Unit,
+    onOpenRecipes: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     // Random-10/categories/areas are read from the process-scoped DiscoverBrowseState
     // (not just `remember`) so they survive navigating to a meal and back — see that
@@ -117,14 +127,29 @@ fun DiscoverScreen(
         browseLoading = false
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen, // open only via the hamburger; no edge-swipe
+        drawerContent = {
+            ListsDrawer(
+                lists = lists,
+                currentId = currentListId ?: "",
+                onSelect = { scope.launch { drawerState.close() }; onSelectList(it) },
+                onManage = { scope.launch { drawerState.close() }; onManageLists() },
+                onRecipes = { scope.launch { drawerState.close() }; onOpenRecipes() },
+                onDiscover = { scope.launch { drawerState.close() } },
+                onSettings = { scope.launch { drawerState.close() }; onOpenSettings() },
+            )
+        },
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = WarmWhite),
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Charcoal)
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.lists_title), tint = Charcoal)
                     }
                 },
                 title = { Text(stringResource(R.string.recipe_discover_title), style = BoetType.headline) },
@@ -286,6 +311,7 @@ fun DiscoverScreen(
                 }
             }
         }
+    }
     }
 }
 

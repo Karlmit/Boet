@@ -268,6 +268,14 @@ collapsible Klara section, and the **background-settings live preview**. Still o
     Verified via a mock NIM endpoint: fallback-to-NVIDIA-key path, fully
     independent endpoint path (translation succeeds even with the structuring
     endpoint unreachable), and no regression to recipe-structuring calls.
+  - FOLLOW-UP (same day): `RecipesScreen` and `DiscoverScreen` now host their own
+    drawer instance (`ListsDrawer`, made public — was private to `ListScreen.kt`)
+    with a hamburger in the top bar instead of a back arrow, matching the
+    shopping-list home screen, so switching between lists/recipes/discover never
+    requires backing out first (system back still works; these are drawer-level
+    destinations, not a back-arrow chain). Removed the per-card trash-can delete
+    button from the recipe grid — deleting a recipe is now only reachable via the
+    editor's existing confirm-delete flow, to cut down on accidental taps.
 - ⬜ URL scrape (future). The old orphaned RecipeScreen + `/api/recipe/parse` stub
   were superseded by this clean rebuild.
 - **NOT yet device-tested**: AI parse against the real household ollama, on-device

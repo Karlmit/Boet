@@ -318,9 +318,13 @@ fun ListScreen(
 }
 
 // Slide-in navigation drawer: the household's lists with a settings cog at the
-// lower-left.
+// lower-left. Public: also used directly by RecipesScreen and DiscoverScreen,
+// which each host their own drawer instance (same content, own
+// ModalNavigationDrawer) so the hamburger there opens the same side menu as the
+// shopping list's home screen. Drawer-level destinations (home/recipes/discover)
+// rely on system back rather than an explicit top-bar back arrow.
 @Composable
-private fun ListsDrawer(
+fun ListsDrawer(
     lists: List<se.jabba.boet.data.local.ListEntity>,
     currentId: String,
     onSelect: (String) -> Unit,

@@ -44,6 +44,16 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
         }
         LaunchedEffect(Unit) { repo.bootstrap() }
 
+        // Shared drawer actions for the screens that host their own drawer instance
+        // (home/ListScreen, RecipesScreen, DiscoverScreen) — launchSingleTop means
+        // re-selecting the screen you're already on just closes the drawer instead
+        // of pushing a duplicate entry onto the back stack.
+        val onSelectListFromDrawer: (String) -> Unit = { id -> selectedListId = id; nav.popBackStack("home", false) }
+        val onManageListsFromDrawer: () -> Unit = { nav.navigate("lists") }
+        val onOpenRecipesFromDrawer: () -> Unit = { nav.navigate("recipes") { launchSingleTop = true } }
+        val onOpenDiscoverFromDrawer: () -> Unit = { nav.navigate("recipe/discover") { launchSingleTop = true } }
+        val onOpenSettingsFromDrawer: () -> Unit = { nav.navigate("settings") }
+
         val start = if (settings.identity == null) "onboarding" else "home"
 
         NavHost(navController = nav, startDestination = start) {
@@ -70,13 +80,13 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         identity = settings.identity,
                         language = settings.language,
                         serverUrl = settings.serverUrl,
-                        onOpenLists = { nav.navigate("lists") },
-                        onOpenSettings = { nav.navigate("settings") },
+                        onOpenLists = onManageListsFromDrawer,
+                        onOpenSettings = onOpenSettingsFromDrawer,
                         onOpenShopping = { nav.navigate("shopping/$listId") },
                         onOpenCategories = { nav.navigate("categories/$listId") },
                         onOpenListSettings = { nav.navigate("listsettings/$listId") },
-                        onOpenRecipes = { nav.navigate("recipes") },
-                        onOpenDiscover = { nav.navigate("recipe/discover") },
+                        onOpenRecipes = onOpenRecipesFromDrawer,
+                        onOpenDiscover = onOpenDiscoverFromDrawer,
                         onSelectList = { selectedListId = it },
                     )
                 }
@@ -97,10 +107,15 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
             composable("recipes") {
                 RecipesScreen(
                     repo = repo,
+                    lists = activeLists,
+                    currentListId = selectedListId,
                     onOpenRecipe = { id -> nav.navigate("recipe/$id") },
                     onCreate = { nav.navigate("recipe/new") },
                     onAiCreate = { nav.navigate("recipe/ai") },
-                    onBack = { nav.popBackStack() },
+                    onSelectList = onSelectListFromDrawer,
+                    onManageLists = onManageListsFromDrawer,
+                    onOpenDiscover = onOpenDiscoverFromDrawer,
+                    onOpenSettings = onOpenSettingsFromDrawer,
                 )
             }
 
@@ -108,8 +123,13 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                 DiscoverScreen(
                     repo = repo,
                     prefs = app.prefs,
+                    lists = activeLists,
+                    currentListId = selectedListId,
                     onOpenMeal = { id -> nav.navigate("recipe/discover/meal/$id") },
-                    onBack = { nav.popBackStack() },
+                    onSelectList = onSelectListFromDrawer,
+                    onManageLists = onManageListsFromDrawer,
+                    onOpenRecipes = onOpenRecipesFromDrawer,
+                    onOpenSettings = onOpenSettingsFromDrawer,
                 )
             }
 

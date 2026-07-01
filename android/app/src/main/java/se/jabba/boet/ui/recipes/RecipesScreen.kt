@@ -9,10 +9,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,35 +26,60 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
+import se.jabba.boet.data.local.ListEntity
 import se.jabba.boet.data.local.RecipeEntity
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.Wordmark
+import se.jabba.boet.ui.list.ListsDrawer
 import se.jabba.boet.ui.theme.*
 import se.jabba.boet.util.resolveImageUrl
 
 // Recipes hub: a grid of the household's recipes, reached from the drawer.
-// Shopping stays the home screen; this is a parallel destination.
+// Shopping stays the home screen; this is a parallel destination — it hosts the
+// SAME drawer (hamburger, not a back arrow) as the shopping list, so switching
+// between lists/recipes/discover never requires backing all the way out first.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecipesScreen(
     repo: Repository,
+    lists: List<ListEntity>,
+    currentListId: String?,
     onOpenRecipe: (String) -> Unit,
     onCreate: () -> Unit,
     onAiCreate: () -> Unit,
-    onBack: () -> Unit,
+    onSelectList: (String) -> Unit,
+    onManageLists: () -> Unit,
+    onOpenDiscover: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val recipes by repo.recipes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var addMenuOpen by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen, // open only via the hamburger; no edge-swipe
+        drawerContent = {
+            ListsDrawer(
+                lists = lists,
+                currentId = currentListId ?: "",
+                onSelect = { scope.launch { drawerState.close() }; onSelectList(it) },
+                onManage = { scope.launch { drawerState.close() }; onManageLists() },
+                onRecipes = { scope.launch { drawerState.close() } },
+                onDiscover = { scope.launch { drawerState.close() }; onOpenDiscover() },
+                onSettings = { scope.launch { drawerState.close() }; onOpenSettings() },
+            )
+        },
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = WarmWhite),
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Charcoal)
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.lists_title), tint = Charcoal)
                     }
                 },
                 title = { Text(stringResource(R.string.recipes_title), style = BoetType.headline) },
@@ -110,16 +134,16 @@ fun RecipesScreen(
                         recipe = recipe,
                         serverUrl = repo.serverUrl(),
                         onClick = { onOpenRecipe(recipe.id) },
-                        onDelete = { scope.launch { repo.deleteRecipe(recipe.id) } },
                     )
                 }
             }
         }
     }
+    }
 }
 
 @Composable
-private fun RecipeCard(recipe: RecipeEntity, serverUrl: String, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun RecipeCard(recipe: RecipeEntity, serverUrl: String, onClick: () -> Unit) {
     // Cheap peek at aiStatus for the in-progress/error badge — the grid otherwise
     // only needs the denormalized name/image columns, but this field is small.
     val aiStatus = remember(recipe.data) { RecipeJson.decode(recipe.data).aiStatus }
@@ -156,20 +180,12 @@ private fun RecipeCard(recipe: RecipeEntity, serverUrl: String, onClick: () -> U
                     }
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-            ) {
-                Text(
-                    recipe.name.ifBlank { stringResource(R.string.recipes_title) },
-                    style = BoetType.title, color = Charcoal,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = CharcoalMuted)
-                }
-            }
+            Text(
+                recipe.name.ifBlank { stringResource(R.string.recipes_title) },
+                style = BoetType.title, color = Charcoal,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+            )
         }
     }
 }
