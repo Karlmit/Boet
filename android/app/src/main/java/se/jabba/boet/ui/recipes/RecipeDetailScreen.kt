@@ -2,6 +2,7 @@ package se.jabba.boet.ui.recipes
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -181,29 +182,42 @@ fun RecipeDetailScreen(
             if (doc.ingredients.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.recipe_no_ingredients)) }
             } else {
-                // Untagged ingredients render first as a plain list; each tag then
-                // gets its own heading below, listing every ingredient carrying it —
-                // an ingredient with several tags (e.g. used in both a marinade and a
-                // sauce) appears once under each.
+                // Untagged ingredients render first as a plain card; each tag then
+                // gets its own card below with a prominent heading, listing every
+                // ingredient carrying it — one with several tags (e.g. used in both a
+                // marinade and a sauce) appears once per card.
                 groupByTags(doc.ingredients) { it.sections }.forEach { (tag, group) ->
-                    if (tag != null) {
-                        item {
-                            Text(
-                                tag, style = BoetType.label, color = MossDeep, fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 2.dp),
-                            )
-                        }
-                    }
-                    items(group) { ing ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                    item {
+                        Surface(
+                            color = WarmWhite,
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, Stone),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
                         ) {
-                            Box(Modifier.size(6.dp).background(Moss, CircleShape))
-                            Spacer(Modifier.width(12.dp))
-                            Text(ingredientLine(ing, factor), style = BoetType.body, color = Charcoal, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { addToList(ing, factor) }) {
-                                Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                            Column {
+                                if (tag != null) {
+                                    Text(
+                                        tag, style = BoetType.title, color = MossDeep, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
+                                    )
+                                    HorizontalDivider(color = Stone)
+                                }
+                                group.forEachIndexed { idx, ing ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                                    ) {
+                                        Box(Modifier.size(6.dp).background(Moss, CircleShape))
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(ingredientLine(ing, factor), style = BoetType.body, color = Charcoal, modifier = Modifier.weight(1f))
+                                        IconButton(onClick = { addToList(ing, factor) }) {
+                                            Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                                        }
+                                    }
+                                    if (idx < group.lastIndex) {
+                                        HorizontalDivider(color = Stone.copy(alpha = 0.5f), modifier = Modifier.padding(start = 14.dp))
+                                    }
+                                }
                             }
                         }
                     }
