@@ -83,6 +83,33 @@ class ApiClient(private val baseUrlProvider: () -> String) {
         }
     }
 
+    // --- Discover (TheMealDB browse/search/import) -------------------------
+    fun discoverRandom(): MealDetail? = request("GET", "/api/discover/random", null)
+    fun discoverRandomSelection(): List<MealDetail> = request("GET", "/api/discover/random-selection", null)
+    fun discoverMeal(id: String): MealDetail = request("GET", "/api/discover/meal/$id", null)
+    fun discoverSearchByName(q: String): List<MealSummary> =
+        request("GET", "/api/discover/search?q=${java.net.URLEncoder.encode(q, "UTF-8")}", null)
+    fun discoverSearchByLetter(letter: String): List<MealSummary> =
+        request("GET", "/api/discover/search?letter=${java.net.URLEncoder.encode(letter, "UTF-8")}", null)
+    fun discoverFilterByIngredients(ingredients: List<String>): List<MealSummary> =
+        request("GET", "/api/discover/filter?ingredients=${java.net.URLEncoder.encode(ingredients.joinToString(","), "UTF-8")}", null)
+    fun discoverFilterByCategory(category: String): List<MealSummary> =
+        request("GET", "/api/discover/filter?category=${java.net.URLEncoder.encode(category, "UTF-8")}", null)
+    fun discoverFilterByArea(area: String): List<MealSummary> =
+        request("GET", "/api/discover/filter?area=${java.net.URLEncoder.encode(area, "UTF-8")}", null)
+    fun discoverCategories(): List<MealCategory> = request("GET", "/api/discover/categories", null)
+    fun discoverAreas(): List<String> = request("GET", "/api/discover/areas", null)
+    fun discoverIngredients(): List<MealIngredientRef> = request("GET", "/api/discover/ingredients", null)
+
+    // Import a MealDB meal (POST /api/discover/import). Same instant-placeholder
+    // shape as startAiParse: the server responds as soon as the recipe row exists
+    // (202 new, 200 if already imported/importing), and the actual AI structuring
+    // continues in the background, reported over the WebSocket like any recipe.
+    fun importMeal(mealId: String): RecipeDto {
+        val body = json.encodeToString(ImportMealReq.serializer(), ImportMealReq(mealId))
+        return request("POST", "/api/discover/import", body)
+    }
+
     fun autoSort(listId: String): AutoSortResponse {
         val client = http.newBuilder()
             .readTimeout(60, TimeUnit.SECONDS)
@@ -103,3 +130,6 @@ private data class RecipeReq(val text: String)
 
 @kotlinx.serialization.Serializable
 private data class VoiceCleanReq(val transcript: List<String>, val categories: List<String> = emptyList())
+
+@kotlinx.serialization.Serializable
+private data class ImportMealReq(val mealId: String)

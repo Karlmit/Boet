@@ -45,6 +45,10 @@ services:
       # ollama, nothing leaves home.
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
+      # Discover: TheMealDB browse/search/import. Unset = public test key '1'
+      # (rate-limited, single-ingredient filter only); set your paid key for the
+      # full catalogue + multi-ingredient search.
+      MEALDB_API_KEY: ${MEALDB_API_KEY:-}
     volumes:
       - boet-uploads:/data/uploads
     ports:

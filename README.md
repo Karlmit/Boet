@@ -92,6 +92,10 @@ services:
       # voice cleaning always stays local. Leave unset to stay fully local.
       # NVIDIA_API_KEY: nvapi-xxxxxxxx
       # NVIDIA_MODEL: nvidia/nemotron-3-ultra-550b-a55b
+      # Discover: browse/search/import recipes from TheMealDB. Unset = public
+      # test key '1' (rate-limited, single-ingredient filter only); a paid key
+      # (themealdb.com/api.php) unlocks the full catalogue + multi-ingredient search.
+      # MEALDB_API_KEY: your-paid-key
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
@@ -179,6 +183,15 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
     run *recipe parsing only* on datacenter GPUs — seconds instead of a minute of local
     CPU inference. Voice cleaning always stays local. This is the one place Boet reaches
     a third-party cloud, and only when you opt in with a key.
+- **Discover** (`GET /api/discover/*`, `POST /api/discover/import`) browses and
+  searches **TheMealDB** — random pick, a reshufflable ten, text search,
+  multi-ingredient search, and category/area browsing — and imports a chosen meal
+  through the same AI pipeline as a pasted recipe (structure → unit conversion →
+  EN→SV translation). Import is async/dedup'd just like AI paste: an instant
+  placeholder appears in the recipe grid, the real content arrives over the
+  WebSocket, and re-importing an already-added meal is a no-op rather than a
+  duplicate. Uses TheMealDB's free tier by default; set `MEALDB_API_KEY` for the
+  paid tier's full catalogue and multi-ingredient filtering.
 - **Natural-language sort rules**, parsed deterministically.
 - **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
   tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),
@@ -287,7 +300,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ Add ingredients to the **Matkasse** list (one tap, runs through the same categorization)
 - ✅ Per-step **timers** (AI-detected or set by hand) · keep-screen-awake while cooking
 - ✅ Optional recipe categories · stored as JSON documents, synced offline-first
-- 🟡 URL scrape (import from a recipe link) ⬜ · "discover" via TheMealDB ⬜ (future)
+- ✅ **Discover**: browse/search TheMealDB (random pick, reshufflable ten, text +
+  multi-ingredient search, category/area browsing) and import into the recipe book
+  through the same AI pipeline; deduped so re-adding a meal never duplicates it
+- ⬜ URL scrape (import from a recipe link) — future
 
 **Voice**
 - ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred

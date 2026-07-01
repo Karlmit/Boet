@@ -36,6 +36,13 @@ want it (enable Websockets Support on the proxy).
 | GET  | `/api/history` | Frequently / recently purchased |
 | GET  | `/api/favorites` | Favorited items |
 | POST | `/api/recipe/parse` | Recipe text → suggested items (approval in app) |
+| GET/POST | `/api/recipes` | Household recipe book (JSON documents) |
+| PATCH/DELETE | `/api/recipes/:id` | Edit / delete a recipe |
+| POST | `/api/recipes/parse-async` | AI recipe import (pasted text/JSON) — instant placeholder, status over WS |
+| GET | `/api/discover/random`, `/random-selection`, `/meal/:id` | TheMealDB: single/ten-random/lookup |
+| GET | `/api/discover/search`, `/filter` | TheMealDB: text/letter search, ingredient(s)/category/area filter |
+| GET | `/api/discover/categories`, `/areas`, `/ingredients` | TheMealDB reference lists (cached) |
+| POST | `/api/discover/import` | Import a MealDB meal into the recipe book — same async pattern as `/parse-async`, deduped |
 
 ## WebSocket
 

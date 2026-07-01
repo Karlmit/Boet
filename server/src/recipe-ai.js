@@ -333,11 +333,16 @@ function renderCleanedRecipeText(ex) {
 // Shared tail: translate (EN->SV, gated on the original paste), compose display
 // lines, and assemble the RecipeDoc. Both the structured and plain-text paths end
 // here so translation/gating logic lives in one place.
-async function finalize({ name, description, servings, ingredients, steps, full, lang, onStatus }) {
+async function finalize({ name, description, servings, ingredients, steps, full, lang, forceLang, onStatus }) {
   // Detect language on the ORIGINAL paste, never the model's `lang` (qwen echoes
   // the prompt example) nor our cleaned text (it carries Swedish scaffolding).
-  const wantTranslate = translateEnabled() && !looksSwedish(full) &&
-    (looksEnglish(full) || String(lang || '').startsWith('en'));
+  // A caller that already KNOWS the source language (e.g. MealDB imports, always
+  // English) can pass forceLang to bypass these paste-oriented heuristics entirely.
+  const wantTranslate = translateEnabled() && (
+    forceLang
+      ? String(forceLang).startsWith('en')
+      : (!looksSwedish(full) && (looksEnglish(full) || String(lang || '').startsWith('en')))
+  );
   if (wantTranslate) {
     onStatus?.('translating');
     const batch = [
@@ -374,8 +379,9 @@ async function finalize({ name, description, servings, ingredients, steps, full,
 // ingredients and pull out timers. Degrades to the raw Mealie map only if the
 // local model is unreachable entirely (checked via the very first call, so a dead
 // backend fails in one short timeout instead of one per ingredient).
-async function parseLocalStepwise(ex, full, onStatus) {
-  if (!recipeLocalEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
+async function parseLocalStepwise(ex, full, onStatus, { rawFallback, forceLang } = {}) {
+  const fallback = rawFallback || (() => tryMealie(full));
+  if (!recipeLocalEnabled()) { onStatus?.('degraded'); return fallback(); }
   onStatus?.('parsing_local');
 
   const ingredients = [];
@@ -383,9 +389,9 @@ async function parseLocalStepwise(ex, full, onStatus) {
     const line = ex.ingredientLines[i];
     const reply = await recipeGenerateLocal(buildIngredientPrompt(line), { timeoutMs: 30000 });
     if (reply === null && i === 0) {
-      console.warn('[boet] recipe parse: local model unreachable, falling back to raw Mealie map');
+      console.warn('[boet] recipe parse: local model unreachable, falling back to raw map');
       onStatus?.('degraded');
-      return tryMealie(full);
+      return fallback();
     }
     const obj = parseRecipeObject(reply);
     const { quantity, unit } = convertUnit(asNumber(obj?.quantity), obj?.unit);
@@ -440,7 +446,7 @@ async function parseLocalStepwise(ex, full, onStatus) {
 
   return finalize({
     name: ex.name, description: ex.description, servings: asNumber(ex.servings),
-    ingredients, steps, full, lang: '', onStatus,
+    ingredients, steps, full, lang: '', forceLang, onStatus,
   });
 }
 
@@ -499,7 +505,7 @@ async function generateStructurePlainText(text, onStatus) {
 
 // Build the ingredients/steps arrays out of a parsed model reply and hand off to
 // finalize(). Shared by the plain-text and JSON+cloud paths in parseRecipeText.
-function docFromObj(obj, { name, description, servings }, full, onStatus) {
+function docFromObj(obj, { name, description, servings }, full, onStatus, forceLang) {
   const rawIngredients = Array.isArray(obj.ingredients) ? obj.ingredients : [];
   const ingredients = rawIngredients.map((ing, i) => {
     const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
@@ -517,7 +523,32 @@ function docFromObj(obj, { name, description, servings }, full, onStatus) {
     return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null, title };
   }).filter((s) => s.text);
 
-  return finalize({ name, description, servings, ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), onStatus });
+  return finalize({ name, description, servings, ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), forceLang, onStatus });
+}
+
+// Shared entry point for any recipe that's already split into an `ex` shape
+// ({name, description, servings, ingredientLines, ingredientSections, stepLines,
+// stepTitles}) — used both for a pasted Mealie/schema.org JSON recipe (via
+// parseRecipeText below, rawFallback defaulting to tryMealie) and for a MealDB
+// import (routes/discover.js, which passes its own rawFallback + forceLang:'en'
+// since the source is known-English rather than guessed from pasted text).
+export async function structureFromEx(ex, { full = '', rawFallback, forceLang, onStatus } = {}) {
+  const fallback = rawFallback || (() => tryMealie(full));
+  if (!recipeLlmEnabled()) { onStatus?.('degraded'); return fallback(); }
+  if (recipeUsingCloud()) {
+    const obj = await generateStructureCloud(renderCleanedRecipeText(ex), onStatus);
+    if (obj) {
+      return docFromObj(
+        obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) },
+        full, onStatus, forceLang,
+      );
+    }
+    // Cloud failed — switch strategy (per-ingredient local calls) rather than
+    // replaying the same heavy prompt against local ollama.
+    if (!recipeLocalEnabled()) { onStatus?.('degraded'); return fallback(); }
+    onStatus?.('fallback_local');
+  }
+  return parseLocalStepwise(ex, full, onStatus, { rawFallback: fallback, forceLang });
 }
 
 // `onStatus(status)` is called as parsing progresses so a caller can persist/
@@ -533,18 +564,7 @@ export async function parseRecipeText(text, { onStatus } = {}) {
   // name/description/servings are already authoritative from the JSON — only
   // ingredients/steps need the model. Without any model, map Mealie directly.
   const ex = extractRecipeJson(full);
-  if (ex) {
-    if (!recipeLlmEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
-    if (recipeUsingCloud()) {
-      const obj = await generateStructureCloud(renderCleanedRecipeText(ex), onStatus);
-      if (obj) return docFromObj(obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) }, full, onStatus);
-      // Cloud failed — switch strategy (per-ingredient local calls) rather than
-      // replaying the same heavy prompt against local ollama.
-      if (!recipeLocalEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
-      onStatus?.('fallback_local');
-    }
-    return parseLocalStepwise(ex, full, onStatus);
-  }
+  if (ex) return structureFromEx(ex, { full, onStatus });
 
   // Plain-text paste: the model has to split AND structure it, and we have no
   // authoritative name/servings/description to fall back on — no model means no

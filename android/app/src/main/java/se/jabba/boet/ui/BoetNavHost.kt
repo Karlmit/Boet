@@ -12,6 +12,8 @@ import se.jabba.boet.ui.list.ListScreen
 import se.jabba.boet.ui.list.ListSettingsScreen
 import se.jabba.boet.ui.lists.ListsScreen
 import se.jabba.boet.ui.onboarding.OnboardingScreen
+import se.jabba.boet.ui.discover.DiscoverScreen
+import se.jabba.boet.ui.discover.MealDetailScreen
 import se.jabba.boet.ui.recipes.RecipeAiScreen
 import se.jabba.boet.ui.recipes.RecipeDetailScreen
 import se.jabba.boet.ui.recipes.RecipeEditorScreen
@@ -97,6 +99,28 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     onOpenRecipe = { id -> nav.navigate("recipe/$id") },
                     onCreate = { nav.navigate("recipe/new") },
                     onAiCreate = { nav.navigate("recipe/ai") },
+                    onDiscover = { nav.navigate("recipe/discover") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/discover") {
+                DiscoverScreen(
+                    repo = repo,
+                    onOpenMeal = { id -> nav.navigate("recipe/discover/meal/$id") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/discover/meal/{id}") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                MealDetailScreen(
+                    repo = repo,
+                    mealId = id,
+                    // Land on the (still-parsing) recipe's own detail screen right away,
+                    // same as an AI paste/photo import — backing out from there returns
+                    // here, so the user can keep browsing rather than losing Discover.
+                    onImported = { recipeId -> nav.navigate("recipe/$recipeId") },
                     onBack = { nav.popBackStack() },
                 )
             }

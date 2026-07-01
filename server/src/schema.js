@@ -137,6 +137,19 @@ export async function initSchema() {
       ADD COLUMN IF NOT EXISTS icon TEXT
   `);
 
+  // Discover (TheMealDB) import dedup: source_key = "mealdb:<idMeal>" for an
+  // imported recipe, NULL for manual/pasted/photo recipes. The partial unique
+  // index (only enforced where source_key is set) means re-importing the same
+  // meal for a household always hits the existing row instead of creating a
+  // duplicate — no backfill needed since existing rows are all NULL already.
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source_key TEXT
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_source_key
+      ON recipes(household_id, source_key) WHERE source_key IS NOT NULL
+  `);
+
   await query(`
     INSERT INTO favorites (id, household_id, name, category_name)
     SELECT DISTINCT ON (lower(trim(i.name)))

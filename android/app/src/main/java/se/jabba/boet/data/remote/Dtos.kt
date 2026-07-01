@@ -186,6 +186,35 @@ data class VoiceCleanResponse(val items: List<VoiceCleanItem> = emptyList(), val
 @Serializable
 data class HistoryItem(val key: String, val name: String, val count: Int = 0, val lastAdded: String? = null)
 
+// --- Discover (TheMealDB browse/search/import) --------------------------
+// Read-only browse data from a third-party catalogue — no Room mirror, no
+// offline sync; fetched live from the server's /api/discover/* endpoints.
+
+@Serializable
+data class MealSummary(val id: String, val name: String, val thumb: String? = null)
+
+@Serializable
+data class MealIngredientLine(val measure: String = "", val food: String = "")
+
+@Serializable
+data class MealDetail(
+    val id: String,
+    val name: String = "",
+    val category: String? = null,
+    val area: String? = null,
+    val thumb: String? = null,
+    val tags: List<String> = emptyList(),
+    val youtube: String? = null,
+    val instructions: String = "",
+    val ingredients: List<MealIngredientLine> = emptyList(),
+)
+
+@Serializable
+data class MealCategory(val name: String, val thumb: String? = null, val description: String? = null)
+
+@Serializable
+data class MealIngredientRef(val name: String, val description: String? = null)
+
 @Serializable
 data class PresenceMember(
     val memberId: String? = null,

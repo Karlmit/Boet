@@ -49,6 +49,7 @@ export function recipeRow(r) {
     categoryName: r.category_name,
     position: r.position,
     data,
+    sourceKey: r.source_key || null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

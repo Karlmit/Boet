@@ -472,6 +472,56 @@ class Repository(
         }.getOrNull()
     }
 
+    // Discover (TheMealDB browse/search/import) ------------------------------
+    // Read-only browse of a third-party catalogue — live network calls only, no
+    // Room mirror/offline support (matches parseRecipe's defensive pattern:
+    // never throws, just returns an empty result when offline/unreachable).
+    suspend fun discoverRandom(): MealDetail? = withContext(Dispatchers.IO) {
+        runCatching { api.discoverRandom() }.getOrNull()
+    }
+    suspend fun discoverRandomSelection(): List<MealDetail> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverRandomSelection() }.getOrDefault(emptyList())
+    }
+    suspend fun discoverMeal(id: String): MealDetail? = withContext(Dispatchers.IO) {
+        runCatching { api.discoverMeal(id) }.getOrNull()
+    }
+    suspend fun discoverSearchByName(q: String): List<MealSummary> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverSearchByName(q) }.getOrDefault(emptyList())
+    }
+    suspend fun discoverSearchByLetter(letter: String): List<MealSummary> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverSearchByLetter(letter) }.getOrDefault(emptyList())
+    }
+    suspend fun discoverFilterByIngredients(ingredients: List<String>): List<MealSummary> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverFilterByIngredients(ingredients) }.getOrDefault(emptyList())
+    }
+    suspend fun discoverFilterByCategory(category: String): List<MealSummary> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverFilterByCategory(category) }.getOrDefault(emptyList())
+    }
+    suspend fun discoverFilterByArea(area: String): List<MealSummary> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverFilterByArea(area) }.getOrDefault(emptyList())
+    }
+    suspend fun discoverCategories(): List<MealCategory> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverCategories() }.getOrDefault(emptyList())
+    }
+    suspend fun discoverAreas(): List<String> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverAreas() }.getOrDefault(emptyList())
+    }
+    suspend fun discoverIngredients(): List<MealIngredientRef> = withContext(Dispatchers.IO) {
+        runCatching { api.discoverIngredients() }.getOrDefault(emptyList())
+    }
+
+    // Import a MealDB meal into the recipe book. Same "instant placeholder, real
+    // content arrives over the WebSocket" shape as startAiParse — the returned id
+    // is stable across repeated imports of the same meal (server-side dedup), so
+    // re-tapping "add" on an already-imported meal just navigates to the same recipe.
+    suspend fun importMeal(mealId: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = api.importMeal(mealId)
+            recipeDao.upsert(dto.toEntity())
+            dto.id
+        }.getOrNull()
+    }
+
     // Outbox ----------------------------------------------------------------
     private suspend fun enqueue(method: String, path: String, body: String?) {
         outboxDao.enqueue(OutboxOp(method = method, path = path, body = body))

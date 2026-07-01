@@ -222,9 +222,28 @@ collapsible Klara section, and the **background-settings live preview**. Still o
 - ✅ Mealie-style detail (image/description/ingredients/steps), **inline ingredient amounts
   in steps** that **scale with servings**, add-to-Matkasse per ingredient (reuses
   `CategoryEngine`), per-step **timers**, keep-screen-awake, optional categories.
-- ⬜ URL scrape · ⬜ TheMealDB "discover" (future). The old orphaned RecipeScreen +
-  `/api/recipe/parse` stub were superseded by this clean rebuild.
-- **NOT yet device-tested**: AI parse against the real household ollama, and on-device OCR.
+- ✅ **Discover** (TheMealDB browse/search/import): `server/src/mealdb.js` (v2 paid-API
+  client, `MEALDB_API_KEY` env, defaults to public test key `'1'`) + `routes/discover.js`
+  — random/random-10/search-by-name-or-letter/filter-by-ingredient(s)/category/area,
+  category+area+ingredient reference lists (24h in-memory cache). `POST
+  /api/discover/import {mealId}` mirrors `/recipes/parse-async` (instant placeholder →
+  202 + WS broadcast → background AI structuring → live status), deduped per household
+  via a new `recipes.source_key` column (`mealdb:<id>`, partial unique index) so
+  re-tapping "add" is instant and never duplicates — retries a prior `error` in place.
+  `recipe-ai.js`'s structured pipeline was refactored into exported `structureFromEx()`
+  so pasted-JSON import and MealDB import share one implementation (MealDB forces
+  `forceLang:'en'` and supplies its own no-AI raw fallback). Android: `ui/discover/`
+  (DiscoverScreen: featured random + reshufflable 10-grid + text/multi-ingredient
+  search + category/area chips; MealDetailScreen: read-only meal view + import
+  button), entry point is a compass icon in `RecipesScreen`'s top bar. Verified
+  end-to-end against the real paid key (10/10 random-selection, 11-result
+  multi-ingredient filter, race-safe dedup) and the degraded (no-LLM) fallback path;
+  server changes deployed the same way as the rest of the backend (compose pull/up).
+- ⬜ URL scrape (future). The old orphaned RecipeScreen + `/api/recipe/parse` stub
+  were superseded by this clean rebuild.
+- **NOT yet device-tested**: AI parse against the real household ollama, on-device
+  OCR, and the new Discover screens (compiles/builds clean; no on-device run in
+  this LXC — see repo CLAUDE.md's Android section).
 
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)
