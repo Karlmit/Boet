@@ -19,7 +19,7 @@ Boet/
 ├── server/              Node.js backend (REST + WebSocket + Postgres)
 │   └── translate/       EN→SV recipe translation sidecar (opus-mt)
 ├── android/             Kotlin / Jetpack Compose app
-├── docker-compose.yml   Postgres + server + ollama + translate, exposes :3020
+├── docker-compose.yml   Postgres + server + ollama + translate + faster-whisper, exposes :3020
 └── README.md
 ```
 
@@ -116,6 +116,12 @@ services:
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json
+      # Local speech-to-text for the kitchen display's voice-add flow (record a
+      # clip on the tablet, transcribe here, auto-add via the existing voice-
+      # cleaning pipeline). Unset WHISPER_URL to disable (the endpoint then
+      # returns 503 instead of silently doing nothing).
+      WHISPER_URL: http://faster-whisper:8000
+      WHISPER_MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
     volumes:
       - /mnt/user/appdata/Boet/uploads:/data/uploads
       # - /mnt/user/appdata/Boet/fcm.json:/secrets/fcm.json:ro
@@ -155,6 +161,22 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull qwen3:4b-instruct"
     restart: "no"
+
+  # Local speech-to-text sidecar (faster-whisper-server, an OpenAI Whisper-API
+  # compatible server) for the kitchen display's voice-add flow — see
+  # BOET-API.md. CPU-only int8 for reasonable latency. WHISPER__MODEL must be
+  # a full "repo/name" HF model id — the bare "large-v3-turbo" isn't always a
+  # recognized short name (depends on the faster-whisper version this image
+  # happens to be built against), so pin the actual repo to avoid surprises.
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    restart: unless-stopped
+    volumes:
+      - /mnt/user/appdata/Boet/whisper:/root/.cache/huggingface
+    environment:
+      WHISPER__MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
+      WHISPER__DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
 ```
 
 ```bash
