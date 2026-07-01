@@ -23,6 +23,13 @@ const SPOON_RELABEL = {
 };
 // Already-metric units pass through untouched (lower-cased).
 const METRIC_PASSTHROUGH = new Set(['g', 'kg', 'hg', 'ml', 'cl', 'dl', 'l', 'krm', 'msk', 'tsk', 'st']);
+// Real non-metric units we keep verbatim. Anything else the model puts in `unit`
+// (e.g. "eggs", "ripe bananas") is a mislabel — dropped so it doesn't double up in
+// the display; the amount then reads as a plain count.
+const KEEP_UNITS = new Set([
+  'clove', 'cloves', 'pinch', 'can', 'cans', 'slice', 'slices', 'knippe', 'klyfta',
+  'klyftor', 'paket', 'burk', 'förp', 'kruka', 'nypa', 'styck', 'stycken', 'skiva', 'skivor',
+]);
 
 // Pick a readable Swedish volume unit + quantity from a millilitre amount.
 function fromMl(ml) {
@@ -51,8 +58,10 @@ export function convertUnit(quantity, unit) {
     return g >= 1000 ? { quantity: round(g / 1000, 2), unit: 'kg' } : { quantity: round(g, 0), unit: 'g' };
   }
   if (METRIC_PASSTHROUGH.has(u)) return { quantity: round(q, 2), unit: u };
-  // Unknown unit (pinch, clove, can…): keep as the model gave it.
-  return { quantity: q, unit: unit };
+  if (KEEP_UNITS.has(u)) return { quantity: q, unit };
+  // Unrecognized "unit" — almost always the model mislabeling a food word
+  // ("eggs", "bananas") as a unit. Drop it; the amount becomes a plain count.
+  return { quantity: q, unit: null };
 }
 
 // Render a Swedish quantity number: integers bare, decimals with a comma.

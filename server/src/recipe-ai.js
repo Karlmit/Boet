@@ -124,29 +124,101 @@ function tryMealie(raw) {
   };
 }
 
+// Flatten schema.org recipeInstructions, which may be plain strings, HowToStep
+// objects ({text}), or HowToSection objects ({itemListElement:[…]}).
+function flattenSchemaInstructions(arr) {
+  const out = [];
+  for (const it of arr || []) {
+    if (typeof it === 'string') out.push(it);
+    else if (it && typeof it === 'object') {
+      if (Array.isArray(it.itemListElement)) out.push(...flattenSchemaInstructions(it.itemListElement));
+      else if (it.text) out.push(String(it.text));
+      else if (it.name) out.push(String(it.name));
+    }
+  }
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+// If the pasted text is a recipe JSON (Mealie export OR a schema.org/Recipe
+// JSON-LD blob, which is what most recipe sites embed), pull out ONLY the parts
+// that matter — name, servings, ingredient lines, step texts — and render them as
+// a small clean recipe text. All the noise (ids, nutrition, timestamps, settings,
+// org_url, images) is dropped. Returns null if it isn't recognizable recipe JSON.
+// The cleaned text is what we hand the model, so it structures/converts/translates
+// a compact recipe instead of choking on 5 KB of JSON.
+function recipeJsonToText(raw) {
+  const t = raw.trim();
+  if (!(t.startsWith('{') || t.startsWith('['))) return null;
+  let j;
+  try { j = JSON.parse(t); } catch { return null; }
+  // schema.org JSON-LD can be an array or wrap the recipe in @graph.
+  const isRecipe = (x) => x && typeof x === 'object' &&
+    (Array.isArray(x.recipe_ingredient) || Array.isArray(x.recipeIngredient) ||
+     Array.isArray(x.recipe_instructions) || Array.isArray(x.recipeInstructions));
+  if (Array.isArray(j)) j = j.find(isRecipe) || j[0];
+  if (j && Array.isArray(j['@graph'])) j = j['@graph'].find(isRecipe) || j;
+  if (!isRecipe(j)) return null;
+
+  let ingredientLines = [];
+  if (Array.isArray(j.recipe_ingredient)) {
+    ingredientLines = j.recipe_ingredient
+      .map((x) => x?.display || x?.note || composeDisplay(asNumber(x?.quantity), typeof x?.unit === 'string' ? x.unit : x?.unit?.name, typeof x?.food === 'string' ? x.food : x?.food?.name))
+      .map((s) => String(s).trim()).filter(Boolean);
+  } else if (Array.isArray(j.recipeIngredient)) {
+    ingredientLines = j.recipeIngredient.map((x) => String(x).trim()).filter(Boolean);
+  }
+
+  let stepLines = [];
+  if (Array.isArray(j.recipe_instructions)) {
+    stepLines = j.recipe_instructions.map((s) => String(s?.text ?? '').trim()).filter(Boolean);
+  } else if (Array.isArray(j.recipeInstructions)) {
+    stepLines = flattenSchemaInstructions(j.recipeInstructions);
+  } else if (typeof j.recipeInstructions === 'string') {
+    stepLines = [j.recipeInstructions.trim()].filter(Boolean);
+  }
+
+  if (ingredientLines.length === 0 && stepLines.length === 0) return null;
+
+  const name = String(j.name ?? '').trim();
+  const servings = j.recipe_servings ?? j.recipeYield ?? j.servings ?? null;
+  const parts = [];
+  if (name) parts.push(name);
+  if (servings != null && String(servings).trim()) parts.push(`${servings} portioner`);
+  if (ingredientLines.length) parts.push('Ingredienser:', ...ingredientLines.map((l) => `- ${l}`));
+  if (stepLines.length) { parts.push('Gör så här:'); stepLines.forEach((s, i) => parts.push(`${i + 1}. ${s}`)); }
+  return parts.join('\n');
+}
+
 // Cap the input the model sees. A real recipe's text fits easily; the cap stops a
-// pathological paste (an entire web page, or a 5 KB structured-JSON export) from
-// running CPU inference past the request timeout. Kept under the model's context.
+// pathological paste (an entire web page) from running CPU inference past the
+// request timeout. Kept under the model's context.
 const MAX_INPUT_CHARS = 6000;
 
 export async function parseRecipeText(text) {
   const full = String(text || '').trim();
   if (!full) return null;
 
-  // Already a Mealie export? Map it directly — instant and exact, no model needed.
-  const mealie = tryMealie(full);
-  if (mealie) return mealie;
+  // If the paste is recipe JSON (Mealie export or a site's schema.org/Recipe
+  // JSON-LD), strip it down to a clean recipe text first — the model then gets a
+  // compact recipe to structure/convert/translate instead of 5 KB of JSON noise.
+  const cleaned = recipeJsonToText(full);
+  const raw = (cleaned ?? full).slice(0, MAX_INPUT_CHARS);
 
-  const raw = full.slice(0, MAX_INPUT_CHARS);
-  if (!ollamaEnabled()) return null;
+  if (!ollamaEnabled()) {
+    // No model: fall back to a direct structural map if it was a Mealie export,
+    // so import still works offline (display-only, unconverted).
+    return tryMealie(full);
+  }
 
   // Recipe parsing is heavier than voice cleaning, so give it a bigger context and
   // a longer-but-bounded timeout. The bound stays under the app's 120s read timeout
   // (plus translation/network headroom) so a slow parse fails fast as a 503 instead
   // of the app hanging then erroring anyway.
-  const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json', timeoutMs: 90000, numCtx: 8192 });
+  const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json', timeoutMs: 100000, numCtx: 8192 });
   const obj = parseRecipeObject(reply);
-  if (!obj || typeof obj !== 'object') return null;
+  // Model timed out or returned unparseable output: fall back to a direct
+  // structural map if the source was a Mealie export, else give up (503).
+  if (!obj || typeof obj !== 'object') return tryMealie(full);
 
   // --- ingredients: assign stable ids, convert units --------------------
   const rawIngredients = Array.isArray(obj.ingredients) ? obj.ingredients : [];
@@ -183,11 +255,13 @@ export async function parseRecipeText(text) {
   const lang = String(obj.lang ?? '').trim().toLowerCase();
 
   // --- translation (EN->SV) only for clearly-English source -------------
-  // Gate on the raw text, not the model's `lang`: translate only when the source
-  // is English-looking and NOT Swedish-looking, so a Swedish recipe is never fed
-  // through the EN->SV model (which would hallucinate it into garbage).
-  const wantTranslate = translateEnabled() && !looksSwedish(raw) &&
-    (looksEnglish(raw) || lang.startsWith('en'));
+  // Detect language on the ORIGINAL paste (`full`), not the model input: when the
+  // source is JSON we clean it into a text with Swedish scaffolding ("Ingredienser",
+  // "portioner"), which would otherwise fool the detector. Never trust the model's
+  // `lang` (qwen echoes the prompt example). Translate only clearly-English, never
+  // Swedish — feeding Swedish through EN->SV opus-mt hallucinates it into garbage.
+  const wantTranslate = translateEnabled() && !looksSwedish(full) &&
+    (looksEnglish(full) || lang.startsWith('en'));
   if (wantTranslate) {
     // One batched call: [name, description, ...ingredient foods, ...step texts].
     const batch = [name, description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
