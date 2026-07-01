@@ -30,6 +30,16 @@ const nvidiaEnabled = () => Boolean(NVIDIA_API_KEY);
 // True if any recipe LLM backend is available at all.
 export const recipeLlmEnabled = () => nvidiaEnabled() || ollamaEnabled();
 
+// Whether the cloud (NVIDIA) backend is the one serving requests. Callers use this
+// to pick a prompt strategy: the cloud is fast + not CPU/token constrained, so it
+// can take the full-context prompt; local ollama gets the token-lean one.
+export const recipeUsingCloud = nvidiaEnabled;
+
+// Whether the local ollama backend is available — used to retry there when the
+// cloud backend replies with something that fails to parse into a usable recipe
+// (as opposed to a network failure, which recipeGenerate already falls through for).
+export const recipeLocalEnabled = ollamaEnabled;
+
 // Human-readable backend name for diagnostics / the parse response.
 export const recipeLlmName = () =>
   nvidiaEnabled() ? `nvidia:${NVIDIA_MODEL}` : (ollamaEnabled() ? ollamaModel() : 'none');
@@ -43,10 +53,16 @@ export async function recipeGenerate(prompt, { timeoutMs } = {}) {
     if (out) return out;
     // Cloud failed (rate limit, outage): fall through to local if we have it.
   }
-  if (ollamaEnabled()) {
-    return ollamaGenerate(prompt, { format: 'json', timeoutMs: timeoutMs || 100000, numCtx: 8192 });
-  }
-  return null;
+  return recipeGenerateLocal(prompt, { timeoutMs });
+}
+
+// Explicitly generate via local ollama, bypassing NVIDIA even if configured. Used
+// as a same-request retry when the cloud reply parses to nothing usable — a
+// garbled-but-non-empty reply from recipeGenerate() above would otherwise never
+// reach this fallback, since it only triggers on a hard failure (null).
+export async function recipeGenerateLocal(prompt, { timeoutMs } = {}) {
+  if (!ollamaEnabled()) return null;
+  return ollamaGenerate(prompt, { format: 'json', timeoutMs: timeoutMs || 100000, numCtx: 8192 });
 }
 
 async function nvidiaGenerate(prompt, timeoutMs) {
@@ -79,10 +95,17 @@ async function nvidiaGenerate(prompt, timeoutMs) {
       return null;
     }
     const data = await res.json();
-    const msg = data?.choices?.[0]?.message || {};
+    const choice = data?.choices?.[0] || {};
+    const msg = choice.message || {};
     // Prefer the final answer; if a reasoning model put everything in the thinking
     // channel (empty content), fall back to reasoning_content.
     const out = (msg.content || msg.reasoning_content || '').trim();
+    if (REASONING_MODEL) {
+      // Reasoning models can burn the token budget on <think>ing and leave the
+      // real answer truncated — finish_reason "length" + a short/empty content is
+      // the signature of that; this is the thing to check first if parsing fails.
+      console.log(`[boet] nvidia reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
+    }
     return out || null;
   } catch (e) {
     console.warn(`[boet] nvidia request failed: ${e?.message || e}`);
