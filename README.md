@@ -92,6 +92,14 @@ services:
       # voice cleaning always stays local. Leave unset to stay fully local.
       # NVIDIA_API_KEY: nvapi-xxxxxxxx
       # NVIDIA_MODEL: nvidia/nemotron-3-ultra-550b-a55b
+      # OPT-IN: a SEPARATE cloud model just for EN->SV translation (independent
+      # of NVIDIA_MODEL above, which structures the recipe) — a plain instruct
+      # model translates recipe vocabulary better than a reasoning model. Unset
+      # TRANSLATE_LLM_API_KEY to reuse the NVIDIA key/endpoint above with a
+      # different model by default; unset both to fall back to opus-mt.
+      # TRANSLATE_LLM_API_KEY: nvapi-xxxxxxxx
+      # TRANSLATE_LLM_BASE_URL: https://integrate.api.nvidia.com/v1
+      # TRANSLATE_LLM_MODEL: meta/llama-3.3-70b-instruct
       # Discover: browse/search/import recipes from TheMealDB. Unset = public
       # test key '1' (rate-limited, single-ingredient filter only); a paid key
       # (themealdb.com/api.php) unlocks the full catalogue + multi-ingredient search.
@@ -173,16 +181,26 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
   pipeline that plays to each tool's strength: the LLM extracts structure
   (ingredients, steps, step↔ingredient links, timers) in the original language,
   **units are converted in code** (cups→dl, tbsp→msk, oz→g — never trusted to the
-  LLM, which relabels without doing the math), and the text is translated EN→SV by
-  the **opus-mt sidecar**. For a pasted recipe JSON the step texts are kept as-is
-  and the model only *tags* them (which ingredients + timers), so it stays fast even
-  on a CPU box. Recipes are stored as JSON documents (`/api/recipes` CRUD) and synced
-  like everything else.
+  LLM, which relabels without doing the math), and the text is translated EN→SV.
+  For a pasted recipe JSON the step texts are kept as-is and the model only
+  *tags* them (which ingredients + timers), so it stays fast even on a CPU box.
+  Recipes are stored as JSON documents (`/api/recipes` CRUD) and synced like
+  everything else.
   - **LLM backend** is the local ollama by default (nothing leaves home). Optionally,
     set a free **NVIDIA NIM** key (`NVIDIA_API_KEY`, from https://build.nvidia.com) to
     run *recipe parsing only* on datacenter GPUs — seconds instead of a minute of local
     CPU inference. Voice cleaning always stays local. This is the one place Boet reaches
     a third-party cloud, and only when you opt in with a key.
+  - **Translation** prefers a cloud LLM (`TRANSLATE_LLM_MODEL`, defaults to
+    `meta/llama-3.3-70b-instruct` — falls back to the `NVIDIA_API_KEY`/
+    `NVIDIA_BASE_URL` above if `TRANSLATE_LLM_API_KEY` is unset, but with its own
+    model, since a general-purpose instruct model translates recipe vocabulary
+    better than a reasoning model tuned for structuring), with an explicit
+    food-recipe prompt (e.g. "lard" → "ister", not a literal dictionary
+    translation) and a strict same-line-count check so a garbled reply is
+    discarded rather than risking a misaligned ingredient. Falls back to the
+    **opus-mt sidecar** (`TRANSLATE_URL`) if no cloud key is set, or no-op if
+    neither is configured.
 - **Discover** (`GET /api/discover/*`, `POST /api/discover/import`) browses and
   searches **TheMealDB** — random pick, a reshufflable ten, text search,
   multi-ingredient search, and category/area browsing — and imports a chosen meal

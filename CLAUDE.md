@@ -250,10 +250,24 @@ collapsible Klara section, and the **background-settings live preview**. Still o
     `RecipeDoc.youtubeUrl` (server sets it from MealDB's `strYoutube` on import,
     survives manual edits) rendered via a shared `YoutubeLinkRow` composable used
     on both the MealDB preview and the real recipe detail screen. Recipe
-    translation now prefers the NVIDIA cloud model (explicit food-recipe context
-    in the prompt) over the local opus-mt sidecar — opus-mt was mistranslating
-    ordinary recipe vocabulary; falls back safely (never misaligns an
-    ingredient's translation) if the cloud reply's line count doesn't match.
+    translation now prefers a cloud LLM (explicit food-recipe context in the
+    prompt, incl. specific corrections like "lard"→"ister" and "return the
+    English word unchanged if unsure") over the local opus-mt sidecar — opus-mt
+    was mistranslating ordinary recipe vocabulary; falls back safely (never
+    misaligns an ingredient's translation) if the cloud reply's line count
+    doesn't match.
+  - FOLLOW-UP (same day): translation now has its OWN independent LLM config
+    (`TRANSLATE_LLM_API_KEY`/`_BASE_URL`/`_MODEL` in `translate.js`, refactored
+    the NVIDIA request/response/reasoning-model handling out of `recipe-llm.js`
+    into an exported generic `nvidiaChat()` both configs call) — separate from
+    `NVIDIA_MODEL` used for recipe structuring, since a plain instruct model
+    (defaults to `meta/llama-3.3-70b-instruct`) translates recipe vocabulary
+    better than the reasoning model (nemotron) used for structuring. Falls back
+    to reusing `NVIDIA_API_KEY`/`NVIDIA_BASE_URL` (same account) if
+    `TRANSLATE_LLM_API_KEY` is unset, but still with its own model default.
+    Verified via a mock NIM endpoint: fallback-to-NVIDIA-key path, fully
+    independent endpoint path (translation succeeds even with the structuring
+    endpoint unreachable), and no regression to recipe-structuring calls.
 - ⬜ URL scrape (future). The old orphaned RecipeScreen + `/api/recipe/parse` stub
   were superseded by this clean rebuild.
 - **NOT yet device-tested**: AI parse against the real household ollama, on-device

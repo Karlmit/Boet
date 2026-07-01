@@ -45,6 +45,16 @@ services:
       # ollama, nothing leaves home.
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
+      # OPT-IN: a SEPARATE cloud LLM endpoint/model just for EN->SV recipe
+      # TRANSLATION (independent of NVIDIA_MODEL above, which is for recipe
+      # structuring). A general-purpose instruct model translates recipe
+      # vocabulary noticeably better than a reasoning model tuned for structured
+      # extraction. Unset TRANSLATE_LLM_API_KEY to reuse NVIDIA_API_KEY/BASE_URL
+      # (same account, still a different model by default); unset both keys to
+      # fall back to the opus-mt sidecar below.
+      TRANSLATE_LLM_API_KEY: ${TRANSLATE_LLM_API_KEY:-}
+      TRANSLATE_LLM_BASE_URL: ${TRANSLATE_LLM_BASE_URL:-}
+      TRANSLATE_LLM_MODEL: ${TRANSLATE_LLM_MODEL:-meta/llama-3.3-70b-instruct}
       # Discover: TheMealDB browse/search/import. Unset = public test key '1'
       # (rate-limited, single-ingredient filter only); set your paid key for the
       # full catalogue + multi-ingredient search.

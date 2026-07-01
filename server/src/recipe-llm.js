@@ -6,6 +6,12 @@
 // GPUs, ~seconds, 40 req/min free tier) when NVIDIA_API_KEY is set. This is the
 // ONE place Boet may reach a third-party cloud, and only when the user opts in by
 // providing a key; unset it and everything is local again.
+//
+// `nvidiaChat` below is the generic OpenAI-style chat-completions caller — it's
+// exported so translate.js can point a SEPARATE model/endpoint at translation
+// (e.g. a general-purpose model that translates recipe vocabulary better than a
+// reasoning model tuned for structured extraction) without duplicating the
+// request/response/reasoning-model handling.
 
 import { ollamaEnabled, ollamaGenerate, ollamaModel } from './ollama.js';
 
@@ -22,10 +28,10 @@ const NVIDIA_TEMPERATURE = parseFloat(process.env.NVIDIA_TEMPERATURE || '0.2');
 // structured recipe extraction we don't need that, and leaving it on risks the
 // reasoning eating the token budget (empty answer) and adds latency — so we turn
 // thinking OFF for them by default. Set NVIDIA_THINKING=on to re-enable.
-const REASONING_MODEL = /nemotron|reason|thinking|qwq|deepseek-?r/i.test(NVIDIA_MODEL);
 const NVIDIA_THINKING = (process.env.NVIDIA_THINKING || 'off').toLowerCase() === 'on';
 
 const nvidiaEnabled = () => Boolean(NVIDIA_API_KEY);
+const isReasoningModel = (model) => /nemotron|reason|thinking|qwq|deepseek-?r/i.test(model || '');
 
 // True if any recipe LLM backend is available at all.
 export const recipeLlmEnabled = () => nvidiaEnabled() || ollamaEnabled();
@@ -52,7 +58,11 @@ export const recipeLlmName = () =>
 // the call fails for any reason (network, timeout, non-2xx, empty completion).
 export async function recipeGenerateCloud(prompt, { timeoutMs } = {}) {
   if (!nvidiaEnabled()) return null;
-  return nvidiaGenerate(prompt, timeoutMs || NVIDIA_TIMEOUT_MS);
+  return nvidiaChat(prompt, {
+    apiKey: NVIDIA_API_KEY, baseUrl: NVIDIA_BASE_URL, model: NVIDIA_MODEL,
+    timeoutMs: timeoutMs || NVIDIA_TIMEOUT_MS, maxTokens: NVIDIA_MAX_TOKENS,
+    temperature: NVIDIA_TEMPERATURE, thinking: NVIDIA_THINKING,
+  });
 }
 
 // Generate via local ollama, regardless of whether NVIDIA is configured.
@@ -61,33 +71,41 @@ export async function recipeGenerateLocal(prompt, { timeoutMs } = {}) {
   return ollamaGenerate(prompt, { format: 'json', timeoutMs: timeoutMs || 100000, numCtx: 8192 });
 }
 
-async function nvidiaGenerate(prompt, timeoutMs) {
+// Generic OpenAI-compatible chat-completions call against any NIM-style endpoint.
+// Returns null on missing apiKey/model or any failure (network, timeout, non-2xx,
+// empty completion) — callers must have their own fallback. `thinking` only
+// applies when `model` matches a known reasoning-model pattern; passed explicitly
+// per-call (rather than read from env here) so a caller with its OWN model/config
+// (see translate.js) controls it independently of the recipe-structuring config.
+export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, maxTokens, temperature, thinking } = {}) {
+  if (!apiKey || !model) return null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs || NVIDIA_TIMEOUT_MS);
+  const reasoning = isReasoningModel(model);
   const body = {
-    model: NVIDIA_MODEL,
+    model,
     messages: [{ role: 'user', content: prompt }],
-    temperature: NVIDIA_TEMPERATURE,
-    max_tokens: NVIDIA_MAX_TOKENS,
+    temperature: temperature ?? NVIDIA_TEMPERATURE,
+    max_tokens: maxTokens || NVIDIA_MAX_TOKENS,
   };
   // Reasoning models: toggle thinking via the chat template. We don't force JSON
-  // mode for them (they often reject it); the prompt asks for JSON and
-  // parseRecipeObject strips any <think> block and extracts the object.
-  if (REASONING_MODEL) {
-    body.chat_template_kwargs = { enable_thinking: NVIDIA_THINKING };
+  // mode for them (they often reject it); callers that need JSON strip any
+  // <think> block and extract the object themselves.
+  if (reasoning) {
+    body.chat_template_kwargs = { enable_thinking: thinking ?? false };
   }
   try {
-    const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${(baseUrl || NVIDIA_BASE_URL).replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
     if (!res.ok) {
-      console.warn(`[boet] nvidia ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      console.warn(`[boet] nvidia(${model}) ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return null;
     }
     const data = await res.json();
@@ -96,15 +114,15 @@ async function nvidiaGenerate(prompt, timeoutMs) {
     // Prefer the final answer; if a reasoning model put everything in the thinking
     // channel (empty content), fall back to reasoning_content.
     const out = (msg.content || msg.reasoning_content || '').trim();
-    if (REASONING_MODEL) {
+    if (reasoning) {
       // Reasoning models can burn the token budget on <think>ing and leave the
       // real answer truncated — finish_reason "length" + a short/empty content is
       // the signature of that; this is the thing to check first if parsing fails.
-      console.log(`[boet] nvidia reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
+      console.log(`[boet] nvidia(${model}) reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
     }
     return out || null;
   } catch (e) {
-    console.warn(`[boet] nvidia request failed: ${e?.message || e}`);
+    console.warn(`[boet] nvidia(${model}) request failed: ${e?.message || e}`);
     return null;
   } finally {
     clearTimeout(timer);
