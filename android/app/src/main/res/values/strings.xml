@@ -34,6 +34,13 @@
     <string name="recipe_ai_from_photo">Välj bild</string>
     <string name="recipe_ai_parse">Tolka recept</string>
     <string name="recipe_ai_failed">Kunde inte tolka receptet. Är servern och AI:n igång?</string>
+    <string name="recipe_ai_status_queued">I kö…</string>
+    <string name="recipe_ai_status_parsing_cloud">Frågar AI:n i molnet…</string>
+    <string name="recipe_ai_status_parsing_local">Frågar den lokala AI:n…</string>
+    <string name="recipe_ai_status_fallback_local">Molnet svarade inte som väntat — provar den lokala AI:n…</string>
+    <string name="recipe_ai_status_translating">Översätter till svenska…</string>
+    <string name="recipe_ai_status_degraded">AI:n kunde inte länka alla ingredienser till stegen. Kontrollera receptet.</string>
+    <string name="recipe_ai_status_error_badge">AI-tolkningen misslyckades</string>
     <string name="recipe_ocr_empty">Hittade ingen text i bilden.</string>
     <string name="recipe_write_manually">Skriv in manuellt istället</string>
     <string name="recipe_add_to_list">Lägg till i inköpslistan</string>

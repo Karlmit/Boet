@@ -42,22 +42,14 @@ class ApiClient(private val baseUrlProvider: () -> String) {
     fun parseRecipe(text: String): RecipeResponse =
         request("POST", "/api/recipe/parse", json.encodeToString(RecipeReq.serializer(), RecipeReq(text)))
 
-    // AI recipe parse (POST /api/recipes/parse). Uses a generous timeout because
-    // the server runs the local LLM + translation; throws on transport/HTTP errors
-    // (e.g. 503 when the parser is unavailable) so the caller can fall back to manual.
-    fun parseRecipeAi(text: String): RecipeParseResponse {
+    // Async AI recipe parse (POST /api/recipes/parse-async). Returns immediately
+    // with a placeholder recipe row (data.aiStatus = "queued"/"error") — the actual
+    // parsing happens server-side in the background and progress/results arrive
+    // over the WebSocket like any other recipe change, so this uses the default
+    // (short) client timeout rather than the old synchronous endpoint's 120s one.
+    fun startAiParse(text: String): RecipeDto {
         val body = json.encodeToString(RecipeReq.serializer(), RecipeReq(text))
-        val client = http.newBuilder()
-            .readTimeout(120, TimeUnit.SECONDS)
-            .callTimeout(130, TimeUnit.SECONDS)
-            .build()
-        val req = Request.Builder().url(url("/api/recipes/parse"))
-            .post(body.toRequestBody(jsonMedia)).build()
-        client.newCall(req).execute().use { resp ->
-            val text2 = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw HttpException(resp.code, text2)
-            return json.decodeFromString(RecipeParseResponse.serializer(), text2)
-        }
+        return request("POST", "/api/recipes/parse-async", body)
     }
 
     // Clean a raw voice transcript server-side via the household's local LLM. Uses

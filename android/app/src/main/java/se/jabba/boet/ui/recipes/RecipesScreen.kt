@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.RecipeEntity
+import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.Wordmark
 import se.jabba.boet.ui.theme.*
 
@@ -116,6 +118,9 @@ fun RecipesScreen(
 
 @Composable
 private fun RecipeCard(recipe: RecipeEntity, onClick: () -> Unit, onDelete: () -> Unit) {
+    // Cheap peek at aiStatus for the in-progress/error badge — the grid otherwise
+    // only needs the denormalized name/image columns, but this field is small.
+    val aiStatus = remember(recipe.data) { RecipeJson.decode(recipe.data).aiStatus }
     Surface(
         color = WarmWhite,
         shape = RoundedCornerShape(14.dp),
@@ -138,6 +143,15 @@ private fun RecipeCard(recipe: RecipeEntity, onClick: () -> Unit, onDelete: () -
                     )
                 } else {
                     Icon(Icons.Default.Restaurant, contentDescription = null, tint = MossDeep)
+                }
+                if (aiStatus == "error") {
+                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(999.dp), modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = stringResource(R.string.recipe_ai_status_error_badge), tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(6.dp).size(16.dp))
+                    }
+                } else if (aiStatus != null && aiStatus != "done" && aiStatus != "degraded") {
+                    Surface(color = WarmWhite, shape = RoundedCornerShape(999.dp), modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.padding(6.dp).size(16.dp), strokeWidth = 2.dp, color = MossDeep)
+                    }
                 }
             }
             Row(

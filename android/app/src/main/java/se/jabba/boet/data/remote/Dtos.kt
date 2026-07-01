@@ -102,6 +102,13 @@ data class RecipeDoc(
     val sourceUrl: String? = null,
     val ingredients: List<RecipeIngredient> = emptyList(),
     val steps: List<RecipeStep> = emptyList(),
+    // Set only while an async AI parse (POST /recipes/parse-async) is in flight or
+    // just finished: "queued" | "parsing_cloud" | "parsing_local" | "fallback_local" |
+    // "translating" | "degraded" | "done" | "error" | null (a manually created/edited
+    // recipe, or an AI recipe from before this field existed). "degraded" means the
+    // AI couldn't structure the ingredients and the raw pasted text was used as-is.
+    val aiStatus: String? = null,
+    val aiError: String? = null,
 )
 
 @Serializable
@@ -130,11 +137,6 @@ object RecipeJson {
     fun decode(data: String): RecipeDoc =
         runCatching { json.decodeFromString(RecipeDoc.serializer(), data) }.getOrDefault(RecipeDoc())
 }
-
-// Response from POST /api/recipes/parse — the AI-structured document for the
-// editor to review before saving. `recipe` is null when the parser is unavailable.
-@Serializable
-data class RecipeParseResponse(val recipe: RecipeDoc? = null)
 
 @Serializable
 data class AddItemsRequest(val items: List<ItemDto>, val addedBy: String? = null)

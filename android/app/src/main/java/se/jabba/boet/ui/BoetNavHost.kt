@@ -104,9 +104,10 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
             composable("recipe/ai") {
                 RecipeAiScreen(
                     repo = repo,
-                    // Open the saved draft in the editor for review, dropping the AI
-                    // screen from the back stack.
-                    onParsed = { id -> nav.navigate("recipe/$id/edit") { popUpTo("recipes") } },
+                    // Land on the (still-parsing) recipe's detail screen right away —
+                    // it shows live status and fills in as the server finishes, dropping
+                    // the AI screen from the back stack.
+                    onParsed = { id -> nav.navigate("recipe/$id") { popUpTo("recipes") } },
                     onManual = { nav.navigate("recipe/new") { popUpTo("recipes") } },
                     onBack = { nav.popBackStack() },
                 )

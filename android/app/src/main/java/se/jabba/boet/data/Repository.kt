@@ -437,11 +437,19 @@ class Repository(
         enqueue("DELETE", "/api/recipes/$id", null)
     }
 
-    // AI-parse free recipe text into a structured document (server-side LLM +
-    // translation). Network-only; returns null when the parser is unavailable or
-    // the device is offline, so the UI can fall back to the manual editor.
-    suspend fun aiParseRecipe(text: String): RecipeDoc? = withContext(Dispatchers.IO) {
-        runCatching { api.parseRecipeAi(text).recipe }.getOrNull()
+    // Start an async AI parse (server-side LLM + translation, may take anywhere
+    // from seconds to over a minute depending on backend/fallback). Returns right
+    // away with a placeholder recipe's id — upserted into Room immediately so the
+    // UI can navigate to it without waiting on the WebSocket round-trip — and the
+    // real content/status arrives via the normal 'recipe' sync broadcast as the
+    // server works through it. Returns null only if the request itself couldn't
+    // be sent (offline, server unreachable).
+    suspend fun startAiParse(text: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = api.startAiParse(text)
+            recipeDao.upsert(dto.toEntity())
+            dto.id
+        }.getOrNull()
     }
 
     // Outbox ----------------------------------------------------------------

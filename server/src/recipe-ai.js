@@ -231,12 +231,13 @@ function renderCleanedRecipeText(ex) {
 // Shared tail: translate (EN->SV, gated on the original paste), compose display
 // lines, and assemble the RecipeDoc. Both the structured and plain-text paths end
 // here so translation/gating logic lives in one place.
-async function finalize({ name, description, servings, ingredients, steps, full, lang }) {
+async function finalize({ name, description, servings, ingredients, steps, full, lang, onStatus }) {
   // Detect language on the ORIGINAL paste, never the model's `lang` (qwen echoes
   // the prompt example) nor our cleaned text (it carries Swedish scaffolding).
   const wantTranslate = translateEnabled() && !looksSwedish(full) &&
     (looksEnglish(full) || String(lang || '').startsWith('en'));
   if (wantTranslate) {
+    onStatus?.('translating');
     const batch = [name || '', description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
     const tr = await translateBatch(batch);
     let k = 0;
@@ -258,12 +259,14 @@ async function finalize({ name, description, servings, ingredients, steps, full,
 // the token-lean prompt built for a slow local CPU model; the cloud path below
 // doesn't need it. Falls back to the direct structural map if the model is
 // unavailable or returns nothing usable.
-async function parseStructured(ex, full) {
+async function parseStructured(ex, full, onStatus) {
+  onStatus?.('parsing_local');
   const reply = await recipeGenerate(buildStructuredPrompt(ex.ingredientLines, ex.stepLines), { timeoutMs: 100000 });
   const obj = parseRecipeObject(reply);
   const rawIng = obj && Array.isArray(obj.ingredients) ? obj.ingredients : [];
   if (rawIng.length === 0) {
     console.warn(`[boet] recipe parse: local model gave no usable ingredients (reply len=${reply?.length ?? 0}), falling back to raw Mealie map`);
+    onStatus?.('degraded');
     return tryMealie(full);
   }
 
@@ -289,7 +292,7 @@ async function parseStructured(ex, full) {
 
   return finalize({
     name: ex.name, description: ex.description, servings: asNumber(ex.servings),
-    ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(),
+    ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), onStatus,
   });
 }
 
@@ -306,14 +309,16 @@ const MAX_INPUT_CHARS = 6000;
 // recipe, retries once against local ollama (if configured) before giving up —
 // a garbled-but-non-empty cloud reply would otherwise never reach that fallback,
 // since recipeGenerate() only falls through to ollama on a hard network failure.
-async function generateStructure(text) {
+async function generateStructure(text, onStatus) {
   const capped = text.slice(0, MAX_INPUT_CHARS);
   const prompt = buildPrompt(capped);
+  onStatus?.(recipeUsingCloud() ? 'parsing_cloud' : 'parsing_local');
   let reply = await recipeGenerate(prompt, { timeoutMs: 100000 });
   let obj = parseRecipeObject(reply);
   let usable = Boolean(obj && Array.isArray(obj.ingredients) && obj.ingredients.length > 0);
   if (!usable && recipeUsingCloud() && recipeLocalEnabled()) {
     console.warn(`[boet] recipe parse: cloud reply unusable (reply len=${reply?.length ?? 0}), retrying via local ollama`);
+    onStatus?.('fallback_local');
     reply = await recipeGenerateLocal(prompt, { timeoutMs: 100000 });
     obj = parseRecipeObject(reply);
     usable = Boolean(obj && Array.isArray(obj.ingredients) && obj.ingredients.length > 0);
@@ -327,7 +332,7 @@ async function generateStructure(text) {
 
 // Build the ingredients/steps arrays out of a parsed model reply and hand off to
 // finalize(). Shared by the plain-text and JSON+cloud paths in parseRecipeText.
-function docFromObj(obj, { name, description, servings }, full) {
+function docFromObj(obj, { name, description, servings }, full, onStatus) {
   const rawIngredients = Array.isArray(obj.ingredients) ? obj.ingredients : [];
   const ingredients = rawIngredients.map((ing, i) => {
     const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
@@ -343,10 +348,15 @@ function docFromObj(obj, { name, description, servings }, full) {
     return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null };
   }).filter((s) => s.text);
 
-  return finalize({ name, description, servings, ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase() });
+  return finalize({ name, description, servings, ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), onStatus });
 }
 
-export async function parseRecipeText(text) {
+// `onStatus(status)` is called as parsing progresses so a caller can persist/
+// broadcast live progress (see routes/recipes.js `/recipes/parse-async`):
+// 'parsing_cloud' | 'parsing_local' | 'fallback_local' | 'translating' | 'degraded'.
+// 'degraded' means both backends failed to produce usable structure and the raw
+// (unlinked, free-text) Mealie fields were used as a last resort.
+export async function parseRecipeText(text, { onStatus } = {}) {
   const full = String(text || '').trim();
   if (!full) return null;
 
@@ -355,24 +365,24 @@ export async function parseRecipeText(text) {
   // ingredients/steps need the model. Without any model, map Mealie directly.
   const ex = extractRecipeJson(full);
   if (ex) {
-    if (!recipeLlmEnabled()) return tryMealie(full);
+    if (!recipeLlmEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
     if (recipeUsingCloud()) {
-      const obj = await generateStructure(renderCleanedRecipeText(ex));
-      if (!obj) return tryMealie(full);
-      return docFromObj(obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) }, full);
+      const obj = await generateStructure(renderCleanedRecipeText(ex), onStatus);
+      if (!obj) { onStatus?.('degraded'); return tryMealie(full); }
+      return docFromObj(obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) }, full, onStatus);
     }
-    return parseStructured(ex, full);
+    return parseStructured(ex, full, onStatus);
   }
 
   // Plain-text paste: the model has to split AND structure it, and we have no
   // authoritative name/servings/description to fall back on — no model means no
   // recipe (there's nothing sane to degrade to, unlike the JSON path above).
   if (!recipeLlmEnabled()) return null;
-  const obj = await generateStructure(full);
+  const obj = await generateStructure(full, onStatus);
   if (!obj) return null;
   return docFromObj(obj, {
     name: String(obj.name ?? '').trim(),
     description: obj.description ? String(obj.description).trim() : null,
     servings: asNumber(obj.servings),
-  }, full);
+  }, full, onStatus);
 }

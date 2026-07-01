@@ -24,13 +24,15 @@ import se.jabba.boet.ui.common.PrimaryButton
 import se.jabba.boet.ui.theme.*
 
 // "Add recipe with AI": paste text (or pull text from a photo via on-device OCR),
-// send it to the server parser, then hand the structured draft to the editor for
-// review. Nothing is saved until the parse succeeds; failures fall back to manual.
+// kick off an async server-side parse, and jump straight to the recipe detail
+// screen — a placeholder appears there immediately and fills in live as the
+// server works through it (see RecipeDetailScreen's status banner), so this
+// screen never blocks on the model itself.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecipeAiScreen(
     repo: Repository,
-    onParsed: (String) -> Unit,     // navigates to the editor for the saved draft
+    onParsed: (String) -> Unit,     // navigates to the (still-parsing) recipe's detail screen
     onManual: () -> Unit,           // fall back to the blank manual editor
     onBack: () -> Unit,
 ) {
@@ -57,14 +59,11 @@ fun RecipeAiScreen(
         if (input.isEmpty()) return
         scope.launch {
             busy = true; error = null
-            val doc = repo.aiParseRecipe(input)
-            if (doc == null) {
-                busy = false
+            val id = repo.startAiParse(input)
+            busy = false
+            if (id == null) {
                 error = context.getString(R.string.recipe_ai_failed)
             } else {
-                // Save the draft so the editor can load it by id like any recipe.
-                val id = repo.saveRecipe(doc)
-                busy = false
                 onParsed(id)
             }
         }

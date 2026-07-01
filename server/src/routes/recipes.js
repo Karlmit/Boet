@@ -1,23 +1,89 @@
 import { Router } from 'express';
+import { nanoid } from 'nanoid';
 import { query } from '../db.js';
 import { hub } from '../hub.js';
 import { HOUSEHOLD_ID } from '../seed.js';
 import { recipeRow } from '../serialize.js';
 import { parseRecipeText } from '../recipe-ai.js';
+import { recipeLlmEnabled } from '../recipe-llm.js';
 
 export const recipes = Router();
 
-// AI parse: free recipe text -> structured RecipeDoc (ingredients with units
-// converted + step↔ingredient refs + timers, translated to Swedish). The app
-// reviews/edits the result in the editor before saving — nothing is persisted
-// here. 503 when the local model is unavailable so the app can fall back to the
-// manual editor. body: { text } -> { recipe }
+// AI parse (legacy, synchronous): free recipe text -> structured RecipeDoc in one
+// blocking request. Kept for older app builds; new ones use /recipes/parse-async
+// below, which doesn't hold the connection open for the whole parse+fallback
+// chain (a cloud attempt followed by a local retry can together run well past a
+// mobile client's read timeout, which made this endpoint look like a hard
+// failure even when the server went on to finish successfully).
+// body: { text } -> { recipe }
 recipes.post('/recipes/parse', async (req, res) => {
   const text = (req.body || {}).text;
   if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
   const recipe = await parseRecipeText(text);
   if (!recipe) return res.status(503).json({ error: 'parser unavailable' });
   res.json({ recipe });
+});
+
+// AI parse (async): creates a placeholder recipe immediately (so it shows up in
+// the recipe list right away, offline-sync-style) and returns its id without
+// waiting for the model. Parsing continues in the background; each phase change
+// (asking the cloud model, falling back to local, translating, done, degraded,
+// error) is written to the recipe's `data.aiStatus`/`aiError` and broadcast over
+// the same WebSocket channel as any other recipe update, so every connected
+// device — including the one that started the request — sees live progress via
+// the normal Room/Flow sync path. body: { text } -> 202 { ...recipeRow }
+recipes.post('/recipes/parse-async', async (req, res) => {
+  const text = (req.body || {}).text;
+  if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+
+  const id = nanoid();
+  const placeholder = {
+    name: '', description: null, image: null, servings: null, totalTime: null, sourceUrl: null,
+    ingredients: [], steps: [],
+    aiStatus: recipeLlmEnabled() ? 'queued' : 'error',
+    aiError: recipeLlmEnabled() ? null : 'Ingen AI konfigurerad på servern.',
+  };
+  const { rows } = await query(
+    `INSERT INTO recipes (id, household_id, data, position) VALUES ($1,$2,$3,0) RETURNING *`,
+    [id, HOUSEHOLD_ID, placeholder]
+  );
+  const created = recipeRow(rows[0]);
+  hub.emit('create', 'recipe', created);
+  res.status(202).json(created);
+  if (!recipeLlmEnabled()) return;
+
+  // Fire-and-forget: the HTTP response is already sent above. Progress and the
+  // final result reach the client purely over the WebSocket broadcast.
+  let lastStatus = 'queued';
+  const setStatus = async (aiStatus) => {
+    lastStatus = aiStatus;
+    const { rows: r } = await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify({ aiStatus })]
+    );
+    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+  };
+  try {
+    const doc = await parseRecipeText(text, { onStatus: setStatus });
+    // 'degraded' (both backends failed and the raw unlinked Mealie fields were
+    // used as a last resort) is itself a terminal state set via onStatus above —
+    // don't clobber it with 'done'.
+    const finalData = doc
+      ? { ...doc, aiStatus: lastStatus === 'degraded' ? 'degraded' : 'done', aiError: null }
+      : { ...placeholder, aiStatus: 'error', aiError: 'AI:n kunde inte tolka receptet.' };
+    const { rows: r } = await query(
+      `UPDATE recipes SET data=$2, updated_at=now() WHERE id=$1 RETURNING *`,
+      [id, finalData]
+    );
+    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+  } catch (e) {
+    console.error(`[boet] recipe ai parse (${id}) threw:`, e);
+    const { rows: r } = await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify({ aiStatus: 'error', aiError: String(e?.message || e) })]
+    );
+    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+  }
 });
 
 // All household recipes, ordered for the grid (manual position, then name).

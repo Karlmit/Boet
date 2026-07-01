@@ -117,6 +117,12 @@ fun RecipeDetailScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = 32.dp),
         ) {
+            // Live AI-parse progress/result. Set only while (or just after) an async
+            // parse ran; absent for manual recipes and cleared once truly "done".
+            doc.aiStatus?.takeIf { it != "done" }?.let { status ->
+                item { AiStatusBanner(status, doc.aiError) }
+            }
+
             item {
                 Box(
                     Modifier.fillMaxWidth().height(200.dp).background(Leaf),
@@ -284,6 +290,47 @@ private fun StepTimerChip(totalSeconds: Int) {
             Icon(Icons.Default.Timer, contentDescription = null, tint = if (running) WarmWhite else MossDeep, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             Text(label, style = BoetType.label, color = if (running) WarmWhite else Charcoal)
+        }
+    }
+}
+
+// Live status for an in-flight (or just-finished) async AI parse — see
+// Repository.startAiParse / the server's POST /recipes/parse-async. Shown at the
+// top of the detail screen so the app never just looks "stuck" or silently wrong
+// while the model runs; updates arrive over the normal recipe WebSocket sync, so
+// this recomposes automatically as `doc.aiStatus` changes.
+@Composable
+private fun AiStatusBanner(status: String, error: String?) {
+    val isError = status == "error"
+    val isDegraded = status == "degraded"
+    val inProgress = !isError && !isDegraded
+    val bg = when {
+        isError -> MaterialTheme.colorScheme.errorContainer
+        isDegraded -> Sage
+        else -> Leaf
+    }
+    val fg = if (isError) MaterialTheme.colorScheme.onErrorContainer else Charcoal
+    val label = when (status) {
+        "queued" -> stringResource(R.string.recipe_ai_status_queued)
+        "parsing_cloud" -> stringResource(R.string.recipe_ai_status_parsing_cloud)
+        "parsing_local" -> stringResource(R.string.recipe_ai_status_parsing_local)
+        "fallback_local" -> stringResource(R.string.recipe_ai_status_fallback_local)
+        "translating" -> stringResource(R.string.recipe_ai_status_translating)
+        "degraded" -> stringResource(R.string.recipe_ai_status_degraded)
+        "error" -> error ?: stringResource(R.string.recipe_ai_failed)
+        else -> status
+    }
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
+            if (inProgress) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MossDeep)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(label, style = BoetType.body, color = fg)
         }
     }
 }
