@@ -40,6 +40,7 @@ import se.jabba.boet.data.remote.RecipeIngredient
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.CategoryHeader
 import se.jabba.boet.ui.theme.*
+import se.jabba.boet.util.resolveImageUrl
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -140,7 +141,7 @@ fun RecipeDetailScreen(
                 ) {
                     if (doc.image != null) {
                         AsyncImage(
-                            model = doc.image, contentDescription = doc.name,
+                            model = resolveImageUrl(repo.serverUrl(), doc.image), contentDescription = doc.name,
                             contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                         )
                     } else {
@@ -233,6 +234,14 @@ fun RecipeDetailScreen(
                 item { EmptyHint(stringResource(R.string.recipe_no_steps)) }
             } else {
                 itemsIndexed(doc.steps) { idx, step ->
+                    // A phase header (e.g. "Gör såsen") from a Mealie/schema.org source
+                    // or inferred by the AI — shown above this step, numbering unaffected.
+                    step.title?.let {
+                        Text(
+                            it, style = BoetType.title, color = MossDeep, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = if (idx == 0) 4.dp else 16.dp, bottom = 4.dp),
+                        )
+                    }
                     Row(
                         verticalAlignment = Alignment.Top,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),

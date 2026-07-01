@@ -133,6 +133,10 @@ data class RecipeStep(
     val text: String = "",
     val ingredientRefs: List<String> = emptyList(),
     val timerSeconds: Int? = null,
+    // Optional phase header shown above this step (e.g. "Gör såsen") — carried
+    // through from a Mealie/schema.org source's own step title/section name, or
+    // inferred by the AI for a natural break between recipe phases.
+    val title: String? = null,
 )
 
 // Decode/encode the recipe document stored as a JSON string in RecipeEntity.data.

@@ -28,6 +28,7 @@
     <string name="recipe_add_photo">Lägg till bild</string>
     <string name="recipe_delete_warning">Detta går inte att ångra.</string>
     <string name="recipe_step_hint">Beskriv steget…</string>
+    <string name="recipe_step_title_hint">Rubrik (valfritt), t.ex. Gör såsen</string>
     <string name="recipe_add_ingredient">Lägg till ingrediens</string>
     <string name="recipe_add_step">Lägg till steg</string>
     <string name="recipe_create_manual">Skriv själv</string>

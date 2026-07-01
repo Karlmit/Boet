@@ -35,7 +35,7 @@ class Repository(
     private val api: ApiClient,
     private val scope: CoroutineScope,
     private val identityProvider: () -> String?,
-    baseUrlProvider: () -> String,
+    private val baseUrlProvider: () -> String,
 ) {
     private val db = BoetDatabase.get(context)
     private val listDao = db.listDao()
@@ -87,6 +87,11 @@ class Repository(
         // are reconciled instead of waiting for the next app restart.
         onReconnect = { scope.launch { bootstrap() } },
     )
+
+    // The current server base URL — needed by screens that render a relative
+    // /uploads/... path returned by the media endpoints (recipe/list images)
+    // into a full URL Coil can actually fetch.
+    fun serverUrl(): String = baseUrlProvider()
 
     // Reads -----------------------------------------------------------------
     fun activeLists() = listDao.activeLists()

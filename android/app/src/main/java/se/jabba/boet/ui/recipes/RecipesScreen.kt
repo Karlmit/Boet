@@ -31,6 +31,7 @@ import se.jabba.boet.data.local.RecipeEntity
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.Wordmark
 import se.jabba.boet.ui.theme.*
+import se.jabba.boet.util.resolveImageUrl
 
 // Recipes hub: a grid of the household's recipes, reached from the drawer.
 // Shopping stays the home screen; this is a parallel destination.
@@ -107,6 +108,7 @@ fun RecipesScreen(
                 items(recipes, key = { it.id }) { recipe ->
                     RecipeCard(
                         recipe = recipe,
+                        serverUrl = repo.serverUrl(),
                         onClick = { onOpenRecipe(recipe.id) },
                         onDelete = { scope.launch { repo.deleteRecipe(recipe.id) } },
                     )
@@ -117,7 +119,7 @@ fun RecipesScreen(
 }
 
 @Composable
-private fun RecipeCard(recipe: RecipeEntity, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun RecipeCard(recipe: RecipeEntity, serverUrl: String, onClick: () -> Unit, onDelete: () -> Unit) {
     // Cheap peek at aiStatus for the in-progress/error badge — the grid otherwise
     // only needs the denormalized name/image columns, but this field is small.
     val aiStatus = remember(recipe.data) { RecipeJson.decode(recipe.data).aiStatus }
@@ -136,7 +138,7 @@ private fun RecipeCard(recipe: RecipeEntity, onClick: () -> Unit, onDelete: () -
             ) {
                 if (recipe.image != null) {
                     AsyncImage(
-                        model = recipe.image,
+                        model = resolveImageUrl(serverUrl, recipe.image),
                         contentDescription = recipe.name,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

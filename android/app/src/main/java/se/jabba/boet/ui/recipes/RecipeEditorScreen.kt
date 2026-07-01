@@ -42,6 +42,7 @@ import se.jabba.boet.data.remote.RecipeStep
 import se.jabba.boet.ui.common.CategoryHeader
 import se.jabba.boet.ui.theme.*
 import se.jabba.boet.util.compressImageToBase64
+import se.jabba.boet.util.resolveImageUrl
 import java.util.UUID
 
 // Common Swedish recipe units offered as quick picks in the unit field; any other
@@ -78,9 +79,11 @@ private class StepRow(
     text: String,
     val refs: List<String>,
     timer: Int?,
+    title: String?,
 ) {
     var text by mutableStateOf(text)
     var timer by mutableStateOf(timer)   // seconds, or null for no timer
+    var title by mutableStateOf(title)   // optional phase header shown above this step
 }
 
 // Rebuild the human-readable ingredient line from the three edited fields —
@@ -130,7 +133,7 @@ fun RecipeEditorScreen(
                 ingredients.add(IngRow(it.id, it.quantity?.let(::formatServings) ?: "", it.unit.orEmpty(), it.food, it.note, it.sections))
             }
             steps.clear()
-            doc.steps.forEach { steps.add(StepRow(it.id, it.text, it.ingredientRefs, it.timerSeconds)) }
+            doc.steps.forEach { steps.add(StepRow(it.id, it.text, it.ingredientRefs, it.timerSeconds, it.title)) }
             seeded = true
         }
     }
@@ -168,7 +171,7 @@ fun RecipeEditorScreen(
             steps = steps.mapNotNull { row ->
                 val t = row.text.trim()
                 if (t.isEmpty()) return@mapNotNull null
-                RecipeStep(id = row.id, text = t, ingredientRefs = row.refs, timerSeconds = row.timer)
+                RecipeStep(id = row.id, text = t, ingredientRefs = row.refs, timerSeconds = row.timer, title = row.title?.trim()?.ifBlank { null })
             },
         )
         scope.launch {
@@ -215,7 +218,7 @@ fun RecipeEditorScreen(
             contentPadding = PaddingValues(16.dp),
         ) {
             item {
-                ImagePicker(image = image, uploading = uploadingImage, onPick = { pickImage.launch("image/*") })
+                ImagePicker(image = image, serverUrl = repo.serverUrl(), uploading = uploadingImage, onPick = { pickImage.launch("image/*") })
                 Spacer(Modifier.height(16.dp))
                 Field(name, { name = it }, stringResource(R.string.recipe_name))
                 Spacer(Modifier.height(12.dp))
@@ -239,6 +242,18 @@ fun RecipeEditorScreen(
             item { CategoryHeader(stringResource(R.string.recipe_steps), modifier = Modifier.padding(top = 16.dp)) }
             itemsIndexed(steps, key = { _, it -> it.id }) { idx, row ->
                 Column(Modifier.padding(top = 4.dp)) {
+                    // Optional phase header shown above this step (e.g. "Gör såsen") —
+                    // most steps leave this blank.
+                    OutlinedTextField(
+                        value = row.title.orEmpty(),
+                        onValueChange = { row.title = it },
+                        placeholder = { Text(stringResource(R.string.recipe_step_title_hint), color = CharcoalMuted) },
+                        singleLine = true,
+                        textStyle = BoetType.label,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    )
                     EditableRow(
                         value = row.text,
                         onValue = { row.text = it },
@@ -249,7 +264,7 @@ fun RecipeEditorScreen(
                     TimerButton(seconds = row.timer, onSet = { row.timer = it })
                 }
             }
-            item { AddButton(stringResource(R.string.recipe_add_step)) { steps.add(StepRow(UUID.randomUUID().toString(), "", emptyList(), null)) } }
+            item { AddButton(stringResource(R.string.recipe_add_step)) { steps.add(StepRow(UUID.randomUUID().toString(), "", emptyList(), null, null)) } }
 
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -273,14 +288,14 @@ fun RecipeEditorScreen(
 }
 
 @Composable
-private fun ImagePicker(image: String?, uploading: Boolean, onPick: () -> Unit) {
+private fun ImagePicker(image: String?, serverUrl: String, uploading: Boolean, onPick: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(14.dp)).background(Leaf).clickable(onClick = onPick),
         contentAlignment = Alignment.Center,
     ) {
         when {
             uploading -> CircularProgressIndicator(color = MossDeep)
-            image != null -> AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            image != null -> AsyncImage(model = resolveImageUrl(serverUrl, image), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Image, contentDescription = null, tint = MossDeep, modifier = Modifier.size(32.dp))
                 Spacer(Modifier.height(6.dp))

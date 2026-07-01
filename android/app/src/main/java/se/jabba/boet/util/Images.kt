@@ -40,3 +40,10 @@ fun compressImageToBase64(context: Context, uri: Uri, maxEdge: Int = 1600): Pair
         null
     }
 }
+
+// The media upload endpoints (list background, recipe image) return a relative
+// path like "/uploads/xxx.jpg" — Coil can't fetch that without the server's base
+// URL prepended. An already-absolute URL (e.g. a future URL-scraped recipe's own
+// image) passes through untouched.
+fun resolveImageUrl(serverUrl: String, path: String?): String? =
+    path?.let { if (it.startsWith("http://") || it.startsWith("https://")) it else serverUrl.trimEnd('/') + it }

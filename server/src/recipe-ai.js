@@ -39,10 +39,15 @@ function buildPrompt(text) {
     'both) — most ingredients get [] (no tag at all). Only tag ingredients that clearly belong to',
     'a named group; do not invent one just to have something to put there — most simple recipes',
     'have no such groups.',
+    'Similarly, a recipe with distinct phases (e.g. marinate, make the sauce, assemble and',
+    'serve) can have a short phase header on the FIRST step of a new phase — set "title" to a',
+    'few words in the recipe\'s own language (e.g. "Gör såsen") on that one step only; every other',
+    'step gets "title":null. Most recipes are simple enough that no step needs one at all — only',
+    'add headers where the phase break is obvious, never one per step.',
     'Output ONLY this JSON shape, nothing else:',
     '{"name":"","description":"","servings":4,"lang":"en",',
     ' "ingredients":[{"id":"i1","quantity":1.5,"unit":"cups","food":"flour","sections":[]}],',
-    ' "steps":[{"text":"","ingredientRefs":["i1"],"timerMinutes":null}]}',
+    ' "steps":[{"text":"","ingredientRefs":["i1"],"timerMinutes":null,"title":null}]}',
     '',
     'RECIPE:',
     text,
@@ -130,7 +135,10 @@ function tryMealie(raw) {
   const steps = rawSteps.map((s, i) => {
     const refs = (Array.isArray(s?.ingredient_references) ? s.ingredient_references : [])
       .map((r) => String(r?.reference_id ?? r)).filter((r) => validIds.has(r));
-    return { id: String(s?.id || `s${i + 1}`), text: String(s?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: null };
+    // Mealie's own per-step title (a phase header shown above that step) —
+    // carried through untouched.
+    const title = s?.title ? String(s.title).trim() || null : null;
+    return { id: String(s?.id || `s${i + 1}`), text: String(s?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: null, title };
   }).filter((s) => s.text);
 
   return {
@@ -146,18 +154,27 @@ function tryMealie(raw) {
 }
 
 // Flatten schema.org recipeInstructions, which may be plain strings, HowToStep
-// objects ({text}), or HowToSection objects ({itemListElement:[…]}).
+// objects ({text}), or HowToSection objects ({itemListElement:[…]}). A
+// HowToSection's own `name` becomes a phase-header `title` on the first step
+// inside it (schema.org's equivalent of Mealie's per-step `title`).
 function flattenSchemaInstructions(arr) {
   const out = [];
   for (const it of arr || []) {
-    if (typeof it === 'string') out.push(it);
-    else if (it && typeof it === 'object') {
-      if (Array.isArray(it.itemListElement)) out.push(...flattenSchemaInstructions(it.itemListElement));
-      else if (it.text) out.push(String(it.text));
-      else if (it.name) out.push(String(it.name));
+    if (typeof it === 'string') {
+      out.push({ text: it, title: null });
+    } else if (it && typeof it === 'object') {
+      if (Array.isArray(it.itemListElement)) {
+        const nested = flattenSchemaInstructions(it.itemListElement);
+        if (nested.length > 0 && it.name) nested[0].title = String(it.name).trim() || null;
+        out.push(...nested);
+      } else if (it.text) {
+        out.push({ text: String(it.text), title: null });
+      } else if (it.name) {
+        out.push({ text: String(it.name), title: null });
+      }
     }
   }
-  return out.map((s) => s.trim()).filter(Boolean);
+  return out.map((x) => ({ text: x.text.trim(), title: x.title })).filter((x) => x.text);
 }
 
 // If the pasted text is a recipe JSON (Mealie export OR a schema.org/Recipe
@@ -197,13 +214,24 @@ function extractRecipeJson(raw) {
     ingredientSections = ingredientLines.map(() => null);
   }
 
+  // Parallel to stepLines: a Mealie export's per-step `title` or a schema.org
+  // HowToSection's `name` (see flattenSchemaInstructions) — a phase header
+  // shown above that step. Trusted as-is; the AI only fills gaps (see
+  // parseLocalStepwise / buildLinkingPrompt).
   let stepLines = [];
+  let stepTitles = [];
   if (Array.isArray(j.recipe_instructions)) {
-    stepLines = j.recipe_instructions.map((s) => String(s?.text ?? '').trim()).filter(Boolean);
+    stepLines = j.recipe_instructions.map((s) => String(s?.text ?? '').trim());
+    stepTitles = j.recipe_instructions.map((s) => (s?.title ? String(s.title).trim() || null : null));
+    stepTitles = stepTitles.filter((_, i) => Boolean(stepLines[i]));
+    stepLines = stepLines.filter(Boolean);
   } else if (Array.isArray(j.recipeInstructions)) {
-    stepLines = flattenSchemaInstructions(j.recipeInstructions);
+    const flat = flattenSchemaInstructions(j.recipeInstructions);
+    stepLines = flat.map((x) => x.text);
+    stepTitles = flat.map((x) => x.title);
   } else if (typeof j.recipeInstructions === 'string') {
     stepLines = [j.recipeInstructions.trim()].filter(Boolean);
+    stepTitles = stepLines.map(() => null);
   }
 
   if (ingredientLines.length === 0 && stepLines.length === 0) return null;
@@ -215,6 +243,7 @@ function extractRecipeJson(raw) {
     ingredientLines,
     ingredientSections,
     stepLines,
+    stepTitles,
   };
 }
 
@@ -242,7 +271,7 @@ function buildIngredientPrompt(line) {
 // buildPrompt's comment on named sub-components) for whichever ingredients don't
 // already have one from the source (unknownSectionIds) — a Mealie export's own
 // groups are trusted as-is and never re-asked about here.
-function buildLinkingPrompt(ingredients, stepLines, unknownSectionIds) {
+function buildLinkingPrompt(ingredients, stepLines, unknownSectionIds, unknownTitleStepNumbers) {
   return [
     'Below are structured recipe ingredients and numbered steps.',
     'For each step number output {n,ingredientRefs,timerMinutes}: ingredientRefs = ids of the',
@@ -267,7 +296,15 @@ function buildLinkingPrompt(ingredients, stepLines, unknownSectionIds) {
       '— an ingredient can have more than one. Leave an id out of "sections" entirely if it has no',
       'clear group; most ingredients will have none.',
     ] : []),
-    'Output ONLY: {"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}],"sections":[{"id":"i1","tags":["Marinad"]}]}',
+    ...(unknownTitleStepNumbers.length > 0 ? [
+      'Separately, a recipe with distinct phases (e.g. marinate, make the sauce, assemble and',
+      'serve) can have a short phase header on the FIRST step of a new phase — a few words in the',
+      `recipe's own language (e.g. "Gör såsen"). For step numbers ${unknownTitleStepNumbers.join(', ')}`,
+      'specifically, if a step clearly starts a new phase, output "stepTitles": a list of {n,title}.',
+      'Leave a step number out entirely if it doesn\'t start a new phase — most steps won\'t, and',
+      'most simple recipes need no headers at all.',
+    ] : []),
+    'Output ONLY: {"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}],"sections":[{"id":"i1","tags":["Marinad"]}],"stepTitles":[{"n":3,"title":"Gör såsen"}]}',
     '',
     'INGREDIENTS:',
     ...ingredients.map((x) => `${x.id}: ${composeDisplay(x.quantity, x.unit, x.food)}`),
@@ -308,6 +345,7 @@ async function finalize({ name, description, servings, ingredients, steps, full,
       ...ingredients.map((x) => x.food), ...steps.map((x) => x.text),
       // Flattened so each ingredient's tags translate 1:1, however many it has.
       ...ingredients.flatMap((x) => x.sections || []),
+      ...steps.map((x) => x.title || ''),
     ];
     const tr = await translateBatch(batch);
     let k = 0;
@@ -316,6 +354,7 @@ async function finalize({ name, description, servings, ingredients, steps, full,
     ingredients.forEach((x) => { x.food = tr[k++] ?? x.food; });
     steps.forEach((x) => { x.text = tr[k++] ?? x.text; });
     ingredients.forEach((x) => { x.sections = (x.sections || []).map((orig) => tr[k++] || orig); });
+    steps.forEach((x) => { const t = tr[k++]; if (x.title && t) x.title = t; });
   }
   // Compose display AFTER translation so the food word is Swedish.
   ingredients.forEach((x) => { x.display = composeDisplay(x.quantity, x.unit, x.food); });
@@ -359,9 +398,17 @@ async function parseLocalStepwise(ex, full, onStatus) {
   }
   const validIds = new Set(ingredients.map((x) => x.id));
   const unknownSectionIds = ingredients.filter((x) => x.sections.length === 0).map((x) => x.id);
+  // Steps whose title isn't already known from the source (see extractRecipeJson's
+  // stepTitles) — only these are offered to the AI for phase-header inference.
+  const unknownTitleStepNumbers = ex.stepLines
+    .map((_, i) => (ex.stepTitles?.[i] ? null : i + 1))
+    .filter((n) => n !== null);
 
   onStatus?.('linking_steps');
-  const reply = await recipeGenerateLocal(buildLinkingPrompt(ingredients, ex.stepLines, unknownSectionIds), { timeoutMs: 60000 });
+  const reply = await recipeGenerateLocal(
+    buildLinkingPrompt(ingredients, ex.stepLines, unknownSectionIds, unknownTitleStepNumbers),
+    { timeoutMs: 60000 },
+  );
   const obj = parseRecipeObject(reply);
   if (!obj) console.warn('[boet] recipe parse: step-linking call gave nothing usable — ingredients are structured but steps will have no links/timers');
   const tagsById = new Map();
@@ -376,12 +423,19 @@ async function parseLocalStepwise(ex, full, onStatus) {
     const n = asNumber(s?.n);
     if (n !== null) byN.set(Math.round(n), s);
   });
+  const titleByN = new Map();
+  (Array.isArray(obj?.stepTitles) ? obj.stepTitles : []).forEach((s) => {
+    const n = asNumber(s?.n);
+    const title = typeof s?.title === 'string' ? s.title.trim() : '';
+    if (n !== null && title) titleByN.set(Math.round(n), title);
+  });
   const steps = ex.stepLines.map((text, i) => {
     const st = byN.get(i + 1);
     const minutes = asNumber(st?.timerMinutes);
     const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
       .map((r) => String(r)).filter((r) => validIds.has(r));
-    return { id: `s${i + 1}`, text: String(text).trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null };
+    const title = ex.stepTitles?.[i] || titleByN.get(i + 1) || null;
+    return { id: `s${i + 1}`, text: String(text).trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null, title };
   }).filter((s) => s.text);
 
   return finalize({
@@ -459,7 +513,8 @@ function docFromObj(obj, { name, description, servings }, full, onStatus) {
     const minutes = asNumber(st?.timerMinutes);
     const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
       .map((r) => String(r)).filter((r) => validIds.has(r));
-    return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null };
+    const title = typeof st?.title === 'string' ? st.title.trim() || null : null;
+    return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null, title };
   }).filter((s) => s.text);
 
   return finalize({ name, description, servings, ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), onStatus });

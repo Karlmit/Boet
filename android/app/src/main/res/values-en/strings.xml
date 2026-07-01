@@ -26,6 +26,7 @@
     <string name="recipe_add_photo">Add photo</string>
     <string name="recipe_delete_warning">This can\'t be undone.</string>
     <string name="recipe_step_hint">Describe the step…</string>
+    <string name="recipe_step_title_hint">Header (optional), e.g. Make the sauce</string>
     <string name="recipe_add_ingredient">Add ingredient</string>
     <string name="recipe_add_step">Add step</string>
     <string name="recipe_create_manual">Write it myself</string>
