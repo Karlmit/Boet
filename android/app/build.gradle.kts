@@ -30,8 +30,8 @@ android {
         applicationId = "se.jabba.boet"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.17"
+        versionCode = 19
+        versionName = "1.18"
         vectorDrawables { useSupportLibrary = true }
     }
 

@@ -119,6 +119,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     recipeId = null,
                     // Land on the new recipe's detail; drop the editor from the back stack.
                     onSaved = { id -> nav.navigate("recipe/$id") { popUpTo("recipes") } },
+                    onDeleted = { nav.popBackStack("recipes", false) },
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -139,6 +140,9 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     repo = repo,
                     recipeId = id,
                     onSaved = { nav.popBackStack() },
+                    // Deleting from the editor: the detail screen below it on the back
+                    // stack no longer has a recipe to show, so pop all the way to the list.
+                    onDeleted = { nav.popBackStack("recipes", false) },
                     onBack = { nav.popBackStack() },
                 )
             }

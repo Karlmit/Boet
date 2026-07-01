@@ -14,7 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Remove
@@ -28,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
@@ -51,7 +51,6 @@ fun RecipeDetailScreen(
     val entity by repo.recipeById(recipeId).collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var confirmDelete by remember { mutableStateOf(false) }
     var keepAwake by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -94,20 +93,30 @@ fun RecipeDetailScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Charcoal)
                     }
                 },
-                title = { Text(doc.name.ifBlank { stringResource(R.string.recipes_title) }, style = BoetType.headline, maxLines = 1) },
+                title = {
+                    Text(
+                        doc.name.ifBlank { stringResource(R.string.recipes_title) },
+                        style = BoetType.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 actions = {
                     IconButton(onClick = { keepAwake = !keepAwake }) {
-                        Icon(
-                            Icons.Default.Lightbulb,
-                            contentDescription = stringResource(R.string.recipe_keep_awake),
-                            tint = if (keepAwake) Moss else CharcoalMuted,
-                        )
+                        Box(
+                            modifier = if (keepAwake) Modifier.background(Sage, CircleShape) else Modifier,
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.Lightbulb,
+                                contentDescription = stringResource(
+                                    if (keepAwake) R.string.recipe_keep_awake_on else R.string.recipe_keep_awake_off
+                                ),
+                                tint = if (keepAwake) MossDeep else CharcoalMuted,
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        }
                     }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.recipe_edit), tint = MossDeep)
-                    }
-                    IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = MossDeep)
                     }
                 },
             )
@@ -172,16 +181,28 @@ fun RecipeDetailScreen(
             if (doc.ingredients.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.recipe_no_ingredients)) }
             } else {
-                items(doc.ingredients) { ing ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
-                    ) {
-                        Box(Modifier.size(6.dp).background(Moss, CircleShape))
-                        Spacer(Modifier.width(12.dp))
-                        Text(ingredientLine(ing, factor), style = BoetType.body, color = Charcoal, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { addToList(ing, factor) }) {
-                            Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                // Sub-recipes (marinade, sauce, side salad, …) group under their own
+                // heading; ingredients with no section render as a plain flat list.
+                groupBySection(doc.ingredients) { it.section }.forEach { (section, group) ->
+                    if (section != null) {
+                        item {
+                            Text(
+                                section, style = BoetType.label, color = MossDeep, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 2.dp),
+                            )
+                        }
+                    }
+                    items(group) { ing ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                        ) {
+                            Box(Modifier.size(6.dp).background(Moss, CircleShape))
+                            Spacer(Modifier.width(12.dp))
+                            Text(ingredientLine(ing, factor), style = BoetType.body, color = Charcoal, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { addToList(ing, factor) }) {
+                                Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                            }
                         }
                     }
                 }
@@ -221,21 +242,6 @@ fun RecipeDetailScreen(
                 }
             }
         }
-    }
-
-    if (confirmDelete) {
-        AlertDialog(
-            containerColor = WarmWhite,
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.recipe_delete_q), style = BoetType.headline) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    scope.launch { repo.deleteRecipe(recipeId); onBack() }
-                }) { Text(stringResource(R.string.delete), color = MossDeep) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel), color = Charcoal) } },
-        )
     }
 }
 
@@ -342,6 +348,19 @@ private fun EmptyHint(text: String) {
 }
 
 // --- formatting helpers ----------------------------------------------------
+
+// Group items by an optional `section` tag, preserving first-appearance order of
+// both sections and items within them. Items with no section share a single
+// null-keyed group (rendered with no header) — used to cluster recipe
+// ingredients under sub-recipe headings like "Marinad"/"Sås".
+internal fun <T> groupBySection(items: List<T>, sectionOf: (T) -> String?): List<Pair<String?, List<T>>> {
+    val order = LinkedHashMap<String?, MutableList<T>>()
+    items.forEach { item ->
+        val key = sectionOf(item)?.trim()?.ifBlank { null }
+        order.getOrPut(key) { mutableListOf() }.add(item)
+    }
+    return order.map { (k, v) -> k to v }
+}
 
 // The full ingredient line, amount scaled (e.g. "3,5 dl vetemjöl"). Manual
 // recipes without a numeric quantity fall back to their stored display text.

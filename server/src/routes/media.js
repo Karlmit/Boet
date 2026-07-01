@@ -36,6 +36,25 @@ media.post('/lists/:id/background', async (req, res) => {
   res.status(201).json(payload);
 });
 
+// Upload any image and get back its URL, independent of any specific entity —
+// used by the recipe editor, where a brand-new recipe may not have a server row
+// yet when the user picks a photo (unlike the list-background upload above,
+// which is always tied to an existing list id). The client (Images.kt
+// compressImageToBase64) downscales + JPEG-compresses before this ever runs, so
+// there's no server-side image processing to keep this endpoint dependency-free.
+media.post('/media/image', async (req, res) => {
+  const { dataBase64, contentType = 'image/jpeg' } = req.body || {};
+  if (!dataBase64) return res.status(400).json({ error: 'dataBase64 required' });
+  const ext = EXT[contentType] || 'jpg';
+  const file = `${nanoid()}.${ext}`;
+  try {
+    fs.writeFileSync(path.join(UPLOAD_DIR, file), Buffer.from(dataBase64, 'base64'));
+  } catch (err) {
+    return res.status(500).json({ error: 'write failed', message: err.message });
+  }
+  res.status(201).json({ url: `/uploads/${file}` });
+});
+
 // Register an FCM device token.
 media.post('/devices', async (req, res) => {
   const { token, memberId, platform } = req.body || {};

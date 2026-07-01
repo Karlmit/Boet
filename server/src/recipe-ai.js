@@ -21,9 +21,14 @@ function buildPrompt(text) {
     '(e.g. "bake 20 minutes", "sjud 15 min"), set timerMinutes to that number, else null.',
     'quantity is a number (use null if none); unit is the original unit word or null;',
     'food is just the ingredient name without the amount.',
+    'Some recipes have sub-groups (e.g. a marinade, a sauce, a garnish/topping, a side salad)',
+    'made from different subsets of ingredients used in different steps. If you can clearly',
+    'tell such groups apart from the steps, set "section" to a short label in the recipe\'s',
+    'own language (e.g. "Marinad", "Sås"); otherwise set it to null. Most simple recipes have',
+    'no sections — do not invent one just to have something to put there.',
     'Output ONLY this JSON shape, nothing else:',
     '{"name":"","description":"","servings":4,"lang":"en",',
-    ' "ingredients":[{"id":"i1","quantity":1.5,"unit":"cups","food":"flour"}],',
+    ' "ingredients":[{"id":"i1","quantity":1.5,"unit":"cups","food":"flour","section":null}],',
     ' "steps":[{"text":"","ingredientRefs":["i1"],"timerMinutes":null}]}',
     '',
     'RECIPE:',
@@ -102,6 +107,9 @@ function tryMealie(raw) {
       food: food || display,
       display: display || composeDisplay(q && q > 0 ? q : null, unit, food),
       note: x?.note ? String(x.note).trim() : null,
+      // Mealie stores a sub-recipe grouping (e.g. "Marinad") as `title` on the
+      // first ingredient of the group — carry it through untouched.
+      section: x?.title ? String(x.title).trim() || null : null,
     };
   });
   const validIds = new Set(ingredients.map((x) => x.id));
@@ -157,13 +165,23 @@ function extractRecipeJson(raw) {
   if (j && Array.isArray(j['@graph'])) j = j['@graph'].find(isRecipe) || j;
   if (!isRecipe(j)) return null;
 
+  // Parallel to ingredientLines: a Mealie export's own sub-recipe grouping
+  // (`title` on an ingredient), or null when unknown/not applicable
+  // (schema.org's flat recipeIngredient strings never carry one). Trusted
+  // as-is by parseLocalStepwise — no need to ask the AI to re-derive what the
+  // source already told us.
   let ingredientLines = [];
+  let ingredientSections = [];
   if (Array.isArray(j.recipe_ingredient)) {
     ingredientLines = j.recipe_ingredient
       .map((x) => x?.display || x?.note || composeDisplay(asNumber(x?.quantity), typeof x?.unit === 'string' ? x.unit : x?.unit?.name, typeof x?.food === 'string' ? x.food : x?.food?.name))
-      .map((s) => String(s).trim()).filter(Boolean);
+      .map((s) => String(s).trim());
+    ingredientSections = j.recipe_ingredient.map((x) => (x?.title ? String(x.title).trim() || null : null));
+    ingredientSections = ingredientSections.filter((_, i) => Boolean(ingredientLines[i]));
+    ingredientLines = ingredientLines.filter(Boolean);
   } else if (Array.isArray(j.recipeIngredient)) {
     ingredientLines = j.recipeIngredient.map((x) => String(x).trim()).filter(Boolean);
+    ingredientSections = ingredientLines.map(() => null);
   }
 
   let stepLines = [];
@@ -182,6 +200,7 @@ function extractRecipeJson(raw) {
     description: j.description ? String(j.description).trim() : null,
     servings: j.recipe_servings ?? j.recipeYield ?? j.servings ?? null,
     ingredientLines,
+    ingredientSections,
     stepLines,
   };
 }
@@ -206,14 +225,25 @@ function buildIngredientPrompt(line) {
 // Second (and last) local call: now that ingredients are already structured, link
 // each step to the ingredient ids it uses and pull out any timer. Only needs to
 // reason about linking, not also parse quantities, so it's a much narrower ask
-// than the old single "tag everything" prompt.
-function buildLinkingPrompt(ingredients, stepLines) {
+// than the old single "tag everything" prompt. Also asks for sub-recipe
+// groupings (see buildPrompt's "section" comment) for whichever ingredients
+// don't already have one from the source (unknownSectionIds) — a Mealie
+// export's own groups are trusted as-is and never re-asked about here.
+function buildLinkingPrompt(ingredients, stepLines, unknownSectionIds) {
   return [
     'Below are structured recipe ingredients and numbered steps.',
     'For each step number output {n,ingredientRefs,timerMinutes}: ingredientRefs = ids of the',
     'ingredients used in that step (may be empty); timerMinutes = minutes if the step states a',
     'duration (e.g. "10 minuter", "bake 20 minutes"), else null.',
-    'Output ONLY: {"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}]}',
+    ...(unknownSectionIds.length > 0 ? [
+      'Some recipes have sub-groups (e.g. a marinade, a sauce, a garnish/topping, a side salad)',
+      'made from different subsets of ingredients used in different steps. For ingredient ids',
+      `${unknownSectionIds.join(', ')} specifically, if you can clearly tell such a group apart`,
+      'from the steps, also output "sections": a list of {id,section} (short label in the',
+      'recipe\'s own language, e.g. "Marinad", "Sås"). Leave an id out of "sections" if it has',
+      'no clear group.',
+    ] : []),
+    'Output ONLY: {"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}],"sections":[{"id":"i1","section":"Marinad"}]}',
     '',
     'INGREDIENTS:',
     ...ingredients.map((x) => `${x.id}: ${composeDisplay(x.quantity, x.unit, x.food)}`),
@@ -249,13 +279,18 @@ async function finalize({ name, description, servings, ingredients, steps, full,
     (looksEnglish(full) || String(lang || '').startsWith('en'));
   if (wantTranslate) {
     onStatus?.('translating');
-    const batch = [name || '', description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
+    const batch = [
+      name || '', description || '',
+      ...ingredients.map((x) => x.food), ...steps.map((x) => x.text),
+      ...ingredients.map((x) => x.section || ''),
+    ];
     const tr = await translateBatch(batch);
     let k = 0;
     name = tr[k++] || name;
     description = (tr[k++] || '') || description;
     ingredients.forEach((x) => { x.food = tr[k++] ?? x.food; });
     steps.forEach((x) => { x.text = tr[k++] ?? x.text; });
+    ingredients.forEach((x) => { const t = tr[k++]; if (x.section && t) x.section = t; });
   }
   // Compose display AFTER translation so the food word is Swedish.
   ingredients.forEach((x) => { x.display = composeDisplay(x.quantity, x.unit, x.food); });
@@ -291,14 +326,25 @@ async function parseLocalStepwise(ex, full, onStatus) {
     const obj = parseRecipeObject(reply);
     const { quantity, unit } = convertUnit(asNumber(obj?.quantity), obj?.unit);
     const food = String(obj?.food ?? '').trim();
-    ingredients.push({ id: `i${i + 1}`, quantity, unit: unit || null, food: food || line, note: null });
+    // Trust a Mealie export's own grouping where it exists; only ask the AI
+    // (below) to infer one for ingredients the source didn't already group.
+    const section = ex.ingredientSections?.[i] || null;
+    ingredients.push({ id: `i${i + 1}`, quantity, unit: unit || null, food: food || line, note: null, section });
   }
   const validIds = new Set(ingredients.map((x) => x.id));
+  const unknownSectionIds = ingredients.filter((x) => !x.section).map((x) => x.id);
 
   onStatus?.('linking_steps');
-  const reply = await recipeGenerateLocal(buildLinkingPrompt(ingredients, ex.stepLines), { timeoutMs: 60000 });
+  const reply = await recipeGenerateLocal(buildLinkingPrompt(ingredients, ex.stepLines, unknownSectionIds), { timeoutMs: 60000 });
   const obj = parseRecipeObject(reply);
   if (!obj) console.warn('[boet] recipe parse: step-linking call gave nothing usable — ingredients are structured but steps will have no links/timers');
+  const sectionById = new Map();
+  (Array.isArray(obj?.sections) ? obj.sections : []).forEach((s) => {
+    const id = String(s?.id ?? '');
+    const section = typeof s?.section === 'string' ? s.section.trim() : '';
+    if (id && section) sectionById.set(id, section);
+  });
+  ingredients.forEach((x) => { if (!x.section) x.section = sectionById.get(x.id) || null; });
   const byN = new Map();
   (Array.isArray(obj?.steps) ? obj.steps : []).forEach((s) => {
     const n = asNumber(s?.n);
@@ -377,7 +423,8 @@ function docFromObj(obj, { name, description, servings }, full, onStatus) {
   const rawIngredients = Array.isArray(obj.ingredients) ? obj.ingredients : [];
   const ingredients = rawIngredients.map((ing, i) => {
     const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
-    return { id: String(ing?.id || `i${i + 1}`), quantity, unit: unit || null, food: String(ing?.food ?? '').trim(), note: ing?.note ? String(ing.note).trim() : null };
+    const section = typeof ing?.section === 'string' ? ing.section.trim() || null : null;
+    return { id: String(ing?.id || `i${i + 1}`), quantity, unit: unit || null, food: String(ing?.food ?? '').trim(), note: ing?.note ? String(ing.note).trim() : null, section };
   });
   const validIds = new Set(ingredients.map((x) => x.id));
 

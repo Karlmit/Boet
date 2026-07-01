@@ -20,7 +20,11 @@
     <string name="recipe_steps">Steps</string>
     <string name="recipe_no_ingredients">No ingredients yet.</string>
     <string name="recipe_no_steps">No steps yet.</string>
-    <string name="recipe_ingredient_hint">e.g. 1 1/2 cups flour</string>
+    <string name="recipe_ingredient_food_hint">Ingredient</string>
+    <string name="recipe_ingredient_unit_hint">Unit</string>
+    <string name="recipe_ingredient_section_hint">Section (e.g. Marinade)</string>
+    <string name="recipe_add_photo">Add photo</string>
+    <string name="recipe_delete_warning">This can\'t be undone.</string>
     <string name="recipe_step_hint">Describe the step…</string>
     <string name="recipe_add_ingredient">Add ingredient</string>
     <string name="recipe_add_step">Add step</string>
@@ -46,7 +50,8 @@
     <string name="recipe_added_to_list">Added</string>
     <string name="recipe_no_list">No shopping list found</string>
     <string name="recipe_category">Category (optional)</string>
-    <string name="recipe_keep_awake">Keep screen on</string>
+    <string name="recipe_keep_awake_on">Keeping the screen on — tap to turn off</string>
+    <string name="recipe_keep_awake_off">Keep screen on</string>
     <string name="recipe_add_timer">Add timer</string>
     <string name="recipe_timer_n">%d min</string>
     <string name="recipe_timer_title">Timer</string>

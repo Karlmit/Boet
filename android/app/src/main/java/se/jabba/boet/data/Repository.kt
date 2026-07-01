@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import se.jabba.boet.ai.CategoryEngine
@@ -387,6 +388,20 @@ class Repository(
                 listDao.upsert(dto.toEntity())
                 true
             }.getOrDefault(false)
+        }
+
+    // Upload any image and get back its URL — used by the recipe editor, where a
+    // brand-new recipe has no server row yet to attach an image to (unlike list
+    // backgrounds above, always tied to an existing list). Returns null on any
+    // failure (offline, server unreachable) so the caller can just leave the
+    // recipe's image unset rather than block saving on it.
+    suspend fun uploadRecipeImage(dataBase64: String, contentType: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = buildJson(mapOf("dataBase64" to dataBase64, "contentType" to contentType))
+                val resp = api.send("POST", "/api/media/image", body)
+                api.json.parseToJsonElement(resp).jsonObject.str("url")
+            }.getOrNull()
         }
 
     suspend fun updateListDisplay(list: ListEntity, blur: Int, overlay: Int) = withContext(Dispatchers.IO) {

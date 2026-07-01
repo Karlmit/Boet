@@ -22,7 +22,11 @@
     <string name="recipe_steps">Gör så här</string>
     <string name="recipe_no_ingredients">Inga ingredienser än.</string>
     <string name="recipe_no_steps">Inga steg än.</string>
-    <string name="recipe_ingredient_hint">t.ex. 3,5 dl vetemjöl</string>
+    <string name="recipe_ingredient_food_hint">Ingrediens</string>
+    <string name="recipe_ingredient_unit_hint">Enhet</string>
+    <string name="recipe_ingredient_section_hint">Sektion (t.ex. Marinad)</string>
+    <string name="recipe_add_photo">Lägg till bild</string>
+    <string name="recipe_delete_warning">Detta går inte att ångra.</string>
     <string name="recipe_step_hint">Beskriv steget…</string>
     <string name="recipe_add_ingredient">Lägg till ingrediens</string>
     <string name="recipe_add_step">Lägg till steg</string>
@@ -48,7 +52,8 @@
     <string name="recipe_added_to_list">Tillagd</string>
     <string name="recipe_no_list">Ingen inköpslista hittades</string>
     <string name="recipe_category">Kategori (valfritt)</string>
-    <string name="recipe_keep_awake">Håll skärmen tänd</string>
+    <string name="recipe_keep_awake_on">Håller skärmen tänd — tryck för att stänga av</string>
+    <string name="recipe_keep_awake_off">Håll skärmen tänd</string>
     <string name="recipe_add_timer">Lägg till timer</string>
     <string name="recipe_timer_n">%d min</string>
     <string name="recipe_timer_title">Timer</string>
