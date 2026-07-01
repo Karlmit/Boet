@@ -93,11 +93,19 @@ services:
       # voice cleaning always stays local. Leave unset to stay fully local.
       # NVIDIA_API_KEY: nvapi-xxxxxxxx
       # NVIDIA_MODEL: nvidia/nemotron-3-ultra-550b-a55b
+      # OPT-IN: point recipe STRUCTURING (the "first AI" tried, before falling
+      # back to local ollama) at a DIFFERENT cloud provider than NVIDIA_* above
+      # — any OpenAI-compatible endpoint works, e.g. OpenAI itself. Unset =
+      # falls back to NVIDIA_API_KEY/NVIDIA_MODEL above.
+      # STRUCTURE_LLM_API_KEY: sk-xxxxxxxx
+      # STRUCTURE_LLM_BASE_URL: https://api.openai.com/v1
+      # STRUCTURE_LLM_MODEL: gpt-5.5
       # OPT-IN: a SEPARATE cloud model just for EN->SV translation (independent
-      # of NVIDIA_MODEL above, which structures the recipe) — a plain instruct
-      # model translates recipe vocabulary better than a reasoning model. Unset
-      # TRANSLATE_LLM_API_KEY to reuse the NVIDIA key/endpoint above with a
-      # different model by default; unset both to fall back to opus-mt.
+      # of STRUCTURE_LLM_*/NVIDIA_MODEL above, which structures the recipe) — a
+      # plain instruct model translates recipe vocabulary better than a
+      # reasoning model. Unset TRANSLATE_LLM_API_KEY to reuse the NVIDIA key/
+      # endpoint above with a different model by default; unset both to fall
+      # back to opus-mt.
       # TRANSLATE_LLM_API_KEY: nvapi-xxxxxxxx
       # TRANSLATE_LLM_BASE_URL: https://integrate.api.nvidia.com/v1
       # TRANSLATE_LLM_MODEL: meta/llama-3.3-70b-instruct
@@ -191,7 +199,10 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
     set a free **NVIDIA NIM** key (`NVIDIA_API_KEY`, from https://build.nvidia.com) to
     run *recipe parsing only* on datacenter GPUs — seconds instead of a minute of local
     CPU inference. Voice cleaning always stays local. This is the one place Boet reaches
-    a third-party cloud, and only when you opt in with a key.
+    a third-party cloud, and only when you opt in with a key. Structuring can be pointed
+    at a **different** cloud provider than NVIDIA_* via `STRUCTURE_LLM_API_KEY`/
+    `STRUCTURE_LLM_BASE_URL`/`STRUCTURE_LLM_MODEL` (e.g. OpenAI) — falls back to
+    `NVIDIA_API_KEY`/`NVIDIA_BASE_URL`/`NVIDIA_MODEL` if unset.
   - **Translation** prefers a cloud LLM (`TRANSLATE_LLM_MODEL`, defaults to
     `meta/llama-3.3-70b-instruct` — falls back to the `NVIDIA_API_KEY`/
     `NVIDIA_BASE_URL` above if `TRANSLATE_LLM_API_KEY` is unset, but with its own

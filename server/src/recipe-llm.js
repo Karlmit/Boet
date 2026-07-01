@@ -2,14 +2,17 @@
 //
 // Boet's default is the household-local ollama — nothing leaves home. But recipe
 // parsing on a CPU box is slow (a big recipe can take ~70s), so this optionally
-// routes recipe LLM calls to NVIDIA's free NIM API (OpenAI-compatible, datacenter
-// GPUs, ~seconds, 40 req/min free tier) when NVIDIA_API_KEY is set. This is the
-// ONE place Boet may reach a third-party cloud, and only when the user opts in by
-// providing a key; unset it and everything is local again.
+// routes recipe STRUCTURING calls to a cloud LLM (any OpenAI-compatible
+// /chat/completions endpoint — NVIDIA NIM's free tier by default, but also
+// OpenAI, or anything else that speaks the same API) via STRUCTURE_LLM_*
+// (falls back to NVIDIA_* if unset — see the comment above STRUCTURE_LLM_API_KEY
+// below). This is the ONE place Boet may reach a third-party cloud, and only
+// when the user opts in by providing a key; unset it and everything is local.
 //
-// `nvidiaChat` below is the generic OpenAI-style chat-completions caller — it's
-// exported so translate.js can point a SEPARATE model/endpoint at translation
-// (e.g. a general-purpose model that translates recipe vocabulary better than a
+// `nvidiaChat` below is the generic OpenAI-style chat-completions caller (the
+// name is historical, from when this only talked to NVIDIA NIM) — it's exported
+// so translate.js can point a SEPARATE model/endpoint at translation (e.g. a
+// general-purpose model that translates recipe vocabulary better than a
 // reasoning model tuned for structured extraction) without duplicating the
 // request/response/reasoning-model handling.
 
@@ -30,16 +33,32 @@ const NVIDIA_TEMPERATURE = parseFloat(process.env.NVIDIA_TEMPERATURE || '0.2');
 // thinking OFF for them by default. Set NVIDIA_THINKING=on to re-enable.
 const NVIDIA_THINKING = (process.env.NVIDIA_THINKING || 'off').toLowerCase() === 'on';
 
-const nvidiaEnabled = () => Boolean(NVIDIA_API_KEY);
+// The cloud backend actually used for recipe STRUCTURING ("the first AI" tried
+// before falling back to local ollama) — independently configurable from
+// NVIDIA_*, exactly mirroring how translate.js's TRANSLATE_LLM_* is independent
+// of NVIDIA_* for translation. This lets structuring point at a DIFFERENT
+// provider (e.g. OpenAI: STRUCTURE_LLM_BASE_URL=https://api.openai.com/v1,
+// STRUCTURE_LLM_MODEL=gpt-5.5) without losing whatever NVIDIA_* is set to —
+// nvidiaChat/chatOnce below just POST to any OpenAI-compatible
+// /chat/completions endpoint, "NVIDIA" is a historical name, not a requirement.
+// Falls back to reusing NVIDIA_* if unset, so existing deployments that only
+// set NVIDIA_* keep working unchanged.
+const STRUCTURE_LLM_API_KEY = process.env.STRUCTURE_LLM_API_KEY || NVIDIA_API_KEY;
+const STRUCTURE_LLM_BASE_URL = (process.env.STRUCTURE_LLM_BASE_URL || NVIDIA_BASE_URL).replace(/\/$/, '');
+const STRUCTURE_LLM_MODEL = process.env.STRUCTURE_LLM_MODEL || NVIDIA_MODEL;
+const STRUCTURE_LLM_TIMEOUT_MS = parseInt(process.env.STRUCTURE_LLM_TIMEOUT_MS || String(NVIDIA_TIMEOUT_MS), 10);
+
+const structureCloudEnabled = () => Boolean(STRUCTURE_LLM_API_KEY);
 const isReasoningModel = (model) => /nemotron|reason|thinking|qwq|deepseek-?r/i.test(model || '');
 
 // True if any recipe LLM backend is available at all.
-export const recipeLlmEnabled = () => nvidiaEnabled() || ollamaEnabled();
+export const recipeLlmEnabled = () => structureCloudEnabled() || ollamaEnabled();
 
-// Whether the cloud (NVIDIA) backend is the one serving requests. Callers use this
-// to pick a prompt strategy: the cloud is fast + not CPU/token constrained, so it
-// can take the full-context prompt; local ollama gets the token-lean one.
-export const recipeUsingCloud = nvidiaEnabled;
+// Whether the cloud (STRUCTURE_LLM_*/NVIDIA_*) backend is the one serving
+// requests. Callers use this to pick a prompt strategy: the cloud is fast +
+// not CPU/token constrained, so it can take the full-context prompt; local
+// ollama gets the token-lean one.
+export const recipeUsingCloud = structureCloudEnabled;
 
 // Whether the local ollama backend is available — the caller uses this to decide
 // whether a cloud failure has anywhere to fall back to.
@@ -47,20 +66,21 @@ export const recipeLocalEnabled = ollamaEnabled;
 
 // Human-readable backend name for diagnostics / the parse response.
 export const recipeLlmName = () =>
-  nvidiaEnabled() ? `nvidia:${NVIDIA_MODEL}` : (ollamaEnabled() ? ollamaModel() : 'none');
+  structureCloudEnabled() ? `cloud:${STRUCTURE_LLM_MODEL}` : (ollamaEnabled() ? ollamaModel() : 'none');
 
-// Generate via NVIDIA only — no local fallback. Callers that need a fallback do
-// it themselves (see recipe-ai.js), because the right fallback *strategy* differs
-// by prompt: retrying the exact same heavy prompt against local ollama is not
-// generally useful (it was already too slow/unreliable there, which is why the
-// cloud path exists), so recipe-ai.js switches to a smaller-scoped local strategy
-// instead of just replaying this one. Returns null if NVIDIA isn't configured or
-// the call fails for any reason (network, timeout, non-2xx, empty completion).
+// Generate via the configured cloud backend only — no local fallback. Callers
+// that need a fallback do it themselves (see recipe-ai.js), because the right
+// fallback *strategy* differs by prompt: retrying the exact same heavy prompt
+// against local ollama is not generally useful (it was already too slow/
+// unreliable there, which is why the cloud path exists), so recipe-ai.js
+// switches to a smaller-scoped local strategy instead of just replaying this
+// one. Returns null if no cloud backend is configured or the call fails for
+// any reason (network, timeout, non-2xx, empty completion).
 export async function recipeGenerateCloud(prompt, { timeoutMs } = {}) {
-  if (!nvidiaEnabled()) return null;
+  if (!structureCloudEnabled()) return null;
   return nvidiaChat(prompt, {
-    apiKey: NVIDIA_API_KEY, baseUrl: NVIDIA_BASE_URL, model: NVIDIA_MODEL,
-    timeoutMs: timeoutMs || NVIDIA_TIMEOUT_MS, maxTokens: NVIDIA_MAX_TOKENS,
+    apiKey: STRUCTURE_LLM_API_KEY, baseUrl: STRUCTURE_LLM_BASE_URL, model: STRUCTURE_LLM_MODEL,
+    timeoutMs: timeoutMs || STRUCTURE_LLM_TIMEOUT_MS, maxTokens: NVIDIA_MAX_TOKENS,
     temperature: NVIDIA_TEMPERATURE, thinking: NVIDIA_THINKING,
   });
 }
@@ -155,12 +175,12 @@ export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, ma
     if (result.ok || result.status !== 400) break;
     const adjustment = adjustForError(body, result.text);
     if (!adjustment) break;
-    console.warn(`[boet] nvidia(${model}) adjusting request: ${adjustment.note}`);
+    console.warn(`[boet] llm(${model}) adjusting request: ${adjustment.note}`);
     body = adjustment.next;
   }
   if (!result.ok) {
-    if (result.error) console.warn(`[boet] nvidia(${model}) request failed: ${result.error?.message || result.error}`);
-    else console.warn(`[boet] nvidia(${model}) ${result.status}: ${(result.text || '').slice(0, 200)}`);
+    if (result.error) console.warn(`[boet] llm(${model}) request failed: ${result.error?.message || result.error}`);
+    else console.warn(`[boet] llm(${model}) ${result.status}: ${(result.text || '').slice(0, 200)}`);
     return null;
   }
 
@@ -173,7 +193,7 @@ export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, ma
     // Reasoning models can burn the token budget on <think>ing and leave the
     // real answer truncated — finish_reason "length" + a short/empty content is
     // the signature of that; this is the thing to check first if parsing fails.
-    console.log(`[boet] nvidia(${model}) reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
+    console.log(`[boet] llm(${model}) reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
   }
   return out || null;
 }
