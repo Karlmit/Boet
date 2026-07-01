@@ -77,16 +77,28 @@ export async function recipeGenerateLocal(prompt, { timeoutMs } = {}) {
 // applies when `model` matches a known reasoning-model pattern; passed explicitly
 // per-call (rather than read from env here) so a caller with its OWN model/config
 // (see translate.js) controls it independently of the recipe-structuring config.
-export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, maxTokens, temperature, thinking } = {}) {
-  if (!apiKey || !model) return null;
+// Some providers (OpenAI's newer models, e.g. the gpt-5 line) reject the
+// `max_tokens` param with a 400 asking for `max_completion_tokens` instead —
+// NVIDIA NIM never does this. Rather than guess by model name (fragile,
+// providers change this over time), detect that SPECIFIC error and retry once
+// with the other param name.
+function wantsMaxCompletionTokens(errorText) {
+  try {
+    const j = JSON.parse(errorText);
+    return j?.error?.param === 'max_tokens' && /max_completion_tokens/i.test(j?.error?.message || '');
+  } catch {
+    return false;
+  }
+}
+
+async function chatOnce(prompt, { apiKey, baseUrl, model, timeoutMs, temperature, reasoning, thinking, tokenParam, tokenLimit }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || NVIDIA_TIMEOUT_MS);
-  const reasoning = isReasoningModel(model);
   const body = {
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: temperature ?? NVIDIA_TEMPERATURE,
-    max_tokens: maxTokens || NVIDIA_MAX_TOKENS,
+    [tokenParam]: tokenLimit,
   };
   // Reasoning models: toggle thinking via the chat template. We don't force JSON
   // mode for them (they often reject it); callers that need JSON strip any
@@ -105,26 +117,43 @@ export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, ma
       signal: controller.signal,
     });
     if (!res.ok) {
-      console.warn(`[boet] nvidia(${model}) ${res.status}: ${(await res.text()).slice(0, 200)}`);
-      return null;
+      const text = await res.text();
+      return { ok: false, status: res.status, text };
     }
-    const data = await res.json();
-    const choice = data?.choices?.[0] || {};
-    const msg = choice.message || {};
-    // Prefer the final answer; if a reasoning model put everything in the thinking
-    // channel (empty content), fall back to reasoning_content.
-    const out = (msg.content || msg.reasoning_content || '').trim();
-    if (reasoning) {
-      // Reasoning models can burn the token budget on <think>ing and leave the
-      // real answer truncated — finish_reason "length" + a short/empty content is
-      // the signature of that; this is the thing to check first if parsing fails.
-      console.log(`[boet] nvidia(${model}) reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
-    }
-    return out || null;
+    return { ok: true, data: await res.json() };
   } catch (e) {
-    console.warn(`[boet] nvidia(${model}) request failed: ${e?.message || e}`);
-    return null;
+    return { ok: false, error: e };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, maxTokens, temperature, thinking } = {}) {
+  if (!apiKey || !model) return null;
+  const reasoning = isReasoningModel(model);
+  const args = { apiKey, baseUrl, model, timeoutMs, temperature, reasoning, thinking, tokenLimit: maxTokens || NVIDIA_MAX_TOKENS };
+
+  let result = await chatOnce(prompt, { ...args, tokenParam: 'max_tokens' });
+  if (!result.ok && result.status === 400 && wantsMaxCompletionTokens(result.text)) {
+    console.warn(`[boet] nvidia(${model}) rejected max_tokens — retrying with max_completion_tokens`);
+    result = await chatOnce(prompt, { ...args, tokenParam: 'max_completion_tokens' });
+  }
+  if (!result.ok) {
+    if (result.error) console.warn(`[boet] nvidia(${model}) request failed: ${result.error?.message || result.error}`);
+    else console.warn(`[boet] nvidia(${model}) ${result.status}: ${(result.text || '').slice(0, 200)}`);
+    return null;
+  }
+
+  const choice = result.data?.choices?.[0] || {};
+  const msg = choice.message || {};
+  // Prefer the final answer; if a reasoning model put everything in the thinking
+  // channel (empty content), fall back to reasoning_content.
+  const out = (msg.content || msg.reasoning_content || '').trim();
+  if (reasoning) {
+    // Reasoning models can burn the token budget on <think>ing and leave the
+    // real answer truncated — finish_reason "length" + a short/empty content is
+    // the signature of that; this is the thing to check first if parsing fails.
+    console.log(`[boet] nvidia(${model}) reply: finish=${choice.finish_reason} content_len=${(msg.content || '').length} reasoning_len=${(msg.reasoning_content || '').length}`);
+  }
+  return out || null;
 }
