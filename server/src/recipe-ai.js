@@ -141,12 +141,10 @@ function flattenSchemaInstructions(arr) {
 
 // If the pasted text is a recipe JSON (Mealie export OR a schema.org/Recipe
 // JSON-LD blob, which is what most recipe sites embed), pull out ONLY the parts
-// that matter — name, servings, ingredient lines, step texts — and render them as
-// a small clean recipe text. All the noise (ids, nutrition, timestamps, settings,
+// that matter — name, description, servings, ingredient lines, step texts — and
+// return them structured. All the noise (ids, nutrition, timestamps, settings,
 // org_url, images) is dropped. Returns null if it isn't recognizable recipe JSON.
-// The cleaned text is what we hand the model, so it structures/converts/translates
-// a compact recipe instead of choking on 5 KB of JSON.
-function recipeJsonToText(raw) {
+function extractRecipeJson(raw) {
   const t = raw.trim();
   if (!(t.startsWith('{') || t.startsWith('['))) return null;
   let j;
@@ -179,14 +177,100 @@ function recipeJsonToText(raw) {
 
   if (ingredientLines.length === 0 && stepLines.length === 0) return null;
 
-  const name = String(j.name ?? '').trim();
-  const servings = j.recipe_servings ?? j.recipeYield ?? j.servings ?? null;
-  const parts = [];
-  if (name) parts.push(name);
-  if (servings != null && String(servings).trim()) parts.push(`${servings} portioner`);
-  if (ingredientLines.length) parts.push('Ingredienser:', ...ingredientLines.map((l) => `- ${l}`));
-  if (stepLines.length) { parts.push('Gör så här:'); stepLines.forEach((s, i) => parts.push(`${i + 1}. ${s}`)); }
-  return parts.join('\n');
+  return {
+    name: String(j.name ?? '').trim(),
+    description: j.description ? String(j.description).trim() : null,
+    servings: j.recipe_servings ?? j.recipeYield ?? j.servings ?? null,
+    ingredientLines,
+    stepLines,
+  };
+}
+
+// Prompt for the pre-split (JSON) path: the model only TAGS the given lines — it
+// parses each ingredient and, for each numbered step, names the ingredient ids
+// used and any timer. Crucially it does NOT rewrite the step texts (we already
+// have them), which roughly halves the output tokens — the real cost on a slow
+// CPU box (the model streams ~11 tok/s, so re-emitting paragraphs is what blows
+// the timeout).
+function buildStructuredPrompt(ingredientLines, stepLines) {
+  return [
+    'Below is a recipe as an ingredient list and numbered steps.',
+    'Return STRICT JSON. Do NOT translate. Do NOT convert units. Do NOT repeat the step texts.',
+    'For each ingredient line parse {id,quantity,unit,food}: id = "i1","i2",… in order;',
+    'quantity = the number or null; unit = the unit word exactly as written or null;',
+    'food = the ingredient name only, without the amount.',
+    'For each step number output {n,ingredientRefs,timerMinutes}: ingredientRefs = ids of the',
+    'ingredients used in that step (may be empty); timerMinutes = minutes if the step states a',
+    'duration, else null. Also include "lang" = the recipe language code ("en","sv",…).',
+    'Output ONLY: {"lang":"en","ingredients":[{"id":"i1","quantity":1.5,"unit":"cups","food":"flour"}],"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}]}',
+    '',
+    'INGREDIENTS:',
+    ...ingredientLines.map((l, i) => `${i + 1}. ${l}`),
+    '',
+    'STEPS:',
+    ...stepLines.map((s, i) => `${i + 1}. ${s}`),
+  ].join('\n');
+}
+
+// Shared tail: translate (EN->SV, gated on the original paste), compose display
+// lines, and assemble the RecipeDoc. Both the structured and plain-text paths end
+// here so translation/gating logic lives in one place.
+async function finalize({ name, description, servings, ingredients, steps, full, lang }) {
+  // Detect language on the ORIGINAL paste, never the model's `lang` (qwen echoes
+  // the prompt example) nor our cleaned text (it carries Swedish scaffolding).
+  const wantTranslate = translateEnabled() && !looksSwedish(full) &&
+    (looksEnglish(full) || String(lang || '').startsWith('en'));
+  if (wantTranslate) {
+    const batch = [name || '', description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
+    const tr = await translateBatch(batch);
+    let k = 0;
+    name = tr[k++] || name;
+    description = (tr[k++] || '') || description;
+    ingredients.forEach((x) => { x.food = tr[k++] ?? x.food; });
+    steps.forEach((x) => { x.text = tr[k++] ?? x.text; });
+  }
+  // Compose display AFTER translation so the food word is Swedish.
+  ingredients.forEach((x) => { x.display = composeDisplay(x.quantity, x.unit, x.food); });
+  return {
+    name: name || '', description: description || null, image: null,
+    servings, totalTime: null, sourceUrl: null, ingredients, steps,
+  };
+}
+
+// JSON path: tag the pre-split lines (terse output), then pair the model's per-step
+// refs/timers back onto OUR step texts by step number. Falls back to the direct
+// structural map if the model is unavailable or returns nothing usable.
+async function parseStructured(ex, full) {
+  const reply = await ollamaGenerate(buildStructuredPrompt(ex.ingredientLines, ex.stepLines),
+    { format: 'json', timeoutMs: 100000, numCtx: 8192 });
+  const obj = parseRecipeObject(reply);
+  const rawIng = obj && Array.isArray(obj.ingredients) ? obj.ingredients : [];
+  if (rawIng.length === 0) return tryMealie(full);
+
+  const ingredients = rawIng.map((ing, i) => {
+    const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
+    return { id: String(ing?.id || `i${i + 1}`), quantity, unit: unit || null, food: String(ing?.food ?? '').trim(), note: null };
+  });
+  const validIds = new Set(ingredients.map((x) => x.id));
+
+  // Model steps keyed by their number, paired onto our authoritative step texts.
+  const byN = new Map();
+  (Array.isArray(obj.steps) ? obj.steps : []).forEach((s) => {
+    const n = asNumber(s?.n);
+    if (n !== null) byN.set(Math.round(n), s);
+  });
+  const steps = ex.stepLines.map((text, i) => {
+    const st = byN.get(i + 1);
+    const minutes = asNumber(st?.timerMinutes);
+    const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
+      .map((r) => String(r)).filter((r) => validIds.has(r));
+    return { id: `s${i + 1}`, text: String(text).trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null };
+  }).filter((s) => s.text);
+
+  return finalize({
+    name: ex.name, description: ex.description, servings: asNumber(ex.servings),
+    ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(),
+  });
 }
 
 // Cap the input the model sees. A real recipe's text fits easily; the cap stops a
@@ -198,92 +282,43 @@ export async function parseRecipeText(text) {
   const full = String(text || '').trim();
   if (!full) return null;
 
-  // If the paste is recipe JSON (Mealie export or a site's schema.org/Recipe
-  // JSON-LD), strip it down to a clean recipe text first — the model then gets a
-  // compact recipe to structure/convert/translate instead of 5 KB of JSON noise.
-  const cleaned = recipeJsonToText(full);
-  const raw = (cleaned ?? full).slice(0, MAX_INPUT_CHARS);
-
-  if (!ollamaEnabled()) {
-    // No model: fall back to a direct structural map if it was a Mealie export,
-    // so import still works offline (display-only, unconverted).
-    return tryMealie(full);
+  // Recipe JSON paste (Mealie export or a site's schema.org/Recipe JSON-LD)? Take
+  // the structured path: the model tags pre-split lines instead of re-emitting
+  // them, which is far cheaper on a slow CPU. Without a model, map Mealie directly.
+  const ex = extractRecipeJson(full);
+  if (ex) {
+    if (!ollamaEnabled()) return tryMealie(full);
+    return parseStructured(ex, full);
   }
 
-  // Recipe parsing is heavier than voice cleaning, so give it a bigger context and
-  // a longer-but-bounded timeout. The bound stays under the app's 120s read timeout
-  // (plus translation/network headroom) so a slow parse fails fast as a 503 instead
-  // of the app hanging then erroring anyway.
+  // Plain-text paste: the model has to split AND structure it. Bigger context and a
+  // longer-but-bounded timeout (under the app's 120s read timeout so a slow parse
+  // fails fast as a 503 instead of the app hanging then erroring anyway).
+  if (!ollamaEnabled()) return null;
+  const raw = full.slice(0, MAX_INPUT_CHARS);
   const reply = await ollamaGenerate(buildPrompt(raw), { format: 'json', timeoutMs: 100000, numCtx: 8192 });
   const obj = parseRecipeObject(reply);
-  // Model timed out or returned unparseable output: fall back to a direct
-  // structural map if the source was a Mealie export, else give up (503).
-  if (!obj || typeof obj !== 'object') return tryMealie(full);
+  if (!obj || typeof obj !== 'object') return null;
 
-  // --- ingredients: assign stable ids, convert units --------------------
   const rawIngredients = Array.isArray(obj.ingredients) ? obj.ingredients : [];
   const ingredients = rawIngredients.map((ing, i) => {
-    const id = String(ing?.id || `i${i + 1}`);
     const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
-    return {
-      id,
-      quantity,
-      unit: unit || null,
-      food: String(ing?.food ?? '').trim(),
-      note: ing?.note ? String(ing.note).trim() : null,
-    };
+    return { id: String(ing?.id || `i${i + 1}`), quantity, unit: unit || null, food: String(ing?.food ?? '').trim(), note: ing?.note ? String(ing.note).trim() : null };
   });
   const validIds = new Set(ingredients.map((x) => x.id));
 
-  // --- steps: keep only refs that point at a real ingredient ------------
   const rawSteps = Array.isArray(obj.steps) ? obj.steps : [];
   const steps = rawSteps.map((st, i) => {
     const minutes = asNumber(st?.timerMinutes);
     const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
       .map((r) => String(r)).filter((r) => validIds.has(r));
-    return {
-      id: `s${i + 1}`,
-      text: String(st?.text ?? '').trim(),
-      ingredientRefs: refs,
-      timerSeconds: minutes !== null ? Math.round(minutes * 60) : null,
-    };
+    return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null };
   }).filter((s) => s.text);
 
-  let name = String(obj.name ?? '').trim();
-  let description = obj.description ? String(obj.description).trim() : null;
-  const servings = asNumber(obj.servings);
-  const lang = String(obj.lang ?? '').trim().toLowerCase();
-
-  // --- translation (EN->SV) only for clearly-English source -------------
-  // Detect language on the ORIGINAL paste (`full`), not the model input: when the
-  // source is JSON we clean it into a text with Swedish scaffolding ("Ingredienser",
-  // "portioner"), which would otherwise fool the detector. Never trust the model's
-  // `lang` (qwen echoes the prompt example). Translate only clearly-English, never
-  // Swedish — feeding Swedish through EN->SV opus-mt hallucinates it into garbage.
-  const wantTranslate = translateEnabled() && !looksSwedish(full) &&
-    (looksEnglish(full) || lang.startsWith('en'));
-  if (wantTranslate) {
-    // One batched call: [name, description, ...ingredient foods, ...step texts].
-    const batch = [name, description || '', ...ingredients.map((x) => x.food), ...steps.map((x) => x.text)];
-    const tr = await translateBatch(batch);
-    let k = 0;
-    name = tr[k++] ?? name;
-    description = (tr[k++] || '') || description;
-    ingredients.forEach((x) => { x.food = tr[k++] ?? x.food; });
-    steps.forEach((x) => { x.text = tr[k++] ?? x.text; });
-  }
-
-  // Compose display lines AFTER translation so the food word is Swedish.
-  ingredients.forEach((x) => { x.display = composeDisplay(x.quantity, x.unit, x.food); });
-
-  return {
-    name,
-    description: description || null,
-    image: null,
-    servings,
-    totalTime: null,
-    sourceUrl: null,
-    ingredients,
-    steps,
-  };
+  return finalize({
+    name: String(obj.name ?? '').trim(),
+    description: obj.description ? String(obj.description).trim() : null,
+    servings: asNumber(obj.servings),
+    ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(),
+  });
 }
