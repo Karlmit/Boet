@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -99,6 +100,26 @@ fun YoutubeLinkRow(url: String, modifier: Modifier = Modifier) {
         Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(R.string.recipe_youtube_link), style = BoetType.label, color = MossDeep)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
+    }
+}
+
+// "View original recipe" link — shown on a recipe imported via URL scrape
+// (`RecipeDoc.sourceUrl`, set from the scraped page's own URL), so the user can
+// jump back to the source. Same tappable row style as `YoutubeLinkRow`.
+@Composable
+fun SourceLinkRow(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.clickable {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        },
+    ) {
+        Icon(Icons.Default.Language, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.recipe_source_link), style = BoetType.label, color = MossDeep)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
     }

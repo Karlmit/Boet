@@ -13,12 +13,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -39,7 +43,9 @@ import se.jabba.boet.data.remote.RecipeDoc
 import se.jabba.boet.data.remote.RecipeIngredient
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.common.SourceLinkRow
 import se.jabba.boet.ui.common.YoutubeLinkRow
+import se.jabba.boet.ui.list.BoetCheckbox
 import se.jabba.boet.ui.theme.*
 import se.jabba.boet.util.resolveImageUrl
 
@@ -56,6 +62,13 @@ fun RecipeDetailScreen(
     val context = LocalContext.current
     var keepAwake by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Ingredient checklist: off by default (checkmark boxes, to tick off what
+    // you've gathered while cooking); toggled on via the cart icon in the
+    // ingredients header to swap every row's trailing control for the
+    // add-to-shopping-list button instead.
+    var shoppingCartMode by remember { mutableStateOf(false) }
+    var checkedIngredientIds by remember(recipeId) { mutableStateOf(setOf<String>()) }
 
     // Keep the screen on while cooking (toggle in the top bar). Mirrors Shopping
     // Mode; cleared when the toggle turns off or the screen leaves composition.
@@ -171,6 +184,10 @@ fun RecipeDetailScreen(
                         Spacer(Modifier.height(8.dp))
                         YoutubeLinkRow(it)
                     }
+                    doc.sourceUrl?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.height(8.dp))
+                        SourceLinkRow(it)
+                    }
                     if (baseServings > 0) {
                         Spacer(Modifier.height(12.dp))
                         ServingsStepper(
@@ -183,7 +200,30 @@ fun RecipeDetailScreen(
 
             // Ingredients — amounts scaled to the chosen servings.
             item {
-                CategoryHeader(stringResource(R.string.recipe_ingredients), modifier = Modifier.padding(start = 16.dp, top = 20.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+                ) {
+                    CategoryHeader(
+                        stringResource(R.string.recipe_ingredients),
+                        modifier = Modifier.padding(start = 16.dp, top = 20.dp).weight(1f),
+                    )
+                    IconButton(onClick = { shoppingCartMode = !shoppingCartMode }) {
+                        Box(
+                            modifier = if (shoppingCartMode) Modifier.background(Sage, CircleShape) else Modifier,
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.ShoppingCart,
+                                contentDescription = stringResource(
+                                    if (shoppingCartMode) R.string.recipe_shopping_mode_on else R.string.recipe_shopping_mode_off
+                                ),
+                                tint = if (shoppingCartMode) MossDeep else CharcoalMuted,
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        }
+                    }
+                }
             }
             if (doc.ingredients.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.recipe_no_ingredients)) }
@@ -209,15 +249,37 @@ fun RecipeDetailScreen(
                                     HorizontalDivider(color = Stone)
                                 }
                                 group.forEachIndexed { idx, ing ->
+                                    val checked = ing.id in checkedIngredientIds
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
                                     ) {
                                         Box(Modifier.size(6.dp).background(Moss, CircleShape))
                                         Spacer(Modifier.width(12.dp))
-                                        Text(ingredientLine(ing, factor), style = BoetType.body, color = Charcoal, modifier = Modifier.weight(1f))
-                                        IconButton(onClick = { addToList(ing, factor) }) {
-                                            Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                                        Text(
+                                            ingredientLine(ing, factor),
+                                            style = BoetType.body,
+                                            color = if (checked && !shoppingCartMode) CharcoalMuted else Charcoal,
+                                            textDecoration = if (checked && !shoppingCartMode) TextDecoration.LineThrough else null,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        if (shoppingCartMode) {
+                                            IconButton(onClick = { addToList(ing, factor) }) {
+                                                Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.recipe_add_to_list), tint = MossDeep)
+                                            }
+                                        } else {
+                                            Box(modifier = Modifier.padding(horizontal = 9.dp)) {
+                                                BoetCheckbox(
+                                                    checked = checked,
+                                                    onToggle = {
+                                                        checkedIngredientIds = if (checked) {
+                                                            checkedIngredientIds - ing.id
+                                                        } else {
+                                                            checkedIngredientIds + ing.id
+                                                        }
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                     if (idx < group.lastIndex) {
@@ -263,7 +325,7 @@ fun RecipeDetailScreen(
                             if (used.isNotEmpty() || step.timerSeconds != null) {
                                 Spacer(Modifier.height(6.dp))
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    used.forEach { AmountChip(chipLabel(it, factor)) }
+                                    used.forEach { AmountChip(chipLabel(it, factor), checked = it.id in checkedIngredientIds) }
                                     step.timerSeconds?.takeIf { it > 0 }?.let { StepTimerChip(it) }
                                 }
                             }
@@ -290,10 +352,15 @@ private fun ServingsStepper(servings: Double, onChange: (Double) -> Unit) {
     }
 }
 
+// `checked` mirrors the ingredient's checkbox state in the list above it, so a
+// step's chip flips color the moment its linked ingredient is ticked off.
 @Composable
-private fun AmountChip(label: String) {
-    Surface(color = Sage, shape = RoundedCornerShape(999.dp)) {
-        Text(label, style = BoetType.label, color = Charcoal, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+private fun AmountChip(label: String, checked: Boolean = false) {
+    Surface(color = if (checked) Moss else Sage, shape = RoundedCornerShape(999.dp)) {
+        Text(
+            label, style = BoetType.label, color = if (checked) WarmWhite else Charcoal,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 

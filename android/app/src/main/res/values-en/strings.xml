@@ -9,6 +9,9 @@
     <string name="manage_lists">Manage lists</string>
     <string name="recipes_title">Recipes</string>
     <string name="recipes_empty">No recipes yet. Add your first recipe with +.</string>
+    <string name="recipes_filter_category">Filter by category</string>
+    <string name="recipes_filter_all">All</string>
+    <string name="recipes_filter_empty">No recipes in this category.</string>
     <string name="recipe_new">New recipe</string>
     <string name="recipe_edit">Edit recipe</string>
     <string name="recipe_delete_q">Delete recipe?</string>
@@ -58,6 +61,9 @@
     <string name="recipe_add_to_list">Add to shopping list</string>
     <string name="recipe_added_to_list">Added</string>
     <string name="recipe_no_list">No shopping list found</string>
+    <string name="recipe_shopping_mode_on">Showing add-to-list buttons — tap to show checkboxes</string>
+    <string name="recipe_shopping_mode_off">Show add-to-list buttons instead of checkboxes</string>
+    <string name="recipe_source_link">View original recipe</string>
     <string name="recipe_category">Category (optional)</string>
     <string name="recipe_keep_awake_on">Keeping the screen on — tap to turn off</string>
     <string name="recipe_keep_awake_off">Keep screen on</string>

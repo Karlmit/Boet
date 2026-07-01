@@ -10,7 +10,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
@@ -29,7 +31,6 @@ import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.ListEntity
 import se.jabba.boet.data.local.RecipeEntity
 import se.jabba.boet.data.remote.RecipeJson
-import se.jabba.boet.ui.common.Wordmark
 import se.jabba.boet.ui.list.ListsDrawer
 import se.jabba.boet.ui.theme.*
 import se.jabba.boet.util.resolveImageUrl
@@ -56,7 +57,22 @@ fun RecipesScreen(
     val recipes by repo.recipes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var addMenuOpen by remember { mutableStateOf(false) }
+    var categoryMenuOpen by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+    // Recipes carry an optional free-text category (set in the editor); derive
+    // the filter's option list from whatever's actually in use rather than a
+    // fixed list, and clear a filter if its category no longer exists.
+    val categories = remember(recipes) {
+        recipes.mapNotNull { it.categoryName?.trim()?.takeIf { c -> c.isNotBlank() } }.distinct().sorted()
+    }
+    LaunchedEffect(categories) {
+        if (selectedCategory != null && selectedCategory !in categories) selectedCategory = null
+    }
+    val filteredRecipes = remember(recipes, selectedCategory) {
+        selectedCategory?.let { cat -> recipes.filter { it.categoryName == cat } } ?: recipes
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -84,7 +100,42 @@ fun RecipesScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.recipes_title), style = BoetType.headline) },
-                actions = { Wordmark(Modifier.padding(end = 16.dp)) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { categoryMenuOpen = true }) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = stringResource(R.string.recipes_filter_category),
+                                tint = if (selectedCategory != null) MossDeep else Charcoal,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = categoryMenuOpen,
+                            onDismissRequest = { categoryMenuOpen = false },
+                            containerColor = WarmWhite,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.recipes_filter_all), color = Charcoal) },
+                                trailingIcon = {
+                                    if (selectedCategory == null) Icon(Icons.Default.Check, contentDescription = null, tint = Moss)
+                                },
+                                onClick = { selectedCategory = null; categoryMenuOpen = false },
+                            )
+                            if (categories.isNotEmpty()) {
+                                HorizontalDivider(color = Stone)
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat, color = Charcoal) },
+                                        trailingIcon = {
+                                            if (selectedCategory == cat) Icon(Icons.Default.Check, contentDescription = null, tint = Moss)
+                                        },
+                                        onClick = { selectedCategory = cat; categoryMenuOpen = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -116,13 +167,13 @@ fun RecipesScreen(
             }
         },
     ) { padding ->
-        if (recipes.isEmpty()) {
+        if (filteredRecipes.isEmpty()) {
             Box(
                 Modifier.fillMaxSize().padding(padding).padding(32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    stringResource(R.string.recipes_empty),
+                    stringResource(if (selectedCategory != null) R.string.recipes_filter_empty else R.string.recipes_empty),
                     style = BoetType.body, color = CharcoalMuted,
                 )
             }
@@ -134,7 +185,7 @@ fun RecipesScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(recipes, key = { it.id }) { recipe ->
+                items(filteredRecipes, key = { it.id }) { recipe ->
                     RecipeCard(
                         recipe = recipe,
                         serverUrl = repo.serverUrl(),

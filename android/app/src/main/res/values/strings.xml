@@ -11,6 +11,9 @@
     <string name="manage_lists">Hantera listor</string>
     <string name="recipes_title">Recept</string>
     <string name="recipes_empty">Inga recept än. Lägg till ditt första recept med +.</string>
+    <string name="recipes_filter_category">Filtrera efter kategori</string>
+    <string name="recipes_filter_all">Alla</string>
+    <string name="recipes_filter_empty">Inga recept i den här kategorin.</string>
     <string name="recipe_new">Nytt recept</string>
     <string name="recipe_edit">Redigera recept</string>
     <string name="recipe_delete_q">Ta bort receptet?</string>
@@ -60,6 +63,9 @@
     <string name="recipe_add_to_list">Lägg till i inköpslistan</string>
     <string name="recipe_added_to_list">Tillagd</string>
     <string name="recipe_no_list">Ingen inköpslista hittades</string>
+    <string name="recipe_shopping_mode_on">Visar lägg-till-knappar — tryck för att visa kryssrutor</string>
+    <string name="recipe_shopping_mode_off">Visa lägg-till-knappar istället för kryssrutor</string>
+    <string name="recipe_source_link">Visa originalreceptet</string>
     <string name="recipe_category">Kategori (valfritt)</string>
     <string name="recipe_keep_awake_on">Håller skärmen tänd — tryck för att stänga av</string>
     <string name="recipe_keep_awake_off">Håll skärmen tänd</string>
