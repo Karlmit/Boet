@@ -3,6 +3,7 @@ package se.jabba.boet.ui.recipes
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -54,20 +55,21 @@ private val COMMON_UNITS = listOf(
 // One editable ingredient as three independent fields (quantity/unit/food) —
 // replacing an earlier single freeform line that round-tripped `display`, which
 // made every ingredient look like unstructured text regardless of how well the
-// AI had actually parsed it. `section` optionally groups this ingredient under a
-// sub-recipe heading (e.g. "Marinad", "Sås"); see groupBySection.
+// AI had actually parsed it. `tags` optionally groups this ingredient under one
+// or more sub-recipe headings (e.g. "Marinad", "Sås"); an ingredient can belong
+// to several. See groupByTags in RecipeDetailScreen.kt.
 private class IngRow(
     val id: String,
     quantity: String,
     unit: String,
     food: String,
     val note: String?,
-    section: String?,
+    tags: List<String>,
 ) {
     var quantity by mutableStateOf(quantity)
     var unit by mutableStateOf(unit)
     var food by mutableStateOf(food)
-    var section by mutableStateOf(section)
+    val tags = mutableStateListOf(*tags.toTypedArray())
 }
 
 // One editable step. `text` and `timer` are editable; ingredient refs are preserved.
@@ -125,7 +127,7 @@ fun RecipeEditorScreen(
             image = doc.image
             ingredients.clear()
             doc.ingredients.forEach {
-                ingredients.add(IngRow(it.id, it.quantity?.let(::formatServings) ?: "", it.unit.orEmpty(), it.food, it.note, it.section))
+                ingredients.add(IngRow(it.id, it.quantity?.let(::formatServings) ?: "", it.unit.orEmpty(), it.food, it.note, it.sections))
             }
             steps.clear()
             doc.steps.forEach { steps.add(StepRow(it.id, it.text, it.ingredientRefs, it.timerSeconds)) }
@@ -160,7 +162,7 @@ fun RecipeEditorScreen(
                 RecipeIngredient(
                     id = row.id, quantity = qty, unit = unit, food = food,
                     display = composeDisplayLine(qty, unit, food), note = row.note,
-                    section = row.section?.trim()?.ifBlank { null },
+                    sections = row.tags.toList(),
                 )
             },
             steps = steps.mapNotNull { row ->
@@ -230,7 +232,7 @@ fun RecipeEditorScreen(
             }
             item {
                 AddButton(stringResource(R.string.recipe_add_ingredient)) {
-                    ingredients.add(IngRow(UUID.randomUUID().toString(), "", "", "", null, null))
+                    ingredients.add(IngRow(UUID.randomUUID().toString(), "", "", "", null, emptyList()))
                 }
             }
 
@@ -308,45 +310,95 @@ private fun Field(
     )
 }
 
-// One ingredient's quantity/unit/food fields plus its optional section tag.
+// One ingredient as a card: quantity + unit share a line (with remove), the
+// product name gets its own full-width line below so long names aren't cramped,
+// and a tag input for optional sub-recipe grouping (e.g. "Marinad") sits at the
+// bottom.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IngredientRow(row: IngRow, onRemove: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = row.quantity, onValueChange = { row.quantity = it },
-                placeholder = { Text("1", color = CharcoalMuted) },
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
-                modifier = Modifier.width(72.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            UnitField(value = row.unit, onValue = { row.unit = it }, modifier = Modifier.width(104.dp))
-            Spacer(Modifier.width(6.dp))
+    Surface(
+        color = WarmWhite,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Stone),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = row.quantity, onValueChange = { row.quantity = it },
+                    placeholder = { Text("1", color = CharcoalMuted) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
+                    modifier = Modifier.width(80.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                UnitField(value = row.unit, onValue = { row.unit = it }, modifier = Modifier.weight(1f))
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.delete), tint = CharcoalMuted)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = row.food, onValueChange = { row.food = it },
                 placeholder = { Text(stringResource(R.string.recipe_ingredient_food_hint), color = CharcoalMuted) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
             )
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.delete), tint = CharcoalMuted)
+            Spacer(Modifier.height(8.dp))
+            TagInput(tags = row.tags, placeholder = stringResource(R.string.recipe_ingredient_section_hint))
+        }
+    }
+}
+
+// A tag/chip input: existing tags show as removable chips; typing a name and
+// then a space (or comma) commits it as a new tag. Lets an ingredient carry
+// several tags — e.g. an ingredient used in both a marinade and a sauce.
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun TagInput(tags: MutableList<String>, placeholder: String) {
+    var input by remember { mutableStateOf("") }
+    Column {
+        if (tags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                tags.forEach { tag ->
+                    InputChip(
+                        selected = false,
+                        onClick = {},
+                        label = { Text(tag, style = BoetType.label) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Close, contentDescription = stringResource(R.string.delete),
+                                tint = CharcoalMuted, modifier = Modifier.size(14.dp).clickable { tags.remove(tag) },
+                            )
+                        },
+                        colors = InputChipDefaults.inputChipColors(containerColor = Sage),
+                    )
+                }
             }
+            Spacer(Modifier.height(6.dp))
         }
         OutlinedTextField(
-            value = row.section.orEmpty(),
-            onValueChange = { row.section = it },
-            placeholder = { Text(stringResource(R.string.recipe_ingredient_section_hint), color = CharcoalMuted) },
+            value = input,
+            onValueChange = { v ->
+                if (v.endsWith(' ') || v.endsWith(',')) {
+                    val tag = v.trim().trimEnd(',').trim()
+                    if (tag.isNotEmpty() && tag !in tags) tags.add(tag)
+                    input = ""
+                } else {
+                    input = v
+                }
+            },
+            placeholder = { Text(placeholder, color = CharcoalMuted) },
             singleLine = true,
             textStyle = BoetType.label,
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

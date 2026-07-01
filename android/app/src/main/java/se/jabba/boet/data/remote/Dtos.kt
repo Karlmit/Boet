@@ -119,10 +119,12 @@ data class RecipeIngredient(
     val food: String = "",
     val display: String = "",
     val note: String? = null,
-    // Optional sub-recipe grouping (e.g. "Marinad", "Sås") — set by the AI from
-    // context, a Mealie import's own ingredient groups, or manually in the editor.
-    // Ingredients sharing the same section render grouped under its heading.
-    val section: String? = null,
+    // Optional sub-recipe/tag grouping (e.g. "Marinad", "Sås", "Kryddpasta") — set
+    // by the AI from context, a Mealie import's own ingredient groups, or manually
+    // in the editor. An ingredient may belong to zero, one, or several tags; the
+    // detail screen renders one heading per tag, listing every ingredient tagged
+    // with it (so an ingredient can appear under more than one heading).
+    val sections: List<String> = emptyList(),
 )
 
 @Serializable

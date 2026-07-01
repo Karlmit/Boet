@@ -181,13 +181,15 @@ fun RecipeDetailScreen(
             if (doc.ingredients.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.recipe_no_ingredients)) }
             } else {
-                // Sub-recipes (marinade, sauce, side salad, …) group under their own
-                // heading; ingredients with no section render as a plain flat list.
-                groupBySection(doc.ingredients) { it.section }.forEach { (section, group) ->
-                    if (section != null) {
+                // Untagged ingredients render first as a plain list; each tag then
+                // gets its own heading below, listing every ingredient carrying it —
+                // an ingredient with several tags (e.g. used in both a marinade and a
+                // sauce) appears once under each.
+                groupByTags(doc.ingredients) { it.sections }.forEach { (tag, group) ->
+                    if (tag != null) {
                         item {
                             Text(
-                                section, style = BoetType.label, color = MossDeep, fontWeight = FontWeight.SemiBold,
+                                tag, style = BoetType.label, color = MossDeep, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 2.dp),
                             )
                         }
@@ -349,17 +351,23 @@ private fun EmptyHint(text: String) {
 
 // --- formatting helpers ----------------------------------------------------
 
-// Group items by an optional `section` tag, preserving first-appearance order of
-// both sections and items within them. Items with no section share a single
-// null-keyed group (rendered with no header) — used to cluster recipe
-// ingredients under sub-recipe headings like "Marinad"/"Sås".
-internal fun <T> groupBySection(items: List<T>, sectionOf: (T) -> String?): List<Pair<String?, List<T>>> {
-    val order = LinkedHashMap<String?, MutableList<T>>()
+// Group items by their tags, preserving first-appearance order of tags. An item
+// with several tags appears once per tag it carries (used to cluster recipe
+// ingredients under sub-recipe headings like "Marinad"/"Sås", where the same
+// ingredient can belong to more than one). Untagged items come first as a single
+// null-keyed group (rendered with no header).
+internal fun <T> groupByTags(items: List<T>, tagsOf: (T) -> List<String>): List<Pair<String?, List<T>>> {
+    val untagged = mutableListOf<T>()
+    val byTag = LinkedHashMap<String, MutableList<T>>()
     items.forEach { item ->
-        val key = sectionOf(item)?.trim()?.ifBlank { null }
-        order.getOrPut(key) { mutableListOf() }.add(item)
+        val tags = tagsOf(item).map { it.trim() }.filter { it.isNotEmpty() }
+        if (tags.isEmpty()) untagged.add(item)
+        else tags.forEach { tag -> byTag.getOrPut(tag) { mutableListOf() }.add(item) }
     }
-    return order.map { (k, v) -> k to v }
+    val result = mutableListOf<Pair<String?, List<T>>>()
+    if (untagged.isNotEmpty()) result.add(null to untagged)
+    byTag.forEach { (tag, group) -> result.add(tag to group) }
+    return result
 }
 
 // The full ingredient line, amount scaled (e.g. "3,5 dl vetemjöl"). Manual

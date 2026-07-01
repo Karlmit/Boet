@@ -22,7 +22,7 @@
     <string name="recipe_no_steps">No steps yet.</string>
     <string name="recipe_ingredient_food_hint">Ingredient</string>
     <string name="recipe_ingredient_unit_hint">Unit</string>
-    <string name="recipe_ingredient_section_hint">Section (e.g. Marinade)</string>
+    <string name="recipe_ingredient_section_hint">Tag (e.g. Marinade), press space</string>
     <string name="recipe_add_photo">Add photo</string>
     <string name="recipe_delete_warning">This can\'t be undone.</string>
     <string name="recipe_step_hint">Describe the step…</string>
