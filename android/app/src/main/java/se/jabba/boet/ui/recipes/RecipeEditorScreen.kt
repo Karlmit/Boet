@@ -157,6 +157,7 @@ fun RecipeEditorScreen(
             image = image,
             servings = servings.trim().replace(',', '.').toDoubleOrNull(),
             sourceUrl = existing?.let { RecipeJson.decode(it.data).sourceUrl },
+            youtubeUrl = existing?.let { RecipeJson.decode(it.data).youtubeUrl },
             ingredients = ingredients.mapNotNull { row ->
                 val food = row.food.trim()
                 if (food.isEmpty()) return@mapNotNull null

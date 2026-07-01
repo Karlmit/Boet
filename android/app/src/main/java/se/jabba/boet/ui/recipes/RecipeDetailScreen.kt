@@ -39,6 +39,7 @@ import se.jabba.boet.data.remote.RecipeDoc
 import se.jabba.boet.data.remote.RecipeIngredient
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.common.YoutubeLinkRow
 import se.jabba.boet.ui.theme.*
 import se.jabba.boet.util.resolveImageUrl
 
@@ -165,6 +166,10 @@ fun RecipeDetailScreen(
                     entity?.categoryName?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(8.dp))
                         AmountChip(it)
+                    }
+                    doc.youtubeUrl?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.height(8.dp))
+                        YoutubeLinkRow(it)
                     }
                     if (baseServings > 0) {
                         Spacer(Modifier.height(12.dp))

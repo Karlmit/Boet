@@ -235,10 +235,25 @@ collapsible Klara section, and the **background-settings live preview**. Still o
   `forceLang:'en'` and supplies its own no-AI raw fallback). Android: `ui/discover/`
   (DiscoverScreen: featured random + reshufflable 10-grid + text/multi-ingredient
   search + category/area chips; MealDetailScreen: read-only meal view + import
-  button), entry point is a compass icon in `RecipesScreen`'s top bar. Verified
-  end-to-end against the real paid key (10/10 random-selection, 11-result
-  multi-ingredient filter, race-safe dedup) and the degraded (no-LLM) fallback path;
-  server changes deployed the same way as the rest of the backend (compose pull/up).
+  button), entry point is the drawer (below "Recept", not a RecipesScreen icon —
+  moved there after first shipping for easier discovery). Verified end-to-end
+  against the real paid key (10/10 random-selection, 11-result multi-ingredient
+  filter, race-safe dedup) and the degraded (no-LLM) fallback path; server changes
+  deployed the same way as the rest of the backend (compose pull/up).
+  - FIXED (same day): "Dagens slump" was re-randomizing on every screen load
+    instead of being an actual once-a-day pick — now persisted via `Prefs.dailyMeal()`
+    (DataStore), stable across visits/restarts until the date rolls over or the
+    user taps its own shuffle icon. The random-10 grid was silently re-fetching
+    whenever you opened a meal and pressed back (Navigation-Compose discards a
+    screen's plain `remember` state on navigate-away) — moved to a process-scoped
+    `DiscoverBrowseState` cache so only an explicit shuffle changes it. Added
+    `RecipeDoc.youtubeUrl` (server sets it from MealDB's `strYoutube` on import,
+    survives manual edits) rendered via a shared `YoutubeLinkRow` composable used
+    on both the MealDB preview and the real recipe detail screen. Recipe
+    translation now prefers the NVIDIA cloud model (explicit food-recipe context
+    in the prompt) over the local opus-mt sidecar — opus-mt was mistranslating
+    ordinary recipe vocabulary; falls back safely (never misaligns an
+    ingredient's translation) if the cloud reply's line count doesn't match.
 - ⬜ URL scrape (future). The old orphaned RecipeScreen + `/api/recipe/parse` stub
   were superseded by this clean rebuild.
 - **NOT yet device-tested**: AI parse against the real household ollama, on-device

@@ -1,9 +1,6 @@
 package se.jabba.boet.ui.discover
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -11,15 +8,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +23,7 @@ import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.remote.MealDetail
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.common.YoutubeLinkRow
 import se.jabba.boet.ui.theme.*
 
 // Read-only view of a single TheMealDB meal — the "before you've imported it"
@@ -47,7 +42,6 @@ fun MealDetailScreen(
     var loading by remember(mealId) { mutableStateOf(meal == null) }
     var importing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val importFailedText = stringResource(R.string.recipe_discover_import_failed)
 
@@ -100,9 +94,6 @@ fun MealDetailScreen(
                 meal = m,
                 importing = importing,
                 onImport = ::import,
-                onOpenYoutube = { url ->
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                },
                 modifier = Modifier.padding(padding),
             )
         }
@@ -114,7 +105,6 @@ private fun MealDetailBody(
     meal: MealDetail,
     importing: Boolean,
     onImport: () -> Unit,
-    onOpenYoutube: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val steps = remember(meal.instructions) { splitMealInstructions(meal.instructions) }
@@ -149,16 +139,7 @@ private fun MealDetailBody(
                 }
                 meal.youtube?.let { url ->
                     Spacer(Modifier.height(10.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { onOpenYoutube(url) },
-                    ) {
-                        Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.recipe_discover_youtube), style = BoetType.label, color = MossDeep)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
-                    }
+                    YoutubeLinkRow(url)
                 }
                 Spacer(Modifier.height(16.dp))
                 Button(

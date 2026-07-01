@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore("boet_prefs")
@@ -37,6 +38,8 @@ class Prefs(private val context: Context) {
         val notifications = booleanPreferencesKey("notifications")
         val shoppingHideCompleted = booleanPreferencesKey("shopping_hide_completed")
         val autoCompleteThreshold = intPreferencesKey("auto_complete_threshold")
+        val dailyMealId = stringPreferencesKey("discover_daily_meal_id")
+        val dailyMealDate = stringPreferencesKey("discover_daily_meal_date")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -68,4 +71,21 @@ class Prefs(private val context: Context) {
 
     suspend fun setAutoCompleteThreshold(count: Int) =
         context.dataStore.edit { it[Keys.autoCompleteThreshold] = count.coerceIn(0, 20) }.let {}
+
+    // Discover's "today's pick" (Dagens slump): the same featured meal should stay
+    // put across screen visits/app restarts for the whole calendar day, refreshing
+    // only when the date rolls over or the user explicitly reshuffles it — a plain
+    // in-memory random() on every screen load looked like it "wasn't really random
+    // per day" since it changed on every visit instead.
+    data class DailyMeal(val mealId: String, val date: String)
+
+    suspend fun dailyMeal(): DailyMeal? {
+        val p = context.dataStore.data.first()
+        val id = p[Keys.dailyMealId] ?: return null
+        val date = p[Keys.dailyMealDate] ?: return null
+        return DailyMeal(id, date)
+    }
+
+    suspend fun setDailyMeal(mealId: String, date: String) =
+        context.dataStore.edit { it[Keys.dailyMealId] = mealId; it[Keys.dailyMealDate] = date }.let {}
 }

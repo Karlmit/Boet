@@ -72,7 +72,7 @@
     <string name="recipe_discover_clear">Clear</string>
     <string name="recipe_discover_empty">No recipes found.</string>
     <string name="recipe_discover_add">Add to my recipes</string>
-    <string name="recipe_discover_youtube">Watch on YouTube</string>
+    <string name="recipe_youtube_link">Watch on YouTube</string>
     <string name="recipe_discover_import_failed">Couldn\'t add the recipe. Check your connection.</string>
     <string name="new_list">New list</string>
     <string name="archived_lists">Archived lists</string>

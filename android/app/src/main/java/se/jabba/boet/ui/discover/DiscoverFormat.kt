@@ -1,5 +1,6 @@
 package se.jabba.boet.ui.discover
 
+import se.jabba.boet.data.remote.MealCategory
 import se.jabba.boet.data.remote.MealDetail
 
 // Process-scoped cache for MealDetail objects already fetched in this session
@@ -12,6 +13,18 @@ object DiscoverMealCache {
     fun put(meal: MealDetail) { cache[meal.id] = meal }
     fun putAll(meals: List<MealDetail>) { meals.forEach { put(it) } }
     fun get(id: String): MealDetail? = cache[id]
+}
+
+// Process-scoped browse state — survives Compose navigating away from and back
+// to DiscoverScreen (opening a meal, then pressing back). Plain `remember` state
+// in the screen does NOT survive that round trip (Navigation-Compose discards the
+// composition of a screen you've navigated away from), which is why the random-10
+// grid used to look "re-shuffled" every time you backed out of a meal — it had
+// silently refetched. Only an explicit shuffle tap should change these.
+object DiscoverBrowseState {
+    var randomTen: List<MealDetail>? = null
+    var categories: List<MealCategory>? = null
+    var areas: List<String>? = null
 }
 
 // Mirrors the server's mealdb.js splitInstructions: TheMealDB's instructions are

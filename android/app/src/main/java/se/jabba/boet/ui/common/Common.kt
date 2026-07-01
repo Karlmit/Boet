@@ -1,10 +1,15 @@
 package se.jabba.boet.ui.common
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -15,8 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import se.jabba.boet.R
 import se.jabba.boet.data.remote.ConnState
 import se.jabba.boet.ui.theme.*
 
@@ -74,6 +82,26 @@ fun CategoryHeader(name: String, modifier: Modifier = Modifier, color: androidx.
         color = color,
         modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp),
     )
+}
+
+// "Watch on YouTube" link — shown on a MealDB meal preview (MealDetailScreen) and
+// carried through to the imported recipe's own detail view (RecipeDetailScreen),
+// so the same tappable row/style is used in both places rather than drifting.
+@Composable
+fun YoutubeLinkRow(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.clickable {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        },
+    ) {
+        Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.recipe_youtube_link), style = BoetType.label, color = MossDeep)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
+    }
 }
 
 // Small status chip pairing icon + text (never colour alone).

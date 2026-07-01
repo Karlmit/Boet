@@ -74,7 +74,7 @@
     <string name="recipe_discover_clear">Rensa</string>
     <string name="recipe_discover_empty">Inga recept hittades.</string>
     <string name="recipe_discover_add">Lägg till i mina recept</string>
-    <string name="recipe_discover_youtube">Se på YouTube</string>
+    <string name="recipe_youtube_link">Se på YouTube</string>
     <string name="recipe_discover_import_failed">Kunde inte lägga till receptet. Kontrollera anslutningen.</string>
     <string name="new_list">Ny lista</string>
     <string name="archived_lists">Arkiverade listor</string>

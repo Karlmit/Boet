@@ -13,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,7 +42,6 @@ fun RecipesScreen(
     onOpenRecipe: (String) -> Unit,
     onCreate: () -> Unit,
     onAiCreate: () -> Unit,
-    onDiscover: () -> Unit,
     onBack: () -> Unit,
 ) {
     val recipes by repo.recipes().collectAsState(initial = emptyList())
@@ -61,12 +59,7 @@ fun RecipesScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.recipes_title), style = BoetType.headline) },
-                actions = {
-                    IconButton(onClick = onDiscover) {
-                        Icon(Icons.Default.Explore, contentDescription = stringResource(R.string.recipe_discover_title), tint = MossDeep)
-                    }
-                    Wordmark(Modifier.padding(end = 16.dp))
-                },
+                actions = { Wordmark(Modifier.padding(end = 16.dp)) },
             )
         },
         floatingActionButton = {

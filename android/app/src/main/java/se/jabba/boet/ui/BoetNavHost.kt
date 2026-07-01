@@ -76,6 +76,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                         onOpenCategories = { nav.navigate("categories/$listId") },
                         onOpenListSettings = { nav.navigate("listsettings/$listId") },
                         onOpenRecipes = { nav.navigate("recipes") },
+                        onOpenDiscover = { nav.navigate("recipe/discover") },
                         onSelectList = { selectedListId = it },
                     )
                 }
@@ -99,7 +100,6 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     onOpenRecipe = { id -> nav.navigate("recipe/$id") },
                     onCreate = { nav.navigate("recipe/new") },
                     onAiCreate = { nav.navigate("recipe/ai") },
-                    onDiscover = { nav.navigate("recipe/discover") },
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -107,6 +107,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
             composable("recipe/discover") {
                 DiscoverScreen(
                     repo = repo,
+                    prefs = app.prefs,
                     onOpenMeal = { id -> nav.navigate("recipe/discover/meal/$id") },
                     onBack = { nav.popBackStack() },
                 )

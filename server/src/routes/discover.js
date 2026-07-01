@@ -112,6 +112,7 @@ discover.post('/discover/import', async (req, res) => {
       servings: null,
       totalTime: null,
       sourceUrl: meal.strSource || null,
+      youtubeUrl: meal.strYoutube || null,
       ingredients: [],
       steps: [],
       aiStatus: 'queued',
@@ -156,19 +157,21 @@ discover.post('/discover/import', async (req, res) => {
       forceLang: 'en', // MealDB is always English — skip the paste-oriented lang heuristics
       onStatus: setStatus,
     });
-    // structureFromEx/finalize always return image:null/sourceUrl:null — reapply
-    // the real thumbnail/source here so the saved recipe keeps its MealDB photo.
+    // structureFromEx/finalize always return image/sourceUrl/youtubeUrl:null —
+    // reapply the real thumbnail/source/video here so the saved recipe keeps them.
     const finalData = doc
       ? {
           ...doc,
           image: meal.strMealThumb || null,
           sourceUrl: meal.strSource || null,
+          youtubeUrl: meal.strYoutube || null,
           aiStatus: lastStatus === 'degraded' ? 'degraded' : 'done',
           aiError: null,
         }
       : {
           name: meal.strMeal || '', description: null, image: meal.strMealThumb || null,
           servings: null, totalTime: null, sourceUrl: meal.strSource || null,
+          youtubeUrl: meal.strYoutube || null,
           ingredients: [], steps: [], aiStatus: 'error', aiError: 'Kunde inte tolka receptet.',
         };
     const { rows: r } = await query(

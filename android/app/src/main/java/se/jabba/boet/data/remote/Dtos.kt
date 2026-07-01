@@ -100,6 +100,9 @@ data class RecipeDoc(
     val servings: Double? = null,
     val totalTime: String? = null,
     val sourceUrl: String? = null,
+    // Set when the recipe was imported from a source that has a companion video
+    // (currently: TheMealDB via Discover). Rendered as a "watch on YouTube" link.
+    val youtubeUrl: String? = null,
     val ingredients: List<RecipeIngredient> = emptyList(),
     val steps: List<RecipeStep> = emptyList(),
     // Set only while an async AI parse (POST /recipes/parse-async) is in flight or

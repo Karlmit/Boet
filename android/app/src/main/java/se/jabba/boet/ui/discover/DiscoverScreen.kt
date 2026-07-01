@@ -36,6 +36,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
+import se.jabba.boet.data.local.Prefs
 import se.jabba.boet.data.remote.MealCategory
 import se.jabba.boet.data.remote.MealDetail
 import se.jabba.boet.data.remote.MealIngredientRef
@@ -52,15 +53,20 @@ import se.jabba.boet.ui.theme.*
 @Composable
 fun DiscoverScreen(
     repo: Repository,
+    prefs: Prefs,
     onOpenMeal: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
 
+    // Random-10/categories/areas are read from the process-scoped DiscoverBrowseState
+    // (not just `remember`) so they survive navigating to a meal and back — see that
+    // object's comment. Featured ("Dagens slump") is additionally persisted to disk
+    // via Prefs so it's a genuine once-a-day pick, not "random on every visit".
     var featured by remember { mutableStateOf<MealDetail?>(null) }
-    var randomTen by remember { mutableStateOf<List<MealDetail>>(emptyList()) }
-    var categories by remember { mutableStateOf<List<MealCategory>>(emptyList()) }
-    var areas by remember { mutableStateOf<List<String>>(emptyList()) }
+    var randomTen by remember { mutableStateOf(DiscoverBrowseState.randomTen ?: emptyList()) }
+    var categories by remember { mutableStateOf(DiscoverBrowseState.categories ?: emptyList()) }
+    var areas by remember { mutableStateOf(DiscoverBrowseState.areas ?: emptyList()) }
     var browseLoading by remember { mutableStateOf(true) }
     var featuredGen by remember { mutableIntStateOf(0) }
     var tenGen by remember { mutableIntStateOf(0) }
@@ -85,10 +91,29 @@ fun DiscoverScreen(
     }
 
     LaunchedEffect(Unit) {
-        featured = repo.discoverRandom()?.also { DiscoverMealCache.put(it) }
-        randomTen = repo.discoverRandomSelection().also { DiscoverMealCache.putAll(it) }
-        categories = repo.discoverCategories()
-        areas = repo.discoverAreas()
+        val today = java.time.LocalDate.now().toString()
+        val stored = prefs.dailyMeal()
+        featured = if (stored != null && stored.date == today) {
+            DiscoverMealCache.get(stored.mealId) ?: repo.discoverMeal(stored.mealId)?.also { DiscoverMealCache.put(it) }
+        } else {
+            repo.discoverRandom()?.also {
+                DiscoverMealCache.put(it)
+                prefs.setDailyMeal(it.id, today)
+            }
+        }
+
+        if (DiscoverBrowseState.randomTen == null) {
+            randomTen = repo.discoverRandomSelection().also {
+                DiscoverMealCache.putAll(it)
+                DiscoverBrowseState.randomTen = it
+            }
+        }
+        if (DiscoverBrowseState.categories == null) {
+            categories = repo.discoverCategories().also { DiscoverBrowseState.categories = it }
+        }
+        if (DiscoverBrowseState.areas == null) {
+            areas = repo.discoverAreas().also { DiscoverBrowseState.areas = it }
+        }
         browseLoading = false
     }
 
@@ -186,7 +211,11 @@ fun DiscoverScreen(
                                 onShuffle = {
                                     scope.launch {
                                         featuredGen++
-                                        featured = repo.discoverRandom()?.also { DiscoverMealCache.put(it) }
+                                        val today = java.time.LocalDate.now().toString()
+                                        featured = repo.discoverRandom()?.also {
+                                            DiscoverMealCache.put(it)
+                                            prefs.setDailyMeal(it.id, today)
+                                        }
                                     }
                                 },
                             )
@@ -205,7 +234,10 @@ fun DiscoverScreen(
                             IconButton(onClick = {
                                 scope.launch {
                                     tenGen++
-                                    randomTen = repo.discoverRandomSelection().also { DiscoverMealCache.putAll(it) }
+                                    randomTen = repo.discoverRandomSelection().also {
+                                        DiscoverMealCache.putAll(it)
+                                        DiscoverBrowseState.randomTen = it
+                                    }
                                 }
                             }) {
                                 Icon(Icons.Default.Shuffle, contentDescription = stringResource(R.string.recipe_discover_shuffle), tint = MossDeep)
