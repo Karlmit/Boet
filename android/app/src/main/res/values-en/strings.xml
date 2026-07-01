@@ -34,8 +34,9 @@
     <string name="recipe_ai_failed">Couldn\'t parse the recipe. Are the server and AI running?</string>
     <string name="recipe_ai_status_queued">Queued…</string>
     <string name="recipe_ai_status_parsing_cloud">Asking the cloud AI…</string>
-    <string name="recipe_ai_status_parsing_local">Asking the local AI…</string>
+    <string name="recipe_ai_status_parsing_local">Asking the local AI, ingredient by ingredient…</string>
     <string name="recipe_ai_status_fallback_local">The cloud didn\'t respond as expected — trying the local AI…</string>
+    <string name="recipe_ai_status_linking_steps">Linking ingredients to the steps…</string>
     <string name="recipe_ai_status_translating">Translating to Swedish…</string>
     <string name="recipe_ai_status_degraded">The AI couldn\'t link all ingredients to the steps. Check the recipe.</string>
     <string name="recipe_ai_status_error_badge">AI parsing failed</string>

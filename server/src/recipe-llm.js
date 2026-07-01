@@ -35,31 +35,27 @@ export const recipeLlmEnabled = () => nvidiaEnabled() || ollamaEnabled();
 // can take the full-context prompt; local ollama gets the token-lean one.
 export const recipeUsingCloud = nvidiaEnabled;
 
-// Whether the local ollama backend is available — used to retry there when the
-// cloud backend replies with something that fails to parse into a usable recipe
-// (as opposed to a network failure, which recipeGenerate already falls through for).
+// Whether the local ollama backend is available — the caller uses this to decide
+// whether a cloud failure has anywhere to fall back to.
 export const recipeLocalEnabled = ollamaEnabled;
 
 // Human-readable backend name for diagnostics / the parse response.
 export const recipeLlmName = () =>
   nvidiaEnabled() ? `nvidia:${NVIDIA_MODEL}` : (ollamaEnabled() ? ollamaModel() : 'none');
 
-// Generate a JSON reply for a recipe prompt. Prefers NVIDIA NIM when configured,
-// else the local ollama. Returns the model's text, or null on any failure so the
-// caller degrades (to the local model, or a structural fallback / 503).
-export async function recipeGenerate(prompt, { timeoutMs } = {}) {
-  if (nvidiaEnabled()) {
-    const out = await nvidiaGenerate(prompt, timeoutMs || NVIDIA_TIMEOUT_MS);
-    if (out) return out;
-    // Cloud failed (rate limit, outage): fall through to local if we have it.
-  }
-  return recipeGenerateLocal(prompt, { timeoutMs });
+// Generate via NVIDIA only — no local fallback. Callers that need a fallback do
+// it themselves (see recipe-ai.js), because the right fallback *strategy* differs
+// by prompt: retrying the exact same heavy prompt against local ollama is not
+// generally useful (it was already too slow/unreliable there, which is why the
+// cloud path exists), so recipe-ai.js switches to a smaller-scoped local strategy
+// instead of just replaying this one. Returns null if NVIDIA isn't configured or
+// the call fails for any reason (network, timeout, non-2xx, empty completion).
+export async function recipeGenerateCloud(prompt, { timeoutMs } = {}) {
+  if (!nvidiaEnabled()) return null;
+  return nvidiaGenerate(prompt, timeoutMs || NVIDIA_TIMEOUT_MS);
 }
 
-// Explicitly generate via local ollama, bypassing NVIDIA even if configured. Used
-// as a same-request retry when the cloud reply parses to nothing usable — a
-// garbled-but-non-empty reply from recipeGenerate() above would otherwise never
-// reach this fallback, since it only triggers on a hard failure (null).
+// Generate via local ollama, regardless of whether NVIDIA is configured.
 export async function recipeGenerateLocal(prompt, { timeoutMs } = {}) {
   if (!ollamaEnabled()) return null;
   return ollamaGenerate(prompt, { format: 'json', timeoutMs: timeoutMs || 100000, numCtx: 8192 });

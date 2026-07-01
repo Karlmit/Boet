@@ -8,7 +8,7 @@
 // Returns a RecipeDoc-shaped object (see Android RecipeDoc), or null if the local
 // model is unavailable / the reply can't be parsed (caller falls back to manual).
 
-import { recipeLlmEnabled, recipeGenerate, recipeUsingCloud, recipeLocalEnabled, recipeGenerateLocal } from './recipe-llm.js';
+import { recipeLlmEnabled, recipeGenerateCloud, recipeUsingCloud, recipeLocalEnabled, recipeGenerateLocal } from './recipe-llm.js';
 import { convertUnit, formatQty } from './recipe-units.js';
 import { translateEnabled, translateBatch } from './translate.js';
 
@@ -186,26 +186,37 @@ function extractRecipeJson(raw) {
   };
 }
 
-// Prompt for the pre-split (JSON) path: the model only TAGS the given lines — it
-// parses each ingredient and, for each numbered step, names the ingredient ids
-// used and any timer. Crucially it does NOT rewrite the step texts (we already
-// have them), which roughly halves the output tokens — the real cost on a slow
-// CPU box (the model streams ~11 tok/s, so re-emitting paragraphs is what blows
-// the timeout).
-function buildStructuredPrompt(ingredientLines, stepLines) {
+// Prompt for the local per-ingredient path (see parseLocalStepwise): parse ONE
+// ingredient line at a time. A small CPU model (qwen3:4b) is far more reliable at
+// this narrow, tiny-output task than at tagging a whole ingredient list (or a
+// whole recipe) in one shot — asking for less per call means less for a small
+// model to get wrong, at the cost of one call per ingredient instead of one call
+// total (fine here since parsing runs in the background, see /recipes/parse-async).
+function buildIngredientPrompt(line) {
   return [
-    'Below is a recipe as an ingredient list and numbered steps.',
-    'Return STRICT JSON. Do NOT translate. Do NOT convert units. Do NOT repeat the step texts.',
-    'For each ingredient line parse {id,quantity,unit,food}: id = "i1","i2",… in order;',
-    'quantity = the number or null; unit = the unit word exactly as written or null;',
-    'food = the ingredient name only, without the amount.',
+    'Parse this single recipe ingredient line into STRICT JSON. Do NOT translate. Do NOT convert units.',
+    'quantity is a number or null; unit is the original unit word exactly as written, or null;',
+    'food is the ingredient name only, without the amount.',
+    'Output ONLY: {"quantity":1.5,"unit":"cups","food":"flour"}',
+    '',
+    'LINE:', line,
+  ].join('\n');
+}
+
+// Second (and last) local call: now that ingredients are already structured, link
+// each step to the ingredient ids it uses and pull out any timer. Only needs to
+// reason about linking, not also parse quantities, so it's a much narrower ask
+// than the old single "tag everything" prompt.
+function buildLinkingPrompt(ingredients, stepLines) {
+  return [
+    'Below are structured recipe ingredients and numbered steps.',
     'For each step number output {n,ingredientRefs,timerMinutes}: ingredientRefs = ids of the',
     'ingredients used in that step (may be empty); timerMinutes = minutes if the step states a',
-    'duration, else null. Also include "lang" = the recipe language code ("en","sv",…).',
-    'Output ONLY: {"lang":"en","ingredients":[{"id":"i1","quantity":1.5,"unit":"cups","food":"flour"}],"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}]}',
+    'duration (e.g. "10 minuter", "bake 20 minutes"), else null.',
+    'Output ONLY: {"steps":[{"n":1,"ingredientRefs":["i1"],"timerMinutes":null}]}',
     '',
     'INGREDIENTS:',
-    ...ingredientLines.map((l, i) => `${i + 1}. ${l}`),
+    ...ingredients.map((x) => `${x.id}: ${composeDisplay(x.quantity, x.unit, x.food)}`),
     '',
     'STEPS:',
     ...stepLines.map((s, i) => `${i + 1}. ${s}`),
@@ -254,31 +265,42 @@ async function finalize({ name, description, servings, ingredients, steps, full,
   };
 }
 
-// Local-only JSON path: tag the pre-split lines (terse output), then pair the
-// model's per-step refs/timers back onto OUR step texts by step number. This is
-// the token-lean prompt built for a slow local CPU model; the cloud path below
-// doesn't need it. Falls back to the direct structural map if the model is
-// unavailable or returns nothing usable.
-async function parseStructured(ex, full, onStatus) {
+// Local-only JSON path — used both when there's no cloud backend at all, and as
+// the fallback once the cloud attempt fails (see parseRecipeText below). Rather
+// than replaying the same heavy full-context prompt against a small CPU model (an
+// earlier version of this code did exactly that, which meant a cloud failure was
+// followed by ANOTHER ~100s local timeout on a prompt already too big for it —
+// two multi-minute waits back to back), this parses each ingredient with its own
+// tiny prompt, then makes ONE follow-up call to link steps to the now-structured
+// ingredients and pull out timers. Degrades to the raw Mealie map only if the
+// local model is unreachable entirely (checked via the very first call, so a dead
+// backend fails in one short timeout instead of one per ingredient).
+async function parseLocalStepwise(ex, full, onStatus) {
+  if (!recipeLocalEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
   onStatus?.('parsing_local');
-  const reply = await recipeGenerate(buildStructuredPrompt(ex.ingredientLines, ex.stepLines), { timeoutMs: 100000 });
-  const obj = parseRecipeObject(reply);
-  const rawIng = obj && Array.isArray(obj.ingredients) ? obj.ingredients : [];
-  if (rawIng.length === 0) {
-    console.warn(`[boet] recipe parse: local model gave no usable ingredients (reply len=${reply?.length ?? 0}), falling back to raw Mealie map`);
-    onStatus?.('degraded');
-    return tryMealie(full);
-  }
 
-  const ingredients = rawIng.map((ing, i) => {
-    const { quantity, unit } = convertUnit(asNumber(ing?.quantity), ing?.unit);
-    return { id: String(ing?.id || `i${i + 1}`), quantity, unit: unit || null, food: String(ing?.food ?? '').trim(), note: null };
-  });
+  const ingredients = [];
+  for (let i = 0; i < ex.ingredientLines.length; i++) {
+    const line = ex.ingredientLines[i];
+    const reply = await recipeGenerateLocal(buildIngredientPrompt(line), { timeoutMs: 30000 });
+    if (reply === null && i === 0) {
+      console.warn('[boet] recipe parse: local model unreachable, falling back to raw Mealie map');
+      onStatus?.('degraded');
+      return tryMealie(full);
+    }
+    const obj = parseRecipeObject(reply);
+    const { quantity, unit } = convertUnit(asNumber(obj?.quantity), obj?.unit);
+    const food = String(obj?.food ?? '').trim();
+    ingredients.push({ id: `i${i + 1}`, quantity, unit: unit || null, food: food || line, note: null });
+  }
   const validIds = new Set(ingredients.map((x) => x.id));
 
-  // Model steps keyed by their number, paired onto our authoritative step texts.
+  onStatus?.('linking_steps');
+  const reply = await recipeGenerateLocal(buildLinkingPrompt(ingredients, ex.stepLines), { timeoutMs: 60000 });
+  const obj = parseRecipeObject(reply);
+  if (!obj) console.warn('[boet] recipe parse: step-linking call gave nothing usable — ingredients are structured but steps will have no links/timers');
   const byN = new Map();
-  (Array.isArray(obj.steps) ? obj.steps : []).forEach((s) => {
+  (Array.isArray(obj?.steps) ? obj.steps : []).forEach((s) => {
     const n = asNumber(s?.n);
     if (n !== null) byN.set(Math.round(n), s);
   });
@@ -292,7 +314,7 @@ async function parseStructured(ex, full, onStatus) {
 
   return finalize({
     name: ex.name, description: ex.description, servings: asNumber(ex.servings),
-    ingredients, steps, full, lang: String(obj.lang ?? '').trim().toLowerCase(), onStatus,
+    ingredients, steps, full, lang: '', onStatus,
   });
 }
 
@@ -301,19 +323,38 @@ async function parseStructured(ex, full, onStatus) {
 // request timeout. Kept under the model's context.
 const MAX_INPUT_CHARS = 6000;
 
-// Full-context path: ask the model to parse AND re-emit the whole recipe in one
-// shot (buildPrompt). Used for every plain-text paste, and for JSON-sourced
-// recipes when the cloud backend is serving — it isn't CPU/token constrained like
-// the local model, so there's no need for the pre-split tagging prompt there.
-// If the active backend is the cloud one and its reply doesn't parse into a usable
-// recipe, retries once against local ollama (if configured) before giving up —
-// a garbled-but-non-empty cloud reply would otherwise never reach that fallback,
-// since recipeGenerate() only falls through to ollama on a hard network failure.
-async function generateStructure(text, onStatus) {
+// Cloud-only structuring attempt (full-context prompt, buildPrompt). Used for
+// JSON-sourced recipes when NVIDIA is configured. Deliberately has NO local
+// fallback inside it: on failure, parseRecipeText below switches to
+// parseLocalStepwise's per-ingredient strategy rather than replaying this same
+// heavy prompt against local ollama (which is what used to happen — see that
+// function's comment for why that was a real, user-visible bug).
+async function generateStructureCloud(text, onStatus) {
+  onStatus?.('parsing_cloud');
+  const capped = text.slice(0, MAX_INPUT_CHARS);
+  const reply = await recipeGenerateCloud(buildPrompt(capped), { timeoutMs: 100000 });
+  const obj = parseRecipeObject(reply);
+  const usable = Boolean(obj && Array.isArray(obj.ingredients) && obj.ingredients.length > 0);
+  if (!usable) {
+    console.warn(`[boet] recipe parse: cloud reply unusable (reply len=${reply?.length ?? 0})`);
+    return null;
+  }
+  return obj;
+}
+
+// Full-context path for a plain-text paste. There's no pre-split ingredient list
+// to fall back to a per-ingredient strategy with here, so a single local retry of
+// the SAME prompt is the best available fallback — but only one retry: this used
+// to layer on top of recipeGenerate()'s own internal cloud->local fallback,
+// so a cloud failure could mean local ollama got the same ~100s-timeout prompt
+// TWICE back to back before giving up (up to ~5 minutes of waiting).
+async function generateStructurePlainText(text, onStatus) {
   const capped = text.slice(0, MAX_INPUT_CHARS);
   const prompt = buildPrompt(capped);
   onStatus?.(recipeUsingCloud() ? 'parsing_cloud' : 'parsing_local');
-  let reply = await recipeGenerate(prompt, { timeoutMs: 100000 });
+  let reply = recipeUsingCloud()
+    ? await recipeGenerateCloud(prompt, { timeoutMs: 100000 })
+    : await recipeGenerateLocal(prompt, { timeoutMs: 100000 });
   let obj = parseRecipeObject(reply);
   let usable = Boolean(obj && Array.isArray(obj.ingredients) && obj.ingredients.length > 0);
   if (!usable && recipeUsingCloud() && recipeLocalEnabled()) {
@@ -353,9 +394,9 @@ function docFromObj(obj, { name, description, servings }, full, onStatus) {
 
 // `onStatus(status)` is called as parsing progresses so a caller can persist/
 // broadcast live progress (see routes/recipes.js `/recipes/parse-async`):
-// 'parsing_cloud' | 'parsing_local' | 'fallback_local' | 'translating' | 'degraded'.
-// 'degraded' means both backends failed to produce usable structure and the raw
-// (unlinked, free-text) Mealie fields were used as a last resort.
+// 'parsing_cloud' | 'fallback_local' | 'parsing_local' | 'linking_steps' |
+// 'translating' | 'degraded'. 'degraded' means no backend could produce usable
+// structure and the raw (unlinked, free-text) Mealie fields were used as-is.
 export async function parseRecipeText(text, { onStatus } = {}) {
   const full = String(text || '').trim();
   if (!full) return null;
@@ -367,18 +408,21 @@ export async function parseRecipeText(text, { onStatus } = {}) {
   if (ex) {
     if (!recipeLlmEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
     if (recipeUsingCloud()) {
-      const obj = await generateStructure(renderCleanedRecipeText(ex), onStatus);
-      if (!obj) { onStatus?.('degraded'); return tryMealie(full); }
-      return docFromObj(obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) }, full, onStatus);
+      const obj = await generateStructureCloud(renderCleanedRecipeText(ex), onStatus);
+      if (obj) return docFromObj(obj, { name: ex.name, description: ex.description, servings: asNumber(ex.servings) }, full, onStatus);
+      // Cloud failed — switch strategy (per-ingredient local calls) rather than
+      // replaying the same heavy prompt against local ollama.
+      if (!recipeLocalEnabled()) { onStatus?.('degraded'); return tryMealie(full); }
+      onStatus?.('fallback_local');
     }
-    return parseStructured(ex, full, onStatus);
+    return parseLocalStepwise(ex, full, onStatus);
   }
 
   // Plain-text paste: the model has to split AND structure it, and we have no
   // authoritative name/servings/description to fall back on — no model means no
   // recipe (there's nothing sane to degrade to, unlike the JSON path above).
   if (!recipeLlmEnabled()) return null;
-  const obj = await generateStructure(full, onStatus);
+  const obj = await generateStructurePlainText(full, onStatus);
   if (!obj) return null;
   return docFromObj(obj, {
     name: String(obj.name ?? '').trim(),

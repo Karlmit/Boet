@@ -36,8 +36,9 @@
     <string name="recipe_ai_failed">Kunde inte tolka receptet. Är servern och AI:n igång?</string>
     <string name="recipe_ai_status_queued">I kö…</string>
     <string name="recipe_ai_status_parsing_cloud">Frågar AI:n i molnet…</string>
-    <string name="recipe_ai_status_parsing_local">Frågar den lokala AI:n…</string>
+    <string name="recipe_ai_status_parsing_local">Frågar den lokala AI:n om ingrediens för ingrediens…</string>
     <string name="recipe_ai_status_fallback_local">Molnet svarade inte som väntat — provar den lokala AI:n…</string>
+    <string name="recipe_ai_status_linking_steps">Kopplar ingredienser till stegen…</string>
     <string name="recipe_ai_status_translating">Översätter till svenska…</string>
     <string name="recipe_ai_status_degraded">AI:n kunde inte länka alla ingredienser till stegen. Kontrollera receptet.</string>
     <string name="recipe_ai_status_error_badge">AI-tolkningen misslyckades</string>

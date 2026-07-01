@@ -315,6 +315,7 @@ private fun AiStatusBanner(status: String, error: String?) {
         "parsing_cloud" -> stringResource(R.string.recipe_ai_status_parsing_cloud)
         "parsing_local" -> stringResource(R.string.recipe_ai_status_parsing_local)
         "fallback_local" -> stringResource(R.string.recipe_ai_status_fallback_local)
+        "linking_steps" -> stringResource(R.string.recipe_ai_status_linking_steps)
         "translating" -> stringResource(R.string.recipe_ai_status_translating)
         "degraded" -> stringResource(R.string.recipe_ai_status_degraded)
         "error" -> error ?: stringResource(R.string.recipe_ai_failed)
