@@ -71,41 +71,37 @@ export async function recipeGenerateLocal(prompt, { timeoutMs } = {}) {
   return ollamaGenerate(prompt, { format: 'json', timeoutMs: timeoutMs || 100000, numCtx: 8192 });
 }
 
-// Generic OpenAI-compatible chat-completions call against any NIM-style endpoint.
-// Returns null on missing apiKey/model or any failure (network, timeout, non-2xx,
-// empty completion) — callers must have their own fallback. `thinking` only
-// applies when `model` matches a known reasoning-model pattern; passed explicitly
-// per-call (rather than read from env here) so a caller with its OWN model/config
-// (see translate.js) controls it independently of the recipe-structuring config.
-// Some providers (OpenAI's newer models, e.g. the gpt-5 line) reject the
-// `max_tokens` param with a 400 asking for `max_completion_tokens` instead —
-// NVIDIA NIM never does this. Rather than guess by model name (fragile,
-// providers change this over time), detect that SPECIFIC error and retry once
-// with the other param name.
-function wantsMaxCompletionTokens(errorText) {
+// Some providers — notably OpenAI's newer constrained-sampling models (the
+// gpt-5 line, o1/o3/…) — reject request params that NVIDIA NIM always accepts:
+// `max_tokens` (wants `max_completion_tokens` instead) and a non-default
+// `temperature` (only 1, the model's default, is accepted). Rather than guess
+// by model name (fragile — providers change this over time, and it's not
+// specific to any one model id), detect each SPECIFIC 400 error shape as it
+// comes back and adjust the request body, retrying until it's accepted or an
+// unrecognized error stops the loop. NVIDIA NIM never triggers either of these,
+// so this is a no-op extra round-trip there, never the common case.
+function adjustForError(body, errorText) {
+  let err;
   try {
-    const j = JSON.parse(errorText);
-    return j?.error?.param === 'max_tokens' && /max_completion_tokens/i.test(j?.error?.message || '');
+    err = JSON.parse(errorText)?.error;
   } catch {
-    return false;
+    return null;
   }
+  if (!err || err.type !== 'invalid_request_error') return null;
+  if (err.param === 'max_tokens' && 'max_tokens' in body && /max_completion_tokens/i.test(err.message || '')) {
+    const { max_tokens, ...rest } = body;
+    return { next: { ...rest, max_completion_tokens: max_tokens }, note: 'max_tokens -> max_completion_tokens' };
+  }
+  if (err.param === 'temperature' && 'temperature' in body && /default/i.test(err.message || '')) {
+    const { temperature, ...rest } = body;
+    return { next: rest, note: 'dropping unsupported temperature (using model default)' };
+  }
+  return null;
 }
 
-async function chatOnce(prompt, { apiKey, baseUrl, model, timeoutMs, temperature, reasoning, thinking, tokenParam, tokenLimit }) {
+async function chatOnce(body, { apiKey, baseUrl, timeoutMs }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || NVIDIA_TIMEOUT_MS);
-  const body = {
-    model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: temperature ?? NVIDIA_TEMPERATURE,
-    [tokenParam]: tokenLimit,
-  };
-  // Reasoning models: toggle thinking via the chat template. We don't force JSON
-  // mode for them (they often reject it); callers that need JSON strip any
-  // <think> block and extract the object themselves.
-  if (reasoning) {
-    body.chat_template_kwargs = { enable_thinking: thinking ?? false };
-  }
   try {
     const res = await fetch(`${(baseUrl || NVIDIA_BASE_URL).replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -128,15 +124,39 @@ async function chatOnce(prompt, { apiKey, baseUrl, model, timeoutMs, temperature
   }
 }
 
+// Generic OpenAI-compatible chat-completions call against any NIM-style (or
+// actual OpenAI) endpoint. Returns null on missing apiKey/model or any failure
+// (network, timeout, non-2xx after adjustment retries exhausted, empty
+// completion) — callers must have their own fallback. `thinking` only applies
+// when `model` matches a known reasoning-model pattern; passed explicitly
+// per-call (rather than read from env here) so a caller with its OWN
+// model/config (see translate.js) controls it independently of the
+// recipe-structuring config.
 export async function nvidiaChat(prompt, { apiKey, baseUrl, model, timeoutMs, maxTokens, temperature, thinking } = {}) {
   if (!apiKey || !model) return null;
   const reasoning = isReasoningModel(model);
-  const args = { apiKey, baseUrl, model, timeoutMs, temperature, reasoning, thinking, tokenLimit: maxTokens || NVIDIA_MAX_TOKENS };
+  let body = {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: temperature ?? NVIDIA_TEMPERATURE,
+    max_tokens: maxTokens || NVIDIA_MAX_TOKENS,
+  };
+  // Reasoning models: toggle thinking via the chat template. We don't force JSON
+  // mode for them (they often reject it); callers that need JSON strip any
+  // <think> block and extract the object themselves.
+  if (reasoning) {
+    body.chat_template_kwargs = { enable_thinking: thinking ?? false };
+  }
 
-  let result = await chatOnce(prompt, { ...args, tokenParam: 'max_tokens' });
-  if (!result.ok && result.status === 400 && wantsMaxCompletionTokens(result.text)) {
-    console.warn(`[boet] nvidia(${model}) rejected max_tokens — retrying with max_completion_tokens`);
-    result = await chatOnce(prompt, { ...args, tokenParam: 'max_completion_tokens' });
+  let result;
+  const MAX_ATTEMPTS = 4; // generous headroom for more than one adjustment in sequence
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    result = await chatOnce(body, { apiKey, baseUrl, timeoutMs });
+    if (result.ok || result.status !== 400) break;
+    const adjustment = adjustForError(body, result.text);
+    if (!adjustment) break;
+    console.warn(`[boet] nvidia(${model}) adjusting request: ${adjustment.note}`);
+    body = adjustment.next;
   }
   if (!result.ok) {
     if (result.error) console.warn(`[boet] nvidia(${model}) request failed: ${result.error?.message || result.error}`);
