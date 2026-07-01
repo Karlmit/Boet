@@ -36,23 +36,13 @@ items.get('/lists/:listId/items', async (req, res) => {
   res.json(rows.map(itemRow));
 });
 
-// Add one or many items. body: { items: [{name, quantity, note, categoryId?}], addedBy }
-// or a single { name, quantity, note, addedBy }
-items.post('/lists/:listId/items', async (req, res) => {
-  const listId = req.params.listId;
-  const body = req.body || {};
-
-  // Reject items for a non-existent list with 404 (a 4xx) so an offline client's
-  // outbox drops the stale op instead of retrying forever (e.g. after switching
-  // servers / resetting the DB). Avoids endless FK-violation 500s.
-  const { rows: listExists } = await query(`SELECT 1 FROM lists WHERE id=$1`, [listId]);
-  if (listExists.length === 0) return res.status(404).json({ error: 'list not found' });
-
-  const incoming = Array.isArray(body.items)
-    ? body.items
-    : [{ id: body.id, name: body.name, quantity: body.quantity, note: body.note, categoryId: body.categoryId }];
-  const addedBy = body.addedBy || null;
-
+// Insert a batch of items into a list (category resolution, purchase-history
+// tracking, hub broadcast, push notify) — shared by the normal add-item route
+// below and any other entry point that ends up with a clean {name, quantity?,
+// note?, categoryId?} list to add without a client-side outbox in front of it
+// (e.g. the kitchen display's voice-add flow, routes/voice.js). Returns the
+// created rows in the client-facing shape.
+export async function createItems(listId, incoming, addedBy) {
   const created = await tx(async (c) => {
     const out = [];
     for (const it of incoming) {
@@ -92,6 +82,27 @@ items.post('/lists/:listId/items', async (req, res) => {
     notifyOthers(addedBy, title, body, { listId, type: 'item_added' }).catch(() => {});
   }
 
+  return payload;
+}
+
+// Add one or many items. body: { items: [{name, quantity, note, categoryId?}], addedBy }
+// or a single { name, quantity, note, addedBy }
+items.post('/lists/:listId/items', async (req, res) => {
+  const listId = req.params.listId;
+  const body = req.body || {};
+
+  // Reject items for a non-existent list with 404 (a 4xx) so an offline client's
+  // outbox drops the stale op instead of retrying forever (e.g. after switching
+  // servers / resetting the DB). Avoids endless FK-violation 500s.
+  const { rows: listExists } = await query(`SELECT 1 FROM lists WHERE id=$1`, [listId]);
+  if (listExists.length === 0) return res.status(404).json({ error: 'list not found' });
+
+  const incoming = Array.isArray(body.items)
+    ? body.items
+    : [{ id: body.id, name: body.name, quantity: body.quantity, note: body.note, categoryId: body.categoryId }];
+  const addedBy = body.addedBy || null;
+
+  const payload = await createItems(listId, incoming, addedBy);
   res.status(201).json(payload);
 });
 

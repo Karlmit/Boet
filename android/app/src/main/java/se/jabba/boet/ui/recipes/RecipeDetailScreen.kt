@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -116,6 +117,22 @@ fun RecipeDetailScreen(
                     )
                 },
                 actions = {
+                    val selected = entity?.selected ?: false
+                    IconButton(onClick = { scope.launch { repo.setRecipeSelected(recipeId, !selected) } }) {
+                        Box(
+                            modifier = if (selected) Modifier.background(Sage, CircleShape) else Modifier,
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.PushPin,
+                                contentDescription = stringResource(
+                                    if (selected) R.string.recipe_selected_on else R.string.recipe_selected_off
+                                ),
+                                tint = if (selected) MossDeep else CharcoalMuted,
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        }
+                    }
                     IconButton(onClick = { keepAwake = !keepAwake }) {
                         Box(
                             modifier = if (keepAwake) Modifier.background(Sage, CircleShape) else Modifier,

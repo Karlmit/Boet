@@ -48,6 +48,7 @@ export function recipeRow(r) {
     image: data.image || null,
     categoryName: r.category_name,
     position: r.position,
+    selected: !!r.selected,
     data,
     sourceKey: r.source_key || null,
     createdAt: r.created_at,

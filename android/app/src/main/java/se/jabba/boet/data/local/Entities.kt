@@ -70,6 +70,10 @@ data class RecipeEntity(
     val image: String? = null,
     val categoryName: String? = null,
     val position: Int = 0,
+    // The single household-wide "current recipe" for the kitchen display — only
+    // one recipe may have this set to true (see the pin icon in RecipeDetailScreen
+    // and POST /api/recipes/:id/select).
+    val selected: Boolean = false,
     val data: String,                  // RecipeDoc serialized as JSON
     val createdAt: String? = null,
     val updatedAt: String? = null,

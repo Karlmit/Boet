@@ -440,6 +440,7 @@ class Repository(
                     image = doc.image,
                     categoryName = resolvedCategory,
                     position = existing?.position ?: 0,
+                    selected = existing?.selected ?: false,
                     data = dataElement.toString(),
                 )
             )
@@ -455,6 +456,17 @@ class Repository(
     suspend fun deleteRecipe(id: String) = withContext(Dispatchers.IO) {
         recipeDao.delete(id)
         enqueue("DELETE", "/api/recipes/$id", null)
+    }
+
+    // Select (or deselect) this recipe as "the current recipe" for the kitchen
+    // display. Only one recipe may be selected at a time — mirrors the server's
+    // exclusive select (POST /recipes/:id/select) locally so the pin icon flips
+    // instantly instead of waiting on the WebSocket round-trip.
+    suspend fun setRecipeSelected(id: String, selected: Boolean) = withContext(Dispatchers.IO) {
+        if (selected) recipeDao.clearSelected()
+        recipeDao.setSelected(id, selected)
+        val body = buildJsonObject { put("selected", selected) }.toString()
+        enqueue("POST", "/api/recipes/$id/select", body)
     }
 
     // Start an async AI parse (server-side LLM + translation, may take anywhere

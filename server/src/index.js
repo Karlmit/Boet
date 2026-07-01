@@ -13,6 +13,8 @@ import { recipes } from './routes/recipes.js';
 import { discover } from './routes/discover.js';
 import { scrape } from './routes/scrape.js';
 import { media, UPLOAD_DIR } from './routes/media.js';
+import { display } from './routes/display.js';
+import { voice } from './routes/voice.js';
 
 const PORT = parseInt(process.env.PORT || '3020', 10);
 
@@ -43,6 +45,8 @@ app.use('/api', recipes);
 app.use('/api', discover);
 app.use('/api', scrape);
 app.use('/api', media);
+app.use('/api', display);
+app.use('/api', voice);
 
 // Central error handler so a thrown query never crashes the process.
 app.use((err, req, res, next) => {

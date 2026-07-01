@@ -113,6 +113,7 @@ export async function initSchema() {
       data          JSONB NOT NULL DEFAULT '{}'::jsonb,
       category_name TEXT,
       position      INTEGER NOT NULL DEFAULT 0,
+      selected      BOOLEAN NOT NULL DEFAULT false,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -148,6 +149,18 @@ export async function initSchema() {
   await query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_source_key
       ON recipes(household_id, source_key) WHERE source_key IS NOT NULL
+  `);
+
+  // The recipe currently shown on the kitchen display (see POST
+  // /recipes/:id/select). The partial unique index enforces "only one selected
+  // recipe per household" at the DB level, on top of the application-level
+  // clear-then-set transaction in the route.
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS selected BOOLEAN NOT NULL DEFAULT false
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_selected
+      ON recipes(household_id) WHERE selected = true
   `);
 
   await query(`

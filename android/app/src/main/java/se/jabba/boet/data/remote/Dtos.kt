@@ -80,11 +80,12 @@ data class RecipeDto(
     val image: String? = null,
     val categoryName: String? = null,
     val position: Int = 0,
+    val selected: Boolean = false,
     val data: JsonObject = JsonObject(emptyMap()),
     val createdAt: String? = null,
     val updatedAt: String? = null,
 ) {
-    fun toEntity() = RecipeEntity(id, name, image, categoryName, position, data.toString(), createdAt, updatedAt)
+    fun toEntity() = RecipeEntity(id, name, image, categoryName, position, selected, data.toString(), createdAt, updatedAt)
 }
 
 // The recipe document (the JSONB `data` blob). A Boet-flavoured, camelCase

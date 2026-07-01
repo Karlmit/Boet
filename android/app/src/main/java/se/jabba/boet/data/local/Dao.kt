@@ -103,6 +103,12 @@ interface RecipeDao {
     @Query("DELETE FROM recipes WHERE id = :id") suspend fun delete(id: String)
     @Query("DELETE FROM recipes WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
     @Query("DELETE FROM recipes") suspend fun deleteAll()
+
+    // Local mirror of the server's exclusive-select behavior (see
+    // POST /recipes/:id/select) so the UI flips instantly rather than waiting for
+    // the WebSocket broadcast to round-trip.
+    @Query("UPDATE recipes SET selected = 0 WHERE selected = 1") suspend fun clearSelected()
+    @Query("UPDATE recipes SET selected = :selected WHERE id = :id") suspend fun setSelected(id: String, selected: Boolean)
 }
 
 @Dao

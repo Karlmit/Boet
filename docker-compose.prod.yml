@@ -93,6 +93,12 @@ services:
       # data). Unset = public test key '1' (rate-limited, single-ingredient filter
       # only); set your paid key for the full catalogue + multi-ingredient search.
       MEALDB_API_KEY: ${MEALDB_API_KEY:-}
+      # Local speech-to-text for the kitchen display's voice-add flow (record a
+      # clip on the tablet, transcribe here, auto-add via the existing voice-
+      # cleaning pipeline — see BOET-API.md). Unset WHISPER_URL to disable (the
+      # endpoint then returns 503 instead of silently doing nothing).
+      WHISPER_URL: ${WHISPER_URL:-http://faster-whisper:8000}
+      WHISPER_MODEL: ${WHISPER_MODEL:-deepdml/faster-whisper-large-v3-turbo-ct2}
     volumes:
       - boet-uploads:/data/uploads
       # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json
@@ -138,6 +144,27 @@ services:
     #     reservations:
     #       devices:
     #         - capabilities: [gpu]
+
+  # Local speech-to-text sidecar (faster-whisper-server, an OpenAI Whisper-API
+  # compatible server) for the kitchen display's voice-add flow — see
+  # server/src/whisper.js and BOET-API.md. CPU-only int8 for reasonable
+  # latency; large-v3-turbo transcribes Swedish well (user-verified). Model
+  # weights cache on the appdata share so they survive a container recreate.
+  # WHISPER__MODEL must be the full "repo/name" HF model id — the bare
+  # "large-v3-turbo" isn't one of faster-whisper's built-in short names (only
+  # large-v1/v2/v3) and 500s; this is the community CTranslate2 conversion.
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: faster-whisper
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /mnt/user/appdata/faster-whisper:/root/.cache/huggingface
+    environment:
+      WHISPER__MODEL: ${WHISPER_MODEL:-deepdml/faster-whisper-large-v3-turbo-ct2}
+      WHISPER__DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
 
 volumes:
   boet-db:

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import { query } from '../db.js';
+import { query, tx } from '../db.js';
 import { hub } from '../hub.js';
 import { HOUSEHOLD_ID } from '../seed.js';
 import { recipeRow } from '../serialize.js';
@@ -150,4 +150,37 @@ recipes.delete('/recipes/:id', async (req, res) => {
   if (rows.length === 0) return res.status(404).json({ error: 'not found' });
   hub.emit('delete', 'recipe', { id: req.params.id });
   res.json({ ok: true });
+});
+
+// Select (or deselect) a recipe as "the current recipe" — surfaced in the app's
+// detail screen (the pin icon next to keep-awake) and read by the kitchen
+// display API (GET /api/display/recipe). Only one recipe can be selected per
+// household: selecting one clears any previously-selected recipe in the same
+// transaction, and the DB's partial unique index (schema.js) backs that up.
+// Any other device holding the old selected recipe needs its own broadcast to
+// un-highlight it, so both the cleared row(s) and the target row are emitted.
+// body: { selected: boolean } -> recipeRow
+recipes.post('/recipes/:id/select', async (req, res) => {
+  const selected = !!(req.body || {}).selected;
+  const { cleared, target } = await tx(async (c) => {
+    let cleared = [];
+    if (selected) {
+      const { rows } = await c.query(
+        `UPDATE recipes SET selected=false, updated_at=now()
+         WHERE household_id=$1 AND selected=true AND id<>$2 RETURNING *`,
+        [HOUSEHOLD_ID, req.params.id]
+      );
+      cleared = rows;
+    }
+    const { rows: targetRows } = await c.query(
+      `UPDATE recipes SET selected=$3, updated_at=now() WHERE id=$1 AND household_id=$2 RETURNING *`,
+      [req.params.id, HOUSEHOLD_ID, selected]
+    );
+    return { cleared, target: targetRows[0] };
+  });
+  if (!target) return res.status(404).json({ error: 'not found' });
+  for (const r of cleared) hub.emit('update', 'recipe', recipeRow(r));
+  const payload = recipeRow(target);
+  hub.emit('update', 'recipe', payload);
+  res.json(payload);
 });

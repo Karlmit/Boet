@@ -317,6 +317,53 @@ collapsible Klara section, and the **background-settings live preview**. Still o
   suffix → ollama 400s on every call) — not something this feature introduced;
   worth fixing separately since it silently degrades the whole recipe-AI
   pipeline, not just URL scrape.
+- ✅ **Selected recipe + kitchen display API**: a household can mark one recipe
+  "selected" — pin icon (`Icons.Default.PushPin`) in `RecipeDetailScreen.kt`'s
+  top bar, left of the keep-awake bulb, same toggle/highlight pattern. Backed by
+  `recipes.selected` (schema.js, partial unique index enforces one-per-household
+  at the DB level) and `POST /api/recipes/:id/select {selected}` (clears any
+  prior selection in the same transaction, broadcasts both changed rows over
+  WS). Built for an external ESP32-S3 + E-ink kitchen display: new unauthenticated
+  read-only `server/src/routes/display.js` — `GET /api/display/shopping-list`
+  (unchecked items, grouped by category) and `GET /api/display/recipe` (the
+  selected recipe flattened to plain name/servings/time/image/ingredients/steps).
+  Documented for the ESP32 side in `BOET-API.md`. Room bumped v5→v6 (`selected`
+  column on `RecipeEntity`, `fallbackToDestructiveMigration` already in place).
+  Verified via `docker compose up db server` + curl (shopping-list live-updates,
+  select/deselect/re-select exclusivity, `display/recipe` null when none
+  selected) and a clean `./gradlew assembleDebug`. **Not yet committed or
+  device-tested** — no physical Android device or ESP32 in this LXC.
+- ✅ **Voice-add from audio (kitchen display)**: `POST /api/voice/add-from-audio`
+  (`server/src/routes/voice.js`) — the kitchen tablet is too slow for on-device
+  speech recognition or the phone app's usual record/review/confirm flow, so it
+  just uploads a raw audio clip (`{audioBase64, contentType?}`). The server
+  transcribes it locally via a new `faster-whisper-server` sidecar
+  (`server/src/whisper.js`, `WHISPER_URL`/`WHISPER_MODEL` env, new
+  `docker-compose.yml`/`.prod.yml` service — CPU int8, `large-v3-turbo`
+  transcribes Swedish well per the user's own local testing), runs the
+  transcript through the **existing** `cleanVoice()` pipeline (`voice.js`,
+  already used by `/api/voice/clean` for the phone apps), and — unlike the phone
+  flow — **adds every resulting item straight to the default grocery list**, no
+  approval step. Refactored `items.js`'s bulk-insert body (category resolution,
+  purchase-history tracking, hub broadcast, push notify) into an exported
+  `createItems(listId, items, addedBy)` so both the normal add-item route and
+  this new flow share it. `addedBy` is the literal string `"Köksskärmen"` (not a
+  real household member), so the existing "notify others" push logic notifies
+  **both** phones rather than skipping one as if a member added it themselves.
+  Gotcha found + fixed during verification: `WHISPER__MODEL=large-v3-turbo` (as
+  a bare string) 500s — that shorthand isn't one of faster-whisper's built-in
+  model names (only large-v1/v2/v3); fixed to the full HF repo id
+  `deepdml/faster-whisper-large-v3-turbo-ct2` in both compose files and
+  `whisper.js`'s default. Documented in `BOET-API.md`. Verified end-to-end via a
+  full local `docker compose up db server faster-whisper` (+ `ollama` briefly,
+  to confirm the Ollama-backed cleaning path is reached too — that specific
+  local test hit the already-known, pre-existing, unrelated `OLLAMA_KEEP_ALIVE=-1`
+  bug and fell back to the deterministic cleaner, which is itself the correct
+  degrade-gracefully behavior): a synthesized Swedish `espeak-ng` clip
+  transcribed correctly-ish (robotic TTS input, not real speech) and its items
+  landed in the shopping list with categories resolved and a push fan-out to
+  both members. **Not yet committed, not tested against real human speech or a
+  real ESP32/tablet.**
 - **NOT yet device-tested**: AI parse against the real household ollama, on-device
   OCR, and the new Discover screens (compiles/builds clean; no on-device run in
   this LXC — see repo CLAUDE.md's Android section). URL scrape is likewise not

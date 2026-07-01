@@ -69,6 +69,8 @@
     <string name="recipe_category">Kategori (valfritt)</string>
     <string name="recipe_keep_awake_on">Håller skärmen tänd — tryck för att stänga av</string>
     <string name="recipe_keep_awake_off">Håll skärmen tänd</string>
+    <string name="recipe_selected_on">Valt recept för köksskärmen — tryck för att avmarkera</string>
+    <string name="recipe_selected_off">Välj som recept för köksskärmen</string>
     <string name="recipe_add_timer">Lägg till timer</string>
     <string name="recipe_timer_n">%d min</string>
     <string name="recipe_timer_title">Timer</string>

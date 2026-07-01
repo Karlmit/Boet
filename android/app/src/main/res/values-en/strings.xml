@@ -67,6 +67,8 @@
     <string name="recipe_category">Category (optional)</string>
     <string name="recipe_keep_awake_on">Keeping the screen on — tap to turn off</string>
     <string name="recipe_keep_awake_off">Keep screen on</string>
+    <string name="recipe_selected_on">Selected for the kitchen display — tap to deselect</string>
+    <string name="recipe_selected_off">Select as the kitchen display recipe</string>
     <string name="recipe_add_timer">Add timer</string>
     <string name="recipe_timer_n">%d min</string>
     <string name="recipe_timer_title">Timer</string>
