@@ -87,6 +87,11 @@ services:
       # EN->SV translation sidecar for AI recipe import (opus-mt). Unset to disable
       # (imported recipes then stay in their original language).
       TRANSLATE_URL: http://translate:7000
+      # OPT-IN: parse recipes on NVIDIA's free cloud GPUs (seconds, not a minute of
+      # local CPU). Get a key at https://build.nvidia.com. Recipe parsing only —
+      # voice cleaning always stays local. Leave unset to stay fully local.
+      # NVIDIA_API_KEY: nvapi-xxxxxxxx
+      # NVIDIA_MODEL: nvidia/nemotron-3-ultra-550b-a55b
       # Optional — enable push notifications by mounting a Firebase service
       # account and pointing here; leave unset to run WebSocket-only.
       # FCM_SERVICE_ACCOUNT: /secrets/fcm.json

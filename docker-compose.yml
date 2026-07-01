@@ -44,7 +44,7 @@ services:
       # GPUs in seconds instead of ~minute-long local CPU inference. Unset = local
       # ollama, nothing leaves home.
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
     volumes:
       - boet-uploads:/data/uploads
     ports:
