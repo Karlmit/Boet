@@ -31,6 +31,12 @@
     <string name="recipe_add_step">Add step</string>
     <string name="recipe_create_manual">Write it myself</string>
     <string name="recipe_create_ai">Parse with AI</string>
+    <string name="recipe_create_url">Import from link</string>
+    <string name="recipe_url_title">Import from link</string>
+    <string name="recipe_url_hint">Paste a link to a recipe and the AI will fetch and structure it for you.</string>
+    <string name="recipe_url_placeholder">https://…</string>
+    <string name="recipe_url_parse">Fetch recipe</string>
+    <string name="recipe_url_failed">Couldn\'t fetch the recipe from that link. Is the server running?</string>
     <string name="recipe_ai_title">Parse recipe</string>
     <string name="recipe_ai_hint">Paste a recipe and the AI will structure it for you — ingredients, steps and amounts. You can review it before it\'s saved.</string>
     <string name="recipe_ai_placeholder">Paste recipe text here…</string>
@@ -38,6 +44,8 @@
     <string name="recipe_ai_parse">Parse recipe</string>
     <string name="recipe_ai_failed">Couldn\'t parse the recipe. Are the server and AI running?</string>
     <string name="recipe_ai_status_queued">Queued…</string>
+    <string name="recipe_ai_status_fetching">Fetching the page…</string>
+    <string name="recipe_ai_status_fetching_headless">The page needs JavaScript — loading it in a background tab…</string>
     <string name="recipe_ai_status_parsing_cloud">Asking the cloud AI…</string>
     <string name="recipe_ai_status_parsing_local">Asking the local AI, ingredient by ingredient…</string>
     <string name="recipe_ai_status_fallback_local">The cloud didn\'t respond as expected — trying the local AI…</string>

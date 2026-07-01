@@ -182,7 +182,7 @@ function flattenSchemaInstructions(arr) {
 // that matter — name, description, servings, ingredient lines, step texts — and
 // return them structured. All the noise (ids, nutrition, timestamps, settings,
 // org_url, images) is dropped. Returns null if it isn't recognizable recipe JSON.
-function extractRecipeJson(raw) {
+export function extractRecipeJson(raw) {
   const t = raw.trim();
   if (!(t.startsWith('{') || t.startsWith('['))) return null;
   let j;

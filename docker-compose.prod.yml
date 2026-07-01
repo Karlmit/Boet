@@ -24,6 +24,11 @@ services:
       retries: 10
 
   server:
+    # Built on Playwright's official image (Node + prebuilt Chromium/Firefox/
+    # WebKit) for the URL-scrape feature's headless-render fallback — a
+    # meaningfully heavier pull than a plain Node image (~1.5-2GB vs ~150MB).
+    # Only affects disk/pull time: the browser launches lazily per-scrape, not
+    # resident, so idle RAM is unaffected.
     image: ghcr.io/karlmit/boet:latest
     restart: unless-stopped
     depends_on:

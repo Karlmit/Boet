@@ -33,6 +33,12 @@
     <string name="recipe_add_step">Lägg till steg</string>
     <string name="recipe_create_manual">Skriv själv</string>
     <string name="recipe_create_ai">Tolka med AI</string>
+    <string name="recipe_create_url">Importera från länk</string>
+    <string name="recipe_url_title">Importera från länk</string>
+    <string name="recipe_url_hint">Klistra in en länk till ett recept så hämtar och strukturerar AI:n det åt dig.</string>
+    <string name="recipe_url_placeholder">https://…</string>
+    <string name="recipe_url_parse">Hämta recept</string>
+    <string name="recipe_url_failed">Kunde inte hämta receptet från länken. Är servern igång?</string>
     <string name="recipe_ai_title">Tolka recept</string>
     <string name="recipe_ai_hint">Klistra in ett recept så strukturerar AI:n det åt dig — ingredienser, steg och mängder. Du får granska innan det sparas.</string>
     <string name="recipe_ai_placeholder">Klistra in recepttext här…</string>
@@ -40,6 +46,8 @@
     <string name="recipe_ai_parse">Tolka recept</string>
     <string name="recipe_ai_failed">Kunde inte tolka receptet. Är servern och AI:n igång?</string>
     <string name="recipe_ai_status_queued">I kö…</string>
+    <string name="recipe_ai_status_fetching">Hämtar sidan…</string>
+    <string name="recipe_ai_status_fetching_headless">Sidan kräver JavaScript — laddar den i en bakgrundsflik…</string>
     <string name="recipe_ai_status_parsing_cloud">Frågar AI:n i molnet…</string>
     <string name="recipe_ai_status_parsing_local">Frågar den lokala AI:n om ingrediens för ingrediens…</string>
     <string name="recipe_ai_status_fallback_local">Molnet svarade inte som väntat — provar den lokala AI:n…</string>

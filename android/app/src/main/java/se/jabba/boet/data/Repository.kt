@@ -522,6 +522,16 @@ class Repository(
         }.getOrNull()
     }
 
+    // Start a URL scrape import. Same "instant placeholder id, real content
+    // arrives over the WebSocket" contract as startAiParse/importMeal.
+    suspend fun startUrlScrape(url: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = api.scrapeRecipe(url)
+            recipeDao.upsert(dto.toEntity())
+            dto.id
+        }.getOrNull()
+    }
+
     // Outbox ----------------------------------------------------------------
     private suspend fun enqueue(method: String, path: String, body: String?) {
         outboxDao.enqueue(OutboxOp(method = method, path = path, body = body))

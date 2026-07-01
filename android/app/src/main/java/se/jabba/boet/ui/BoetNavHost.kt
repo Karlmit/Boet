@@ -17,6 +17,7 @@ import se.jabba.boet.ui.discover.MealDetailScreen
 import se.jabba.boet.ui.recipes.RecipeAiScreen
 import se.jabba.boet.ui.recipes.RecipeDetailScreen
 import se.jabba.boet.ui.recipes.RecipeEditorScreen
+import se.jabba.boet.ui.recipes.RecipeUrlScreen
 import se.jabba.boet.ui.recipes.RecipesScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
@@ -112,6 +113,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     onOpenRecipe = { id -> nav.navigate("recipe/$id") },
                     onCreate = { nav.navigate("recipe/new") },
                     onAiCreate = { nav.navigate("recipe/ai") },
+                    onUrlCreate = { nav.navigate("recipe/url") },
                     onSelectList = onSelectListFromDrawer,
                     onManageLists = onManageListsFromDrawer,
                     onOpenDiscover = onOpenDiscoverFromDrawer,
@@ -154,6 +156,14 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
                     // the AI screen from the back stack.
                     onParsed = { id -> nav.navigate("recipe/$id") { popUpTo("recipes") } },
                     onManual = { nav.navigate("recipe/new") { popUpTo("recipes") } },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+
+            composable("recipe/url") {
+                RecipeUrlScreen(
+                    repo = repo,
+                    onParsed = { id -> nav.navigate("recipe/$id") { popUpTo("recipes") } },
                     onBack = { nav.popBackStack() },
                 )
             }

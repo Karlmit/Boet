@@ -11,6 +11,7 @@ import { favorites } from './routes/favorites.js';
 import { knowledge } from './routes/knowledge.js';
 import { recipes } from './routes/recipes.js';
 import { discover } from './routes/discover.js';
+import { scrape } from './routes/scrape.js';
 import { media, UPLOAD_DIR } from './routes/media.js';
 
 const PORT = parseInt(process.env.PORT || '3020', 10);
@@ -40,6 +41,7 @@ app.use('/api', items);
 app.use('/api', favorites);
 app.use('/api', recipes);
 app.use('/api', discover);
+app.use('/api', scrape);
 app.use('/api', media);
 
 // Central error handler so a thrown query never crashes the process.

@@ -276,11 +276,52 @@ collapsible Klara section, and the **background-settings live preview**. Still o
     destinations, not a back-arrow chain). Removed the per-card trash-can delete
     button from the recipe grid — deleting a recipe is now only reachable via the
     editor's existing confirm-delete flow, to cut down on accidental taps.
-- ⬜ URL scrape (future). The old orphaned RecipeScreen + `/api/recipe/parse` stub
-  were superseded by this clean rebuild.
+- ✅ **URL scrape**: `POST /api/recipes/scrape-async {url}` (`routes/scrape.js`),
+  same instant-placeholder/202/background/WebSocket-broadcast shape as
+  `/recipes/parse-async` and `/discover/import`, deduped via `recipes.source_key`
+  (`url:<normalized>`). Two-tier fetch cascade in `server/src/scrape.js`:
+  (1) static `fetch()` + `cheerio` — extract schema.org/Recipe JSON-LD (handles
+  `@graph`, bare top-level arrays of typed objects, CDATA-wrapped blocks) and
+  feed it through `recipe-ai.js`'s own (now-exported) `extractRecipeJson()` so
+  the existing `structureFromEx()` pipeline does the actual AI structuring —
+  no JSON-LD Recipe found? fall back to readable body text through the
+  existing plain-text `parseRecipeText()` path; (2) if neither tier-1 path
+  found anything usable, launch a headless Chromium (**Playwright** — the
+  server's Docker base image is now `mcr.microsoft.com/playwright:v1.61.1-jammy`
+  instead of `node:20-alpine`, ~1.5-2GB vs ~150MB, only affects disk/pull time
+  since the browser launches lazily per-scrape, not resident) and re-run the
+  same extraction against the rendered DOM — handles WP-Recipe-Maker-style
+  lazy-loaded recipe cards and fully client-rendered SPA pages. Also pulls
+  `image` (string/array/ImageObject shapes) and `totalTime` (ISO-8601 duration
+  → "1 h 30 min") straight off the JSON-LD when present. Every outbound
+  request (both tiers, every redirect hop) is validated by `ssrf-guard.js`
+  (scheme + DNS-resolved private/loopback/link-local IP block) since this
+  endpoint fetches arbitrary user-supplied URLs server-side; validated
+  synchronously before the placeholder row is even created, so an obviously-
+  blocked host gets an immediate 400. Android: third FAB entry "Importera
+  från länk" → `ui/recipes/RecipeUrlScreen.kt` (single URL field, mirrors
+  `RecipeAiScreen`'s structure) → `Repository.startUrlScrape()` →
+  `ApiClient.scrapeRecipe()`, same `onParsed` navigation contract as the
+  AI-paste and MealDB-import flows. Verified end-to-end against the 10 real
+  URLs in `server/src/test-urls.txt`: 6 clean-JSON-LD sites, 1 JSON-LD-wrong-
+  type-but-full-body-text site (landleyskok.se, tier-1 text fallback), 2
+  sites needing the headless tier (zeinaskitchen.se's WPRM lazy-load — though
+  it turned out its ingredient list is actually present as plain body text,
+  so tier 1 alone handles it in practice; coop.se's fully client-rendered SPA
+  genuinely needs headless) — dedup (re-POST → instant 200, same id),
+  retry-in-place on a prior `error`, and the SSRF guard (172.x/localhost/bad
+  scheme → 400) all confirmed against the real endpoint via `docker compose
+  up`. The AI-structuring step itself showed `degraded`/`error` in this
+  session's local test stack only because that stack's `ollama` container has
+  a pre-existing, unrelated bug (`OLLAMA_KEEP_ALIVE=-1` sent without a unit
+  suffix → ollama 400s on every call) — not something this feature introduced;
+  worth fixing separately since it silently degrades the whole recipe-AI
+  pipeline, not just URL scrape.
 - **NOT yet device-tested**: AI parse against the real household ollama, on-device
   OCR, and the new Discover screens (compiles/builds clean; no on-device run in
-  this LXC — see repo CLAUDE.md's Android section).
+  this LXC — see repo CLAUDE.md's Android section). URL scrape is likewise not
+  yet device-tested (verified via `docker compose` + curl + the Android build
+  compiling clean, not an on-device tap-through).
 
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)

@@ -1,0 +1,31 @@
+# URL-scrape test fixtures — smoke-test /api/recipes/scrape-async against these
+# whenever the scraper changes. Categorized from a live test pass (2026-07-01).
+
+# Clean JSON-LD Recipe (Tier 1, no headless needed)
+https://www.ica.se/recept/carnitas-730003/
+https://www.arla.se/recept/kottfarslimpa/
+# arla.se's JSON-LD is a bare top-level ARRAY of typed objects
+# (Organization/BreadcrumbList/Recipe/FAQPage/ItemList) — exercises that branch.
+https://recept.se/recept/friterad-farskpotatis-med-ramslokpesto
+https://www.koket.se/krispig-fisk-med-remouladsas
+https://iform.se/nyttiga-recept/middag/bahn-mi
+https://www.mathem.se/se/recipes/6933-mari-bergman-sotpotatis-och-notfarsbowl-med-keso/
+
+# JSON-LD present but wrong type (Article/WebPage, no Recipe) + full recipe
+# prose in the body text -> Tier 1 readable-text fallback, no headless needed.
+https://www.landleyskok.se/recept/gratang-med-potatis-brysselkal-gronkal-bacon-och-dijonsenap
+
+# JSON-LD present but wrong type (BlogPosting); the actual WP Recipe Maker
+# recipe card is CSS-hidden (.wprm-recipe-container{display:none}) and lazy-
+# loaded via JS/AJAX after scroll -> needs Tier 2 (headless).
+https://zeinaskitchen.se/butterchicken-med-kycklingfile/
+
+# No JSON-LD, near-empty static HTML (fully client-rendered SPA shell,
+# ~50KB with no visible recipe text at all) -> needs Tier 2 (headless).
+https://www.coop.se/recept/marinerad-flaskfile-med-kramig-potatissallad/
+
+# KNOWN BAD — this URL currently serves an unrelated post ("Marinerad kyckling
+# med vitlökssås" instead of the honey-marinated recipe the slug implies).
+# Site content/URL structure appears to have changed since this list was made.
+# Not a scraping-technique gap — don't spend time chasing it.
+https://www.helenholmberg.se/mat/honungsmarinerad/

@@ -47,6 +47,7 @@ fun RecipesScreen(
     onOpenRecipe: (String) -> Unit,
     onCreate: () -> Unit,
     onAiCreate: () -> Unit,
+    onUrlCreate: () -> Unit,
     onSelectList: (String) -> Unit,
     onManageLists: () -> Unit,
     onOpenDiscover: () -> Unit,
@@ -102,6 +103,10 @@ fun RecipesScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.recipe_create_ai), color = Charcoal) },
                         onClick = { addMenuOpen = false; onAiCreate() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.recipe_create_url), color = Charcoal) },
+                        onClick = { addMenuOpen = false; onUrlCreate() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.recipe_create_manual), color = Charcoal) },

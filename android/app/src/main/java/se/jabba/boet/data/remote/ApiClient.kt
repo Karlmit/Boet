@@ -110,6 +110,17 @@ class ApiClient(private val baseUrlProvider: () -> String) {
         return request("POST", "/api/discover/import", body)
     }
 
+    // Scrape a recipe from an arbitrary URL (POST /api/recipes/scrape-async). Same
+    // instant-placeholder shape as startAiParse/importMeal — 202/200 with a
+    // placeholder row, real content arrives over the WebSocket as the server
+    // fetches/structures it (can involve a headless-browser fallback server-side,
+    // so this can take noticeably longer than a paste — the default client
+    // timeout is fine since it doesn't block on that, only on placeholder creation).
+    fun scrapeRecipe(url: String): RecipeDto {
+        val body = json.encodeToString(ScrapeReq.serializer(), ScrapeReq(url))
+        return request("POST", "/api/recipes/scrape-async", body)
+    }
+
     fun autoSort(listId: String): AutoSortResponse {
         val client = http.newBuilder()
             .readTimeout(60, TimeUnit.SECONDS)
@@ -133,3 +144,6 @@ private data class VoiceCleanReq(val transcript: List<String>, val categories: L
 
 @kotlinx.serialization.Serializable
 private data class ImportMealReq(val mealId: String)
+
+@kotlinx.serialization.Serializable
+private data class ScrapeReq(val url: String)

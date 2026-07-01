@@ -348,6 +348,8 @@ private fun AiStatusBanner(status: String, error: String?) {
     val fg = if (isError) MaterialTheme.colorScheme.onErrorContainer else Charcoal
     val label = when (status) {
         "queued" -> stringResource(R.string.recipe_ai_status_queued)
+        "fetching" -> stringResource(R.string.recipe_ai_status_fetching)
+        "fetching_headless" -> stringResource(R.string.recipe_ai_status_fetching_headless)
         "parsing_cloud" -> stringResource(R.string.recipe_ai_status_parsing_cloud)
         "parsing_local" -> stringResource(R.string.recipe_ai_status_parsing_local)
         "fallback_local" -> stringResource(R.string.recipe_ai_status_fallback_local)

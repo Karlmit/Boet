@@ -6,8 +6,9 @@ household list app for a two-person home (Kalle & Klara).
 Boet ("the nest") makes grocery shopping effortless through real-time sync (<1s),
 offline-first editing, intelligent Swedish grocery sorting, voice-first item
 entry, on-device categorization, and an **AI recipe book** that turns any pasted
-recipe (or a photo of one) into structured, Swedish, ready-to-cook instructions —
-then drops the ingredients straight onto the shopping list. Swedish-first (English
+recipe — a photo of one, or just a link to one — into structured, Swedish,
+ready-to-cook instructions, then drops the ingredients straight onto the shopping
+list. Swedish-first (English
 optional), running against the household's own Unraid server — no third-party
 cloud, no accounts.
 
@@ -210,6 +211,18 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
   WebSocket, and re-importing an already-added meal is a no-op rather than a
   duplicate. Uses TheMealDB's free tier by default; set `MEALDB_API_KEY` for the
   paid tier's full catalogue and multi-ingredient filtering.
+- **URL scrape** (`POST /api/recipes/scrape-async`) imports a recipe straight from
+  a link. Extracts schema.org/`Recipe` JSON-LD when the page has it (most modern
+  recipe sites embed this for Google's rich-result cards) and feeds it through the
+  same structure/unit-conversion/translation pipeline as a pasted recipe — cheaper
+  and more reliable than asking the LLM to parse raw HTML. Falls back to the
+  plain-text AI path when a page has no JSON-LD but does have the recipe as
+  readable body text, and as a last resort renders the page in a **headless
+  Chromium** (Playwright) for sites that only populate the recipe client-side via
+  JavaScript. Same instant-placeholder/async/WebSocket shape as AI paste and
+  Discover import, deduped per URL. Every fetch is checked against an SSRF guard
+  (blocks private/loopback/link-local addresses and validates each redirect hop)
+  since this endpoint fetches an arbitrary user-supplied URL server-side.
 - **Natural-language sort rules**, parsed deterministically.
 - **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
   tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),
@@ -321,7 +334,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ **Discover**: browse/search TheMealDB (random pick, reshufflable ten, text +
   multi-ingredient search, category/area browsing) and import into the recipe book
   through the same AI pipeline; deduped so re-adding a meal never duplicates it
-- ⬜ URL scrape (import from a recipe link) — future
+- ✅ **URL scrape**: import from a recipe link — extracts schema.org/Recipe JSON-LD
+  where present, falls back to readable-text AI parsing, and to a headless-browser
+  render as a last resort for JS-only recipe cards; deduped per URL, SSRF-guarded
 
 **Voice**
 - ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred
