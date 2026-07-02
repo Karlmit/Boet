@@ -21,6 +21,7 @@ import se.jabba.boet.ai.VoiceItem
 import se.jabba.boet.ai.mergeQuantity
 import se.jabba.boet.data.local.*
 import se.jabba.boet.data.remote.*
+import se.jabba.boet.util.InstagramUrl
 import java.util.UUID
 
 data class AutoSortResult(
@@ -535,10 +536,14 @@ class Repository(
     }
 
     // Start a URL scrape import. Same "instant placeholder id, real content
-    // arrives over the WebSocket" contract as startAiParse/importMeal.
+    // arrives over the WebSocket" contract as startAiParse/importMeal. An
+    // Instagram Reel link is routed to the Instagram import pipeline instead
+    // of the generic website scraper — this one branch covers both the
+    // "Parse URL" screen (RecipeUrlScreen) and the Instagram share target
+    // (BoetNavHost), so neither needs to know about Instagram itself.
     suspend fun startUrlScrape(url: String): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val dto = api.scrapeRecipe(url)
+            val dto = if (InstagramUrl.isReelUrl(url)) api.startInstagramImport(url) else api.scrapeRecipe(url)
             recipeDao.upsert(dto.toEntity())
             dto.id
         }.getOrNull()

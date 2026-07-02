@@ -122,6 +122,23 @@ services:
       # returns 503 instead of silently doing nothing).
       WHISPER_URL: http://faster-whisper:8000
       WHISPER_MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
+      # Instagram Reel recipe import. Instagram blocks unauthenticated
+      # scraping outright, so fetching a Reel's caption/video goes through the
+      # Apify "Instagram Reel Scraper" actor (apify.com/apify/instagram-reel-scraper)
+      # — sign up at apify.com and set an API token. Unset = Instagram imports
+      # fail with a "not configured" error; everything else is unaffected.
+      # APIFY_API_TOKEN: apify_api_xxxxxxxx
+      # APIFY_INSTAGRAM_ACTOR: apify~instagram-reel-scraper
+      # Video-understanding fallback (used only when a Reel's caption alone
+      # isn't a complete recipe) needs a Gemini API key
+      # (https://aistudio.google.com/apikey, has a free tier). Unset =
+      # caption-only import; Reels needing the video fail with a "couldn't
+      # extract a recipe" error instead of falling back.
+      # GEMINI_API_KEY: xxxxxxxx
+      # GEMINI_RECIPE_VIDEO_MODEL: gemini-flash-latest
+      # REEL_VIDEO_MAX_MB: "200"
+      # REEL_VIDEO_TIMEOUT_SECONDS: "120"
+      # REEL_IMPORT_CONFIDENCE_THRESHOLD: "0.75"
     volumes:
       - /mnt/user/appdata/Boet/uploads:/data/uploads
       # - /mnt/user/appdata/Boet/fcm.json:/secrets/fcm.json:ro
@@ -256,6 +273,18 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
   Discover import, deduped per URL. Every fetch is checked against an SSRF guard
   (blocks private/loopback/link-local addresses and validates each redirect hop)
   since this endpoint fetches an arbitrary user-supplied URL server-side.
+- **Instagram Reel import** (`POST /api/recipes/instagram-async`) turns a shared
+  Instagram Reel link into a recipe — share a Reel from the Instagram app
+  straight into Boet, or paste the link into the same "Import from link"
+  screen used for websites. Tries the Reel's caption first; if it isn't a
+  complete recipe, downloads the video and sends it to **Gemini** for video
+  understanding (speech, on-screen text, visuals), then feeds the result
+  through the same structure/unit-conversion/translation pipeline as every
+  other import. Fetching goes through the Apify "Instagram Reel Scraper"
+  actor rather than scraping Instagram directly, since Instagram blocks
+  unauthenticated access outright. Same instant-placeholder/async/WebSocket
+  shape as every other import, deduped per Reel; the resulting recipe links
+  back to the original Instagram post.
 - **Natural-language sort rules**, parsed deterministically.
 - **Voice cleaning** (`POST /api/voice/clean`) turns a raw Swedish transcript into
   tidy items via the household's **own local LLM** (Ollama / `qwen3:4b-instruct`),
@@ -370,6 +399,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ **URL scrape**: import from a recipe link — extracts schema.org/Recipe JSON-LD
   where present, falls back to readable-text AI parsing, and to a headless-browser
   render as a last resort for JS-only recipe cards; deduped per URL, SSRF-guarded
+- ✅ **Instagram Reel import**: share a Reel from Instagram straight into Boet
+  (Android share target), or paste the link into the same import-from-link
+  screen. Caption-first, video-understanding (Gemini) fallback when the
+  caption alone isn't a complete recipe; links back to the original post
 
 **Voice**
 - ✅ Quick voice add · ✅ continuous voice mode · ✅ sv/en, on-device-preferred

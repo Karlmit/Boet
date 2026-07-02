@@ -121,6 +121,17 @@ class ApiClient(private val baseUrlProvider: () -> String) {
         return request("POST", "/api/recipes/scrape-async", body)
     }
 
+    // Import a recipe from an Instagram Reel (POST /api/recipes/instagram-async).
+    // Same instant-placeholder shape as scrapeRecipe — the caption-vs-video
+    // decision and any video download/Gemini call happen server-side in the
+    // background, so this can take noticeably longer to finish than a plain URL
+    // scrape when the video-fallback path is used, but the client never blocks
+    // on that (only on placeholder creation), same as every other async import.
+    fun startInstagramImport(url: String): RecipeDto {
+        val body = json.encodeToString(ScrapeReq.serializer(), ScrapeReq(url))
+        return request("POST", "/api/recipes/instagram-async", body)
+    }
+
     fun autoSort(listId: String): AutoSortResponse {
         val client = http.newBuilder()
             .readTimeout(60, TimeUnit.SECONDS)

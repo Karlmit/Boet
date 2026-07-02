@@ -99,6 +99,35 @@ services:
       # endpoint then returns 503 instead of silently doing nothing).
       WHISPER_URL: ${WHISPER_URL:-http://faster-whisper:8000}
       WHISPER_MODEL: ${WHISPER_MODEL:-deepdml/faster-whisper-large-v3-turbo-ct2}
+      # Instagram Reel recipe import. Instagram blocks unauthenticated
+      # scraping outright as of 2026, so fetching a Reel's caption/video goes
+      # through the Apify "Instagram Reel Scraper" actor (apify.com/apify/
+      # instagram-reel-scraper) instead of self-hosting a scraper — sign up at
+      # apify.com and set an API token. Unset APIFY_API_TOKEN = Instagram
+      # imports fail with a "not configured" error; everything else in Boet
+      # is unaffected.
+      APIFY_API_TOKEN: ${APIFY_API_TOKEN:-}
+      APIFY_INSTAGRAM_ACTOR: ${APIFY_INSTAGRAM_ACTOR:-apify~instagram-reel-scraper}
+      # Video-understanding fallback (used only when a Reel's caption alone
+      # isn't a complete recipe) needs a Gemini API key
+      # (https://aistudio.google.com/apikey, has a free tier). Unset
+      # GEMINI_API_KEY = caption-only import; Reels needing the video fail
+      # with a "couldn't extract a recipe" error instead of falling back.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Overridable because Google's model ids/availability/pricing drift
+      # over time (see server/src/gemini-video.js) — the "-latest" alias
+      # tracks Google's current default Flash model rather than pinning a
+      # version that may later be deprecated.
+      GEMINI_RECIPE_VIDEO_MODEL: ${GEMINI_RECIPE_VIDEO_MODEL:-gemini-flash-latest}
+      # Max Reel video size to download (larger videos are skipped, treated
+      # the same as "video download failed").
+      REEL_VIDEO_MAX_MB: ${REEL_VIDEO_MAX_MB:-200}
+      REEL_VIDEO_TIMEOUT_SECONDS: ${REEL_VIDEO_TIMEOUT_SECONDS:-120}
+      # How confident the small completeness-check model must be that a
+      # Reel's caption alone is a full recipe before skipping the (slower,
+      # costs a Gemini call) video-analysis fallback. Lower = trusts captions
+      # more often; higher = falls back to video more readily.
+      REEL_IMPORT_CONFIDENCE_THRESHOLD: ${REEL_IMPORT_CONFIDENCE_THRESHOLD:-0.75}
     volumes:
       - boet-uploads:/data/uploads
       # - ./fcm-service-account.json:/secrets/fcm.json:ro   # then set FCM_SERVICE_ACCOUNT=/secrets/fcm.json

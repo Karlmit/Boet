@@ -44,6 +44,7 @@ import se.jabba.boet.data.remote.RecipeDoc
 import se.jabba.boet.data.remote.RecipeIngredient
 import se.jabba.boet.data.remote.RecipeJson
 import se.jabba.boet.ui.common.CategoryHeader
+import se.jabba.boet.ui.common.InstagramLinkRow
 import se.jabba.boet.ui.common.SourceLinkRow
 import se.jabba.boet.ui.common.YoutubeLinkRow
 import se.jabba.boet.ui.list.BoetCheckbox
@@ -201,9 +202,18 @@ fun RecipeDetailScreen(
                         Spacer(Modifier.height(8.dp))
                         YoutubeLinkRow(it)
                     }
-                    doc.sourceUrl?.takeIf { it.isNotBlank() }?.let {
+                    doc.instagramUrl?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(8.dp))
-                        SourceLinkRow(it)
+                        InstagramLinkRow(it)
+                    }
+                    // sourceUrl is set to the same URL as instagramUrl for an
+                    // Instagram import (routes/instagram.js) — skip the generic
+                    // link here so it isn't shown twice.
+                    if (doc.instagramUrl == null) {
+                        doc.sourceUrl?.takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.height(8.dp))
+                            SourceLinkRow(it)
+                        }
                     }
                     if (baseServings > 0) {
                         Spacer(Modifier.height(12.dp))
@@ -434,6 +444,10 @@ private fun AiStatusBanner(status: String, error: String?) {
         "queued" -> stringResource(R.string.recipe_ai_status_queued)
         "fetching" -> stringResource(R.string.recipe_ai_status_fetching)
         "fetching_headless" -> stringResource(R.string.recipe_ai_status_fetching_headless)
+        "fetching_caption" -> stringResource(R.string.recipe_ai_status_fetching_caption)
+        "checking_caption" -> stringResource(R.string.recipe_ai_status_checking_caption)
+        "downloading_video" -> stringResource(R.string.recipe_ai_status_downloading_video)
+        "analyzing_video" -> stringResource(R.string.recipe_ai_status_analyzing_video)
         "parsing_cloud" -> stringResource(R.string.recipe_ai_status_parsing_cloud)
         "parsing_local" -> stringResource(R.string.recipe_ai_status_parsing_local)
         "fallback_local" -> stringResource(R.string.recipe_ai_status_fallback_local)

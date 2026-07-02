@@ -1,11 +1,14 @@
 package se.jabba.boet.ui
 
+import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import se.jabba.boet.BoetApp
+import se.jabba.boet.R
 import se.jabba.boet.data.local.Settings
 import se.jabba.boet.ui.list.CategoryManageScreen
 import se.jabba.boet.ui.list.ListScreen
@@ -22,10 +25,16 @@ import se.jabba.boet.ui.recipes.RecipesScreen
 import se.jabba.boet.ui.settings.SettingsScreen
 import se.jabba.boet.ui.shopping.ShoppingScreen
 import se.jabba.boet.update.UpdatePrompt
+import se.jabba.boet.util.InstagramUrl
 import kotlinx.coroutines.launch
 
 @Composable
-fun BoetNavHost(app: BoetApp, settings: Settings) {
+fun BoetNavHost(
+    app: BoetApp,
+    settings: Settings,
+    pendingSharedText: String? = null,
+    onSharedTextConsumed: () -> Unit = {},
+) {
     // Localization is applied at the Activity level (MainActivity.attachBaseContext)
     // so dialogs and bottom sheets — which render in separate windows — are localized
     // too. Nothing locale-related needs to happen here.
@@ -33,6 +42,7 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
         val repo = app.repository
         val nav = rememberNavController()
         val scope = rememberCoroutineScope()
+        val context = LocalContext.current
 
         // The currently shown list (defaults to the first list once loaded).
         var selectedListId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -44,6 +54,35 @@ fun BoetNavHost(app: BoetApp, settings: Settings) {
             }
         }
         LaunchedEffect(Unit) { repo.bootstrap() }
+
+        // A Reel shared into Boet via the Android share sheet (MainActivity's
+        // ACTION_SEND intent filter). Gated on settings.identity != null (i.e.
+        // post-onboarding) since a share landing mid-onboarding has nowhere
+        // sane to navigate to yet — dropped in that unlikely edge case. Reuses
+        // the exact same import call the "Parse URL" screen uses
+        // (Repository.startUrlScrape branches on the URL shape), so a share
+        // gets the identical placeholder/live-status/review experience.
+        LaunchedEffect(pendingSharedText, settings.identity) {
+            val text = pendingSharedText ?: return@LaunchedEffect
+            if (settings.identity == null) return@LaunchedEffect
+            val reelUrl = InstagramUrl.extractReelUrl(text)
+            if (reelUrl == null) {
+                Toast.makeText(context, context.getString(R.string.recipe_instagram_share_no_url), Toast.LENGTH_LONG).show()
+                onSharedTextConsumed()
+                return@LaunchedEffect
+            }
+            val id = repo.startUrlScrape(reelUrl)
+            if (id == null) {
+                Toast.makeText(context, context.getString(R.string.recipe_url_failed), Toast.LENGTH_LONG).show()
+            } else {
+                // Anchor at "home" rather than the other import flows' "recipes"
+                // — a share can arrive from anywhere in the app, not just the
+                // Recipes screen, so this always leaves a sane home -> recipe/$id
+                // back stack regardless of where the user was when they shared.
+                nav.navigate("recipe/$id") { popUpTo("home") { inclusive = false }; launchSingleTop = true }
+            }
+            onSharedTextConsumed()
+        }
 
         // Shared drawer actions for the screens that host their own drawer instance
         // (home/ListScreen, RecipesScreen, DiscoverScreen) — launchSingleTop means

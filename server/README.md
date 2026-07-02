@@ -44,6 +44,7 @@ want it (enable Websockets Support on the proxy).
 | GET | `/api/discover/categories`, `/areas`, `/ingredients` | TheMealDB reference lists (cached) |
 | POST | `/api/discover/import` | Import a MealDB meal into the recipe book — same async pattern as `/parse-async`, deduped |
 | POST | `/api/recipes/scrape-async` | Import a recipe from a URL — JSON-LD/text/headless-render cascade, same async pattern as `/parse-async`, deduped per URL |
+| POST | `/api/recipes/instagram-async` | Import a recipe from an Instagram Reel URL — caption-first, Gemini video-understanding fallback, same async pattern as `/parse-async`, deduped per Reel |
 
 ## WebSocket
 

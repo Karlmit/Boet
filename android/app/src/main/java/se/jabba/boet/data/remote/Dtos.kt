@@ -104,13 +104,20 @@ data class RecipeDoc(
     // Set when the recipe was imported from a source that has a companion video
     // (currently: TheMealDB via Discover). Rendered as a "watch on YouTube" link.
     val youtubeUrl: String? = null,
+    // Set when the recipe was imported from an Instagram Reel share/URL.
+    // Rendered as a "view on Instagram" link (InstagramLinkRow).
+    val instagramUrl: String? = null,
     val ingredients: List<RecipeIngredient> = emptyList(),
     val steps: List<RecipeStep> = emptyList(),
     // Set only while an async AI parse (POST /recipes/parse-async) is in flight or
-    // just finished: "queued" | "parsing_cloud" | "parsing_local" | "fallback_local" |
-    // "translating" | "degraded" | "done" | "error" | null (a manually created/edited
-    // recipe, or an AI recipe from before this field existed). "degraded" means the
-    // AI couldn't structure the ingredients and the raw pasted text was used as-is.
+    // just finished: "queued" | "fetching_caption" | "checking_caption" |
+    // "downloading_video" | "analyzing_video" | "parsing_cloud" | "parsing_local" |
+    // "fallback_local" | "translating" | "degraded" | "done" | "error" | null (a
+    // manually created/edited recipe, or an AI recipe from before this field
+    // existed). "degraded" means the AI couldn't structure the ingredients and the
+    // raw pasted text was used as-is. The fetching_caption/checking_caption/
+    // downloading_video/analyzing_video statuses are specific to Instagram Reel
+    // imports (routes/instagram.js).
     val aiStatus: String? = null,
     val aiError: String? = null,
 )

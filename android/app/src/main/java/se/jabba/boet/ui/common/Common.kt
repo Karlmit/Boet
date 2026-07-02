@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -120,6 +121,29 @@ fun SourceLinkRow(url: String, modifier: Modifier = Modifier) {
         Icon(Icons.Default.Language, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(R.string.recipe_source_link), style = BoetType.label, color = MossDeep)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
+    }
+}
+
+// "View on Instagram" link — shown on a recipe imported from an Instagram
+// Reel (`RecipeDoc.instagramUrl`). Same tappable row style as
+// YoutubeLinkRow/SourceLinkRow. No Instagram brand glyph is available in the
+// Material icon set already used here (YoutubeLinkRow itself uses a generic
+// PlayCircle, not a YouTube logo) — Movie is the closest generic stand-in
+// for "this came from a video".
+@Composable
+fun InstagramLinkRow(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.clickable {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        },
+    ) {
+        Icon(Icons.Default.Movie, contentDescription = null, tint = MossDeep, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.recipe_instagram_link), style = BoetType.label, color = MossDeep)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MossDeep, modifier = Modifier.size(14.dp))
     }

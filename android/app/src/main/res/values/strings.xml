@@ -42,6 +42,7 @@
     <string name="recipe_url_placeholder">https://…</string>
     <string name="recipe_url_parse">Hämta recept</string>
     <string name="recipe_url_failed">Kunde inte hämta receptet från länken. Är servern igång?</string>
+    <string name="recipe_instagram_share_no_url">Hittade ingen Instagram Reel-länk i det du delade.</string>
     <string name="recipe_ai_title">Tolka recept</string>
     <string name="recipe_ai_hint">Klistra in ett recept så strukturerar AI:n det åt dig — ingredienser, steg och mängder. Du får granska innan det sparas.</string>
     <string name="recipe_ai_placeholder">Klistra in recepttext här…</string>
@@ -50,6 +51,10 @@
     <string name="recipe_ai_failed">Kunde inte tolka receptet. Är servern och AI:n igång?</string>
     <string name="recipe_ai_status_queued">I kö…</string>
     <string name="recipe_ai_status_fetching">Hämtar sidan…</string>
+    <string name="recipe_ai_status_fetching_caption">Hämtar Instagram-inlägget…</string>
+    <string name="recipe_ai_status_checking_caption">Kontrollerar om texten räcker för att tolka receptet…</string>
+    <string name="recipe_ai_status_downloading_video">Laddar ner videon…</string>
+    <string name="recipe_ai_status_analyzing_video">AI:n analyserar videon (kan ta en stund)…</string>
     <string name="recipe_ai_status_fetching_headless">Sidan kräver JavaScript — laddar den i en bakgrundsflik…</string>
     <string name="recipe_ai_status_parsing_cloud">Frågar AI:n i molnet…</string>
     <string name="recipe_ai_status_parsing_local">Frågar den lokala AI:n om ingrediens för ingrediens…</string>
@@ -66,6 +71,7 @@
     <string name="recipe_shopping_mode_on">Visar lägg-till-knappar — tryck för att visa kryssrutor</string>
     <string name="recipe_shopping_mode_off">Visa lägg-till-knappar istället för kryssrutor</string>
     <string name="recipe_source_link">Visa originalreceptet</string>
+    <string name="recipe_instagram_link">Visa på Instagram</string>
     <string name="recipe_category">Kategori (valfritt)</string>
     <string name="recipe_keep_awake_on">Håller skärmen tänd — tryck för att stänga av</string>
     <string name="recipe_keep_awake_off">Håll skärmen tänd</string>

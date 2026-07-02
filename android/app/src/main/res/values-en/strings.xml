@@ -40,6 +40,7 @@
     <string name="recipe_url_placeholder">https://…</string>
     <string name="recipe_url_parse">Fetch recipe</string>
     <string name="recipe_url_failed">Couldn\'t fetch the recipe from that link. Is the server running?</string>
+    <string name="recipe_instagram_share_no_url">Couldn\'t find an Instagram Reel link in what you shared.</string>
     <string name="recipe_ai_title">Parse recipe</string>
     <string name="recipe_ai_hint">Paste a recipe and the AI will structure it for you — ingredients, steps and amounts. You can review it before it\'s saved.</string>
     <string name="recipe_ai_placeholder">Paste recipe text here…</string>
@@ -48,6 +49,10 @@
     <string name="recipe_ai_failed">Couldn\'t parse the recipe. Are the server and AI running?</string>
     <string name="recipe_ai_status_queued">Queued…</string>
     <string name="recipe_ai_status_fetching">Fetching the page…</string>
+    <string name="recipe_ai_status_fetching_caption">Fetching the Instagram post…</string>
+    <string name="recipe_ai_status_checking_caption">Checking whether the caption is enough to parse the recipe…</string>
+    <string name="recipe_ai_status_downloading_video">Downloading the video…</string>
+    <string name="recipe_ai_status_analyzing_video">The AI is analyzing the video (this can take a moment)…</string>
     <string name="recipe_ai_status_fetching_headless">The page needs JavaScript — loading it in a background tab…</string>
     <string name="recipe_ai_status_parsing_cloud">Asking the cloud AI…</string>
     <string name="recipe_ai_status_parsing_local">Asking the local AI, ingredient by ingredient…</string>
@@ -64,6 +69,7 @@
     <string name="recipe_shopping_mode_on">Showing add-to-list buttons — tap to show checkboxes</string>
     <string name="recipe_shopping_mode_off">Show add-to-list buttons instead of checkboxes</string>
     <string name="recipe_source_link">View original recipe</string>
+    <string name="recipe_instagram_link">View on Instagram</string>
     <string name="recipe_category">Category (optional)</string>
     <string name="recipe_keep_awake_on">Keeping the screen on — tap to turn off</string>
     <string name="recipe_keep_awake_off">Keep screen on</string>
