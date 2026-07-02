@@ -148,6 +148,25 @@ services:
     ports:
       - "3020:3020"
 
+  # PIN-gated desktop web app (boetweb.jabba.se) for the same backend — built
+  # mainly for comfortable recipe editing on a keyboard. No prebuilt image is
+  # published, so it builds from the repo on first `up` (a few minutes), same
+  # as `translate` below. See the "Web app" section further down for the
+  # reverse-proxy setup — it needs its OWN proxy host, separate from
+  # boet.jabba.se above, since this one is PIN-gated end to end.
+  web:
+    build: https://github.com/Karlmit/Boet.git#main:web
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      PORT: 3021
+      API_URL: http://server:3020
+      WEB_PIN: your-pin-here             # shared household PIN, change me
+      SESSION_SECRET: a-long-random-string  # e.g. `openssl rand -hex 32`
+    ports:
+      - "3021:3021"
+
   # EN->SV recipe translation sidecar (Helsinki-NLP/opus-mt-en-sv). The model
   # (~300 MB) is baked into the image at build time, so it needs no network at
   # runtime and holds well under 1 GB RAM. No prebuilt image is published, so it
@@ -323,25 +342,8 @@ Then open `http://localhost:3021`.
 
 ### Unraid / production
 
-Add this `web` service alongside `server` in the `docker-compose.yml` above
-(build context is `./web`, relative to wherever you check out the repo on the
-Unraid box — this one isn't published to GHCR yet, so it builds from source on
-first `up`, same as `translate`):
-
-```yaml
-  web:
-    build: ./web
-    restart: unless-stopped
-    depends_on:
-      - server
-    environment:
-      PORT: 3021
-      API_URL: http://server:3020
-      WEB_PIN: your-pin-here             # shared household PIN, change me
-      SESSION_SECRET: a-long-random-string  # e.g. `openssl rand -hex 32`
-    ports:
-      - "3021:3021"
-```
+The `web` service is already included in the `docker-compose.yml` example
+above — just set `WEB_PIN` and `SESSION_SECRET` to real values.
 
 Point a **separate** reverse-proxy host at `boetweb.jabba.se` (do not reuse the
 `boet.jabba.se` host that points at `server:3020` — that one is intentionally
