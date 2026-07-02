@@ -99,6 +99,15 @@ fun RecipeDetailScreen(
     var servings by remember(doc.servings) { mutableStateOf(if (baseServings > 0) baseServings else 0.0) }
     val factor = if (baseServings > 0 && servings > 0) servings / baseServings else 1.0
     val ingredientsById = remember(doc) { doc.ingredients.associateBy { it.id } }
+    // AI linking sometimes attaches the same ingredient to every step it's still
+    // physically present in (e.g. "all ingredients in the pot") instead of just
+    // the step it's first added — only show a chip the first time it's referenced,
+    // regardless of how many steps' ingredientRefs actually contain it.
+    val firstStepForIngredient = remember(doc) {
+        val seen = mutableMapOf<String, Int>()
+        doc.steps.forEachIndexed { i, step -> step.ingredientRefs.forEach { ref -> seen.getOrPut(ref) { i } } }
+        seen
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -348,7 +357,9 @@ fun RecipeDetailScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.padding(top = 2.dp)) {
                             Text(step.text, style = BoetType.body, color = Charcoal)
-                            val used = step.ingredientRefs.mapNotNull { ingredientsById[it] }
+                            val used = step.ingredientRefs
+                                .filter { firstStepForIngredient[it] == idx }
+                                .mapNotNull { ingredientsById[it] }
                             if (used.isNotEmpty() || step.timerSeconds != null) {
                                 Spacer(Modifier.height(6.dp))
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

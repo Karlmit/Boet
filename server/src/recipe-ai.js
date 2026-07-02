@@ -17,7 +17,11 @@ function buildPrompt(text) {
     'Extract the recipe below into STRICT JSON. Do NOT translate. Do NOT convert units.',
     'Keep all text in the original language and keep the original unit words.',
     'Give each ingredient an id "i1","i2",… For each step, ingredientRefs lists the ids',
-    'of the ingredients used in that step (may be empty). If a step states a duration',
+    'of the ingredients used in that step (may be empty). Link an ingredient to ONLY the',
+    'single step where it is first added or used — never repeat its id in later steps just',
+    'because it is still physically in the pot/bowl/pan (e.g. once carrot is added in step 1,',
+    'do not also list it in step 2 or 3 even if the recipe keeps referring to "all ingredients"',
+    'already in the pot). If a step states a duration',
     '(e.g. "bake 20 minutes", "sjud 15 min"), set timerMinutes to that number, else null.',
     'quantity is a number (use null if none); unit is the original unit word or null;',
     'food is just the ingredient name without the amount.',
@@ -282,7 +286,11 @@ function buildLinkingPrompt(ingredients, stepLines, unknownSectionIds, unknownTi
   return [
     'Below are structured recipe ingredients and numbered steps.',
     'For each step number output {n,ingredientRefs,timerMinutes}: ingredientRefs = ids of the',
-    'ingredients used in that step (may be empty); timerMinutes = minutes if the step states a',
+    'ingredients used in that step (may be empty). Link an ingredient to ONLY the single step',
+    'where it is first added or used — never repeat its id in later steps just because it is',
+    'still physically in the pot/bowl/pan (e.g. once carrot is added in step 1, do not also list',
+    'it in step 2 or 3 even if the recipe keeps referring to "all ingredients" already in the',
+    'pot). timerMinutes = minutes if the step states a',
     'duration (e.g. "10 minuter", "bake 20 minutes"), else null.',
     ...(unknownSectionIds.length > 0 ? [
       'Some recipes group ingredients into a named sub-component — for example a marinade, a',
@@ -448,11 +456,14 @@ async function parseLocalStepwise(ex, full, onStatus, { rawFallback, forceLang }
     const title = typeof s?.title === 'string' ? s.title.trim() : '';
     if (n !== null && title) titleByN.set(Math.round(n), title);
   });
+  // Same "first occurrence wins" dedup as docFromObj — see its comment.
+  const claimedIds = new Set();
   const steps = ex.stepLines.map((text, i) => {
     const st = byN.get(i + 1);
     const minutes = asNumber(st?.timerMinutes);
     const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
-      .map((r) => String(r)).filter((r) => validIds.has(r));
+      .map((r) => String(r)).filter((r) => validIds.has(r) && !claimedIds.has(r));
+    refs.forEach((r) => claimedIds.add(r));
     const title = ex.stepTitles?.[i] || titleByN.get(i + 1) || null;
     return { id: `s${i + 1}`, text: String(text).trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null, title };
   }).filter((s) => s.text);
@@ -527,11 +538,16 @@ function docFromObj(obj, { name, description, servings }, full, onStatus, forceL
   });
   const validIds = new Set(ingredients.map((x) => x.id));
 
+  // The model sometimes links an ingredient to every step it's still physically
+  // present in (e.g. "all ingredients in the pot") instead of just the step where
+  // it's first added — keep only the first occurrence across the whole recipe.
+  const claimedIds = new Set();
   const rawSteps = Array.isArray(obj.steps) ? obj.steps : [];
   const steps = rawSteps.map((st, i) => {
     const minutes = asNumber(st?.timerMinutes);
     const refs = (Array.isArray(st?.ingredientRefs) ? st.ingredientRefs : [])
-      .map((r) => String(r)).filter((r) => validIds.has(r));
+      .map((r) => String(r)).filter((r) => validIds.has(r) && !claimedIds.has(r));
+    refs.forEach((r) => claimedIds.add(r));
     const title = typeof st?.title === 'string' ? st.title.trim() || null : null;
     return { id: `s${i + 1}`, text: String(st?.text ?? '').trim(), ingredientRefs: refs, timerSeconds: minutes !== null ? Math.round(minutes * 60) : null, title };
   }).filter((s) => s.text);

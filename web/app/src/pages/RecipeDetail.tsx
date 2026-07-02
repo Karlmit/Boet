@@ -38,6 +38,13 @@ export default function RecipeDetail() {
   }
 
   const ingredientById = new Map(doc.ingredients.map((i) => [i.id, i]));
+  // AI linking sometimes attaches the same ingredient to every step it's still
+  // physically present in (e.g. "all ingredients in the pot") instead of just the
+  // step it's first added — only show a chip the first time it's referenced.
+  const firstStepForIngredient = new Map<string, number>();
+  doc.steps.forEach((step, i) => step.ingredientRefs.forEach((ref) => {
+    if (!firstStepForIngredient.has(ref)) firstStepForIngredient.set(ref, i);
+  }));
 
   return (
     <div className="page-paper" style={{ maxWidth: 760 }}>
@@ -116,9 +123,10 @@ export default function RecipeDetail() {
                   {Math.round(step.timerSeconds / 60)} min
                 </span>
               ) : null}
-              {step.ingredientRefs.length > 0 && (
+              {step.ingredientRefs.some((ref) => firstStepForIngredient.get(ref) === i) && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                   {step.ingredientRefs.map((ref) => {
+                    if (firstStepForIngredient.get(ref) !== i) return null;
                     const ing = ingredientById.get(ref);
                     if (!ing) return null;
                     return (
