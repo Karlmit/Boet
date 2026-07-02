@@ -37,11 +37,16 @@ docker compose up -d --build      # builds & runs Postgres + server on :3020
 curl http://localhost:3020/health
 ```
 
-### Unraid / production (pull prebuilt image from GHCR)
+### Unraid / production (pull prebuilt images from GHCR)
 
-The server image is published to **`ghcr.io/karlmit/boet:latest`** by a GitHub
-Action on every push to `main` (and on `v*` tags), so Unraid's "check for
-updates" detects new versions.
+The server, web app, and translate sidecar images are each published by their
+own GitHub Action on every push to `main` that touches their directory (and on
+`v*` tags) — **`ghcr.io/karlmit/boet:latest`**, **`ghcr.io/karlmit/boet-web:latest`**,
+and **`ghcr.io/karlmit/boet-translate:latest`** — so Unraid's "check for
+updates" detects new versions of all three. None of them use a local `build:`
+in this compose file on purpose: Unraid's Docker Compose Manager stores
+projects under `/boot/config/...`, and a local build context there trips
+`docker buildx bake`'s filesystem-read entitlements prompt.
 
 Drop this `docker-compose.yml` into Unraid (app data lives under
 `/mnt/user/appdata/Boet`):
@@ -149,13 +154,12 @@ services:
       - "3020:3020"
 
   # PIN-gated desktop web app (boetweb.jabba.se) for the same backend — built
-  # mainly for comfortable recipe editing on a keyboard. No prebuilt image is
-  # published, so it builds from the repo on first `up` (a few minutes), same
-  # as `translate` below. See the "Web app" section further down for the
-  # reverse-proxy setup — it needs its OWN proxy host, separate from
-  # boet.jabba.se above, since this one is PIN-gated end to end.
+  # mainly for comfortable recipe editing on a keyboard. See the "Web app"
+  # section further down for the reverse-proxy setup — it needs its OWN proxy
+  # host, separate from boet.jabba.se above, since this one is PIN-gated end
+  # to end.
   web:
-    build: https://github.com/Karlmit/Boet.git#main:web
+    image: ghcr.io/karlmit/boet-web:latest
     restart: unless-stopped
     depends_on:
       - server
@@ -169,10 +173,9 @@ services:
 
   # EN->SV recipe translation sidecar (Helsinki-NLP/opus-mt-en-sv). The model
   # (~300 MB) is baked into the image at build time, so it needs no network at
-  # runtime and holds well under 1 GB RAM. No prebuilt image is published, so it
-  # builds from the repo on first `up` (a few minutes).
+  # runtime and holds well under 1 GB RAM.
   translate:
-    build: https://github.com/Karlmit/Boet.git#main:server/translate
+    image: ghcr.io/karlmit/boet-translate:latest
     restart: unless-stopped
 
   # Household-local LLM (Ollama) that cleans voice input into tidy items, so phones

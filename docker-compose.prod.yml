@@ -1,5 +1,9 @@
-# Production stack for Unraid. Pulls the prebuilt server image from GHCR so
-# Unraid's "check for updates" detects new versions of :latest.
+# Production stack for Unraid. Pulls prebuilt images (server, web, translate)
+# from GHCR — no local `docker build` on the Unraid box, both so Unraid's
+# "check for updates" detects new :latest versions and so a local `build:`
+# doesn't trip docker buildx bake's filesystem-entitlements prompt (Docker
+# Compose Manager's project directory lives under /boot, which bake flags as
+# a sensitive read).
 #
 #   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
@@ -135,10 +139,12 @@ services:
       - "3020:3020"
 
   # Web app (boetweb.jabba.se) — PIN-gated BFF + SPA, proxies /api, /uploads,
-  # /ws through to `server` above. Built locally on Unraid (no GHCR image yet,
-  # unlike `server` — add a publish workflow later if that becomes worth it).
+  # /ws through to `server` above. Prebuilt image (same reason as `server`
+  # below: a local `build:` here makes docker buildx bake prompt for
+  # filesystem-read entitlements on Unraid, since Docker Compose Manager's
+  # project directory lives under /boot).
   web:
-    build: ./web
+    image: ghcr.io/karlmit/boet-web:latest
     restart: unless-stopped
     depends_on:
       - server
@@ -155,8 +161,11 @@ services:
 
   # EN->SV recipe translation sidecar (opus-mt, ~300 MB model baked into the
   # image at build time). Holds well under 1 GB RAM; safe to keep always-on.
+  # Prebuilt image for the same reason as `web`/`server` above — a local
+  # `build:` here triggers docker buildx bake's filesystem-entitlements
+  # prompt on Unraid's Docker Compose Manager.
   translate:
-    build: ./server/translate
+    image: ghcr.io/karlmit/boet-translate:latest
     restart: unless-stopped
 
   # Household-local LLM (Ollama) for voice cleaning. The model is pulled
