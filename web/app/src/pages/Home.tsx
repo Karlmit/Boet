@@ -106,7 +106,7 @@ export default function Home() {
   const uncategorized = itemsFor(null);
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div className="page-paper" style={{ maxWidth: 640 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <h1 className="headline">{list.name}</h1>

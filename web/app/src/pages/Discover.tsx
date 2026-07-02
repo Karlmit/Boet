@@ -47,7 +47,7 @@ export default function Discover() {
   const shown = results ?? grid;
 
   return (
-    <div>
+    <div className="page-paper" style={{ maxWidth: 'var(--content-max-width)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 className="headline">Upptäck</h1>
         <Link className="btn-ghost" to="/recipes">

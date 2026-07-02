@@ -26,15 +26,27 @@ export async function mirrorImage(url) {
   if (!url) return null;
   try {
     await assertUrlAllowed(url);
-    const res = await fetch(url);
-    if (!res.ok) return null;
+    // Some CDNs (Instagram's included) 403 a bare server-side fetch with no
+    // User-Agent — the same anti-hotlink posture that makes the raw URL
+    // unusable in a browser <img> to begin with.
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+    });
+    if (!res.ok) {
+      console.warn(`[boet] mirrorImage: ${res.status} ${res.statusText} fetching ${url}`);
+      return null;
+    }
     const contentType = (res.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
     const ext = EXT[contentType] || 'jpg';
     const buf = Buffer.from(await res.arrayBuffer());
     const file = `${nanoid()}.${ext}`;
     fs.writeFileSync(path.join(UPLOAD_DIR, file), buf);
     return `/uploads/${file}`;
-  } catch {
+  } catch (err) {
+    console.warn(`[boet] mirrorImage failed for ${url}:`, err.message || err);
     return null;
   }
 }

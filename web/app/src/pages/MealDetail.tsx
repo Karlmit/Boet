@@ -28,7 +28,7 @@ export default function MealDetail() {
   if (!meal) return <p className="body-text">Laddar…</p>;
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div className="page-paper" style={{ maxWidth: 640 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <h1 className="headline">{meal.name}</h1>
         <button className="btn-primary" onClick={importMeal} disabled={importing}>

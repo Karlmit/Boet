@@ -141,7 +141,7 @@ export default function RecipeEditor() {
   }
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div className="page-paper" style={{ maxWidth: 1100 }}>
       <h1 className="headline" style={{ marginBottom: 16 }}>
         {recipeId ? 'Redigera recept' : 'Nytt recept'}
       </h1>

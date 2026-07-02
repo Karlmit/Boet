@@ -83,18 +83,9 @@ export default function AppShell() {
         </div>
       </header>
       <main className="page-main" style={{ flex: 1 }}>
-        <div
-          className="card-floating page-paper"
-          style={{
-            maxWidth: 'var(--content-max-width)',
-            margin: '0 auto',
-            minHeight: 'calc(100vh - 200px)',
-          }}
-        >
-          <BoetStoreProvider>
-            <Outlet />
-          </BoetStoreProvider>
-        </div>
+        <BoetStoreProvider>
+          <Outlet />
+        </BoetStoreProvider>
       </main>
     </div>
   );

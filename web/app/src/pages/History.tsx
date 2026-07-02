@@ -26,7 +26,7 @@ export default function History() {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div className="page-paper" style={{ maxWidth: 560 }}>
       <h1 className="headline" style={{ marginBottom: 16 }}>
         Historik
       </h1>

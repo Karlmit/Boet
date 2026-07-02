@@ -24,7 +24,7 @@ export default function RecipeImportAi() {
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div className="page-paper" style={{ maxWidth: 640 }}>
       <h1 className="headline" style={{ marginBottom: 8 }}>
         Importera med AI
       </h1>

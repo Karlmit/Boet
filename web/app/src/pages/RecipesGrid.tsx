@@ -6,7 +6,7 @@ export default function RecipesGrid() {
   const sorted = [...recipes].sort((a, b) => a.name.localeCompare(b.name, 'sv'));
 
   return (
-    <div>
+    <div className="page-paper" style={{ maxWidth: 'var(--content-max-width)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 className="headline">Recept</h1>
         <div style={{ display: 'flex', gap: 8 }}>

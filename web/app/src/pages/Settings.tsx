@@ -17,7 +17,7 @@ export default function Settings() {
   }
 
   return (
-    <div style={{ maxWidth: 480 }}>
+    <div className="page-paper" style={{ maxWidth: 480 }}>
       <h1 className="headline" style={{ marginBottom: 16 }}>
         Inställningar
       </h1>

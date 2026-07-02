@@ -37,7 +37,7 @@ export default function CategoryManage() {
   if (!list) return <p className="body-text">Listan hittades inte.</p>;
 
   return (
-    <div style={{ maxWidth: 480 }}>
+    <div className="page-paper" style={{ maxWidth: 480 }}>
       <h1 className="headline" style={{ marginBottom: 16 }}>
         Kategorier — {list.name}
       </h1>

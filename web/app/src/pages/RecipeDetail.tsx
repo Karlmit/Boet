@@ -40,7 +40,7 @@ export default function RecipeDetail() {
   const ingredientById = new Map(doc.ingredients.map((i) => [i.id, i]));
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div className="page-paper" style={{ maxWidth: 760 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <h1 className="headline">{doc.name || 'Namnlöst recept'}</h1>
         <div style={{ display: 'flex', gap: 8 }}>

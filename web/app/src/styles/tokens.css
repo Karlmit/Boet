@@ -161,11 +161,24 @@ button { font-family: var(--font-ui); }
 }
 
 .page-main { padding: 40px 24px; }
-.page-paper { padding: var(--space-xl); }
 
-/* The page-level paper (AppShell) flattens to full-bleed on narrow screens —
-   rounded corners + margins read as wasted chrome once there's no backdrop
-   left to show through. */
+/* Each page sets its own `maxWidth` (a form/list reads best around
+   480-760px; the recipe editor and grids want more room) — .page-paper just
+   supplies the floating "raised page" surface + centers whatever width the
+   page asked for, instead of every screen sharing one oversized box that
+   leaves a dead void next to narrow content. */
+.page-paper {
+  width: 100%;
+  margin: 0 auto;
+  background: var(--warm-white);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-soft-float);
+}
+
+/* The page-level paper flattens to full-bleed on narrow screens — rounded
+   corners + margins read as wasted chrome once there's no backdrop left to
+   show through. */
 @media (max-width: 640px) {
   body { background: var(--warm-white); }
   .page-main { padding: 0; }
@@ -173,7 +186,6 @@ button { font-family: var(--font-ui); }
     border-radius: 0;
     box-shadow: none;
     padding: var(--space-md);
-    min-height: auto !important;
   }
 }
 
