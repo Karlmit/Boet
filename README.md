@@ -19,7 +19,10 @@ Boet/
 ├── server/              Node.js backend (REST + WebSocket + Postgres)
 │   └── translate/       EN→SV recipe translation sidecar (opus-mt)
 ├── android/             Kotlin / Jetpack Compose app
-├── docker-compose.yml   Postgres + server + ollama + translate + faster-whisper, exposes :3020
+├── web/                 PIN-gated desktop web app (BFF + React SPA), exposes :3021
+│   ├── server/          Node/Express BFF: login, session, reverse proxy
+│   └── app/             Vite + React + TypeScript SPA
+├── docker-compose.yml   Postgres + server + web + ollama + translate + faster-whisper, exposes :3020/:3021
 └── README.md
 ```
 
@@ -292,6 +295,59 @@ See [`server/README.md`](server/README.md) for the full API. Highlights:
   cloud is involved. Degrades to a deterministic split if the model is offline.
 - **Offline-friendly**: every create accepts a client-supplied id and is
   idempotent, so the app's outbox can safely replay queued operations.
+
+## Web app
+
+A PIN-gated desktop web app (`web/`) — same backend, same real-time sync, every
+menu the Android app has — built mainly to make **adding and editing recipes**
+comfortable on a keyboard instead of a phone. Two pieces:
+
+- `web/server/` — a thin Node/Express BFF: serves the PIN login page, issues a
+  signed session cookie, and reverse-proxies `/api`, `/uploads`, and `/ws`
+  through to the `server` container. The Android app's own API access is
+  untouched — this only gates the web app's own entry point.
+- `web/app/` — a Vite + React + TypeScript SPA using the Boet design system.
+
+### Local / dev
+
+Included in the same `docker compose up -d --build` as the backend — add two
+env vars to your `.env` first:
+
+```bash
+echo "WEB_PIN=1234" >> .env
+echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
+docker compose up -d --build
+```
+
+Then open `http://localhost:3021`.
+
+### Unraid / production
+
+Add this `web` service alongside `server` in the `docker-compose.yml` above
+(build context is `./web`, relative to wherever you check out the repo on the
+Unraid box — this one isn't published to GHCR yet, so it builds from source on
+first `up`, same as `translate`):
+
+```yaml
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      PORT: 3021
+      API_URL: http://server:3020
+      WEB_PIN: your-pin-here             # shared household PIN, change me
+      SESSION_SECRET: a-long-random-string  # e.g. `openssl rand -hex 32`
+    ports:
+      - "3021:3021"
+```
+
+Point a **separate** reverse-proxy host at `boetweb.jabba.se` (do not reuse the
+`boet.jabba.se` host that points at `server:3020` — that one is intentionally
+unauthenticated for the Android app, while this one is PIN-gated end to end) →
+`http://<unraid-ip>:3021`, with **Websockets Support** enabled, same as the
+backend's proxy host.
 
 ## Android app
 

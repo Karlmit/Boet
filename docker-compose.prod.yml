@@ -134,6 +134,25 @@ services:
     ports:
       - "3020:3020"
 
+  # Web app (boetweb.jabba.se) — PIN-gated BFF + SPA, proxies /api, /uploads,
+  # /ws through to `server` above. Built locally on Unraid (no GHCR image yet,
+  # unlike `server` — add a publish workflow later if that becomes worth it).
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      PORT: 3021
+      API_URL: http://server:3020
+      WEB_PIN: ${WEB_PIN}
+      SESSION_SECRET: ${SESSION_SECRET}
+    ports:
+      # Point Nginx Proxy Manager (boetweb.jabba.se, a SEPARATE proxy host
+      # from boet.jabba.se above) at this port and enable "Websockets
+      # Support" — this BFF proxies /ws onward too.
+      - "3021:3021"
+
   # EN->SV recipe translation sidecar (opus-mt, ~300 MB model baked into the
   # image at build time). Holds well under 1 GB RAM; safe to keep always-on.
   translate:

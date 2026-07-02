@@ -110,6 +110,24 @@ services:
       # Exposed on the host (Unraid) as 3020 -> forwarded to boet.jabba.se
       - "3020:3020"
 
+  # Web app (boetweb.jabba.se) — PIN-gated BFF + SPA, proxies /api, /uploads,
+  # /ws through to `server` above. See README.md's "Web app" section.
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      PORT: 3021
+      API_URL: http://server:3020
+      WEB_PIN: ${WEB_PIN}
+      SESSION_SECRET: ${SESSION_SECRET}
+    ports:
+      # Exposed on the host as 3021 -> forwarded to boetweb.jabba.se (separate
+      # Nginx Proxy Manager host from boet.jabba.se — enable "Websockets
+      # Support" here too, since this BFF proxies /ws onward).
+      - "3021:3021"
+
   # EN->SV recipe translation sidecar (opus-mt). Built from server/translate/.
   translate:
     build: ./server/translate

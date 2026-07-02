@@ -1,0 +1,160 @@
+/* Mirrors /workspace/.impeccable/design.json and /workspace/DESIGN.md verbatim.
+   Do not add new colors/radii here — extend the design system doc first. */
+:root {
+  /* Colors */
+  --moss: #6b7f64;
+  --moss-deep: #5f7358;
+  --sage: #a3b18a;
+  --leaf: #d8e3d1;
+  --warm-white: #f7f6f2;
+  --stone: #e5e3de;
+  --charcoal: #2b2b2b;
+  --night-base: #181c17;
+  --night-surface: #232822;
+
+  /* Typography */
+  --font-ui: Manrope, system-ui, sans-serif;
+  --font-wordmark: "Cormorant Garamond", Georgia, serif;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+
+  /* Elevation — the ONLY shadow token. Sheets/dialogs/floating cards only. */
+  --shadow-soft-float: 0 8px 32px rgba(43, 43, 43, 0.1);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-quick: 180ms;
+  --dur-sheet: 320ms;
+  --press-scale: scale(0.98);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--warm-white);
+  color: var(--charcoal);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+.wordmark {
+  font-family: var(--font-wordmark);
+  font-weight: 500;
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+  line-height: 1;
+  color: var(--moss-deep);
+}
+
+.headline {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.title { font-weight: 600; font-size: 1.0625rem; line-height: 1.35; }
+.body-text { font-weight: 400; font-size: 1rem; line-height: 1.5; }
+.label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moss-deep);
+}
+.shopping-text { font-weight: 600; font-size: 1.75rem; line-height: 1.3; letter-spacing: -0.01em; }
+
+button { font-family: var(--font-ui); }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--moss-deep);
+  color: var(--warm-white);
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 16px 24px;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-quick) var(--ease-out-soft), transform var(--dur-quick) var(--ease-out-soft);
+}
+.btn-primary:hover { background: var(--moss); }
+.btn-primary:active { transform: var(--press-scale); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--warm-white);
+  color: var(--charcoal);
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 16px 24px;
+  border: 1px solid var(--stone);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-quick) var(--ease-out-soft), transform var(--dur-quick) var(--ease-out-soft);
+}
+.btn-ghost:hover { background: var(--stone); }
+.btn-ghost:active { transform: var(--press-scale); }
+.btn-ghost:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+
+.input {
+  width: 100%;
+  background: var(--warm-white);
+  color: var(--charcoal);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  padding: 14px 16px;
+  border: 1px solid var(--stone);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-quick) var(--ease-out-soft), box-shadow var(--dur-quick);
+}
+.input::placeholder { color: #6e6c66; }
+.input:focus { outline: none; border-color: var(--moss); box-shadow: 0 0 0 3px rgba(107, 127, 100, 0.25); }
+
+.card {
+  background: var(--warm-white);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.card-floating {
+  background: var(--warm-white);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-soft-float);
+}
+
+.badge {
+  display: inline-block;
+  background: var(--stone);
+  color: var(--charcoal);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}

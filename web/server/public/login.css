@@ -1,0 +1,91 @@
+:root {
+  --moss: #6b7f64;
+  --moss-deep: #5f7358;
+  --sage: #a3b18a;
+  --leaf: #d8e3d1;
+  --warm-white: #f7f6f2;
+  --stone: #e5e3de;
+  --charcoal: #2b2b2b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--warm-white);
+  color: var(--charcoal);
+  font-family: Manrope, system-ui, sans-serif;
+}
+
+.card {
+  width: min(360px, calc(100vw - 48px));
+  text-align: center;
+}
+
+.wordmark {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+  line-height: 1;
+  color: var(--moss-deep);
+  margin: 0 0 8px;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: var(--charcoal);
+  margin: 0 0 32px;
+}
+
+#pin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#pin {
+  width: 100%;
+  background: #fff;
+  color: var(--charcoal);
+  font-family: Manrope, system-ui, sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  padding: 16px;
+  border: 1px solid var(--stone);
+  border-radius: 14px;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms;
+}
+
+#pin:focus {
+  outline: none;
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px rgba(107, 127, 100, 0.25);
+}
+
+button[type="submit"] {
+  background: var(--moss-deep);
+  color: var(--warm-white);
+  font-family: Manrope, system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button[type="submit"]:hover { background: var(--moss); }
+button[type="submit"]:active { transform: scale(0.98); }
+button[type="submit"]:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+
+.error {
+  color: #a13a3a;
+  font-size: 0.875rem;
+  margin: 16px 0 0;
+}

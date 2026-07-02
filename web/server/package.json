@@ -1,0 +1,18 @@
+{
+  "name": "boet-web-server",
+  "version": "1.0.0",
+  "description": "Boet web — thin BFF: PIN login/session, reverse proxy to the API + WS, serves the built SPA",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cookie-parser": "^1.4.6",
+    "cookie": "^0.6.0",
+    "cookie-signature": "^1.2.1",
+    "http-proxy-middleware": "^3.0.0"
+  }
+}
