@@ -22,7 +22,7 @@ form.addEventListener('submit', async (e) => {
 
   errorEl.textContent = res.status === 429
     ? 'För många försök. Vänta en stund och försök igen.'
-    : 'Fel kod. Försök igen.';
+    : 'Fel portkod. Försök igen.';
   errorEl.hidden = false;
   pinInput.value = '';
   pinInput.focus();

@@ -12,7 +12,7 @@
 <body>
   <main class="card">
     <h1 class="wordmark">Boet</h1>
-    <p class="tagline">Ange kodet för att fortsätta</p>
+    <p class="tagline">Ange portkoden för att fortsätta</p>
     <form id="pin-form" autocomplete="off">
       <input
         id="pin"
@@ -21,11 +21,12 @@
         inputmode="numeric"
         pattern="[0-9]*"
         autofocus
-        aria-label="PIN-kod"
+        aria-label="Portkod"
+        placeholder="Portkod"
       />
       <button type="submit">Fortsätt</button>
     </form>
-    <p id="error" class="error" role="alert" hidden>Fel kod. Försök igen.</p>
+    <p id="error" class="error" role="alert" hidden>Fel portkod. Försök igen.</p>
   </main>
   <script src="/login.js"></script>
 </body>
