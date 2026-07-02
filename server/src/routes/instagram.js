@@ -7,6 +7,7 @@ import { recipeRow } from '../serialize.js';
 import { normalizeUrl } from '../scrape.js';
 import { validateInstagramUrl, InstagramUrlError } from '../instagram.js';
 import { importInstagramReel } from '../instagram-import.js';
+import { mirrorImage } from './media.js';
 
 export const instagram = Router();
 
@@ -97,17 +98,22 @@ instagram.post('/recipes/instagram-async', async (req, res) => {
   try {
     const result = await importInstagramReel(inputUrl, { onStatus: setStatus });
     const doc = result?.doc;
+    // Instagram's CDN sends a Cross-Origin-Resource-Policy header that blocks
+    // the raw thumbnail URL from loading in a browser <img> tag (Android's
+    // HTTP client isn't affected, which is why this only surfaced once the
+    // web app started rendering these recipes) — mirror it into /uploads.
+    const mirroredImage = await mirrorImage(doc?.image || result?.thumbnail);
     const finalData = doc
       ? {
           ...doc,
-          image: doc.image || result.thumbnail || null,
+          image: mirroredImage,
           sourceUrl: inputUrl,
           instagramUrl: inputUrl,
           aiStatus: lastStatus === 'degraded' ? 'degraded' : 'done',
           aiError: null,
         }
       : {
-          name: '', description: null, image: result?.thumbnail || null, servings: null, totalTime: null,
+          name: '', description: null, image: mirroredImage, servings: null, totalTime: null,
           sourceUrl: inputUrl, instagramUrl: inputUrl, ingredients: [], steps: [],
           aiStatus: 'error', aiError: 'AI:n kunde inte tolka receptet från Instagram-inlägget.',
         };

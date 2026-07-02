@@ -37,6 +37,13 @@
   --dur-quick: 180ms;
   --dur-sheet: 320ms;
   --press-scale: scale(0.98);
+
+  /* Desktop page shell: the app chrome + a content "paper" float on this
+     ambient backdrop. Stone, not Warm White — still near-zero chroma, one
+     tick down the same tonal ramp DESIGN.md already uses for depth, never a
+     cream/tan tint. */
+  --page-backdrop: var(--stone);
+  --content-max-width: 1160px;
 }
 
 * { box-sizing: border-box; }
@@ -45,7 +52,7 @@ html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--warm-white);
+  background: var(--page-backdrop);
   color: var(--charcoal);
   font-family: var(--font-ui);
   font-size: 1rem;
@@ -97,6 +104,8 @@ button { font-family: var(--font-ui); }
   border: none;
   border-radius: var(--radius-pill);
   cursor: pointer;
+  white-space: nowrap;
+  flex: none;
   transition: background var(--dur-quick) var(--ease-out-soft), transform var(--dur-quick) var(--ease-out-soft);
 }
 .btn-primary:hover { background: var(--moss); }
@@ -116,6 +125,8 @@ button { font-family: var(--font-ui); }
   border: 1px solid var(--stone);
   border-radius: var(--radius-pill);
   cursor: pointer;
+  white-space: nowrap;
+  flex: none;
   transition: background var(--dur-quick) var(--ease-out-soft), transform var(--dur-quick) var(--ease-out-soft);
 }
 .btn-ghost:hover { background: var(--stone); }
@@ -147,6 +158,23 @@ button { font-family: var(--font-ui); }
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
   box-shadow: var(--shadow-soft-float);
+}
+
+.page-main { padding: 40px 24px; }
+.page-paper { padding: var(--space-xl); }
+
+/* The page-level paper (AppShell) flattens to full-bleed on narrow screens —
+   rounded corners + margins read as wasted chrome once there's no backdrop
+   left to show through. */
+@media (max-width: 640px) {
+  body { background: var(--warm-white); }
+  .page-main { padding: 0; }
+  .page-paper {
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-md);
+    min-height: auto !important;
+  }
 }
 
 .badge {

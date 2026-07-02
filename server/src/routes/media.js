@@ -6,6 +6,7 @@ import { query } from '../db.js';
 import { hub } from '../hub.js';
 import { listRow } from '../serialize.js';
 import { registerDevice } from '../push.js';
+import { assertUrlAllowed } from '../ssrf-guard.js';
 
 export const media = Router();
 
@@ -13,6 +14,30 @@ export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve('data/uploads')
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+// Download an external image and store it locally, returning its /uploads
+// URL — used to mirror CDN thumbnails (e.g. Instagram's) that a browser's
+// <img> tag can't hotlink directly. Some CDNs send a Cross-Origin-Resource-
+// Policy header that blocks cross-origin embeds; a phone app fetching the
+// same URL over plain HTTP isn't affected, so this only showed up once the
+// web app started rendering these recipes. Best-effort: never throws, so a
+// mirror failure degrades to a missing image rather than blocking the import.
+export async function mirrorImage(url) {
+  if (!url) return null;
+  try {
+    await assertUrlAllowed(url);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const contentType = (res.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
+    const ext = EXT[contentType] || 'jpg';
+    const buf = Buffer.from(await res.arrayBuffer());
+    const file = `${nanoid()}.${ext}`;
+    fs.writeFileSync(path.join(UPLOAD_DIR, file), buf);
+    return `/uploads/${file}`;
+  } catch {
+    return null;
+  }
+}
 
 // Upload a shared background image for a list. body: { dataBase64, contentType }
 media.post('/lists/:id/background', async (req, res) => {
