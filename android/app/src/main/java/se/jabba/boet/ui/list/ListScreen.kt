@@ -263,15 +263,23 @@ fun ListScreen(
                             onToggle = { completedExpanded = !completedExpanded },
                         )
                         AnimatedVisibility(visible = completedExpanded) {
-                            GroupedCard {
-                                state.completed.forEachIndexed { i, item ->
-                                    if (i > 0) GroupDivider()
-                                    CompactItemRow(
-                                        item = item,
-                                        isFavorite = favoriteKeys.contains(item.name.trim().lowercase()),
-                                        onToggle = { vm.toggle(item) },
-                                        onClick = { editing = item },
-                                    )
+                            Column {
+                                GroupedCard {
+                                    state.completed.forEachIndexed { i, item ->
+                                        if (i > 0) GroupDivider()
+                                        CompactItemRow(
+                                            item = item,
+                                            isFavorite = favoriteKeys.contains(item.name.trim().lowercase()),
+                                            onToggle = { vm.toggle(item) },
+                                            onClick = { editing = item },
+                                        )
+                                    }
+                                }
+                                TextButton(
+                                    onClick = { vm.clearChecked() },
+                                    modifier = Modifier.align(Alignment.End),
+                                ) {
+                                    Text(stringResource(R.string.remove_completed), color = Moss)
                                 }
                             }
                         }

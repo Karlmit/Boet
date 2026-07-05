@@ -13,6 +13,7 @@ export default function Home() {
   const [addValue, setAddValue] = useState('');
   const [addQty, setAddQty] = useState('');
   const [showFavorites, setShowFavorites] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const activeLists = useMemo(() => lists.filter((l) => !l.archived).sort((a, b) => a.position - b.position), [lists]);
   const listId = searchParams.get('list') || activeLists[0]?.id || null;
@@ -57,6 +58,11 @@ export default function Home() {
 
   async function deleteItem(item: Item) {
     await api.delete(`/api/items/${item.id}`);
+  }
+
+  async function saveItem(id: string, changes: { name: string; quantity?: string; note?: string }) {
+    await api.patch(`/api/items/${id}`, { ...changes, modifiedBy: displayName(identity) });
+    setEditingItem(null);
   }
 
   async function clearChecked() {
@@ -202,6 +208,7 @@ export default function Home() {
                   dragHandleProps={handleProps}
                   onToggle={toggleChecked}
                   onDelete={deleteItem}
+                  onEdit={setEditingItem}
                   isFavorite={isFavorite(item.name)}
                   onToggleFavorite={toggleFavorite}
                 />
@@ -223,6 +230,7 @@ export default function Home() {
                 dragHandleProps={handleProps}
                 onToggle={toggleChecked}
                 onDelete={deleteItem}
+                onEdit={setEditingItem}
                 isFavorite={isFavorite(item.name)}
                 onToggleFavorite={toggleFavorite}
               />
@@ -245,11 +253,16 @@ export default function Home() {
               item={item}
               onToggle={toggleChecked}
               onDelete={deleteItem}
+              onEdit={setEditingItem}
               isFavorite={isFavorite(item.name)}
               onToggleFavorite={toggleFavorite}
             />
           ))}
         </section>
+      )}
+
+      {editingItem && (
+        <EditItemModal item={editingItem} onSave={saveItem} onClose={() => setEditingItem(null)} />
       )}
     </div>
   );
@@ -260,6 +273,7 @@ function ItemRow({
   dragHandleProps,
   onToggle,
   onDelete,
+  onEdit,
   isFavorite,
   onToggleFavorite,
 }: {
@@ -267,6 +281,7 @@ function ItemRow({
   dragHandleProps?: Record<string, unknown>;
   onToggle: (item: Item) => void;
   onDelete: (item: Item) => void;
+  onEdit?: (item: Item) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (item: Item) => void;
 }) {
@@ -295,10 +310,12 @@ function ItemRow({
       </span>
       <span
         className="title"
+        onClick={onEdit ? () => onEdit(item) : undefined}
         style={{
           flex: 1,
           textDecoration: item.checked ? 'line-through' : 'none',
           color: item.checked ? '#6e6c66' : 'var(--charcoal)',
+          cursor: onEdit ? 'pointer' : undefined,
         }}
       >
         {item.name}
@@ -336,6 +353,85 @@ function ItemRow({
           ≡
         </span>
       )}
+    </div>
+  );
+}
+
+function EditItemModal({
+  item,
+  onSave,
+  onClose,
+}: {
+  item: Item;
+  onSave: (id: string, changes: { name: string; quantity?: string; note?: string }) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(item.name);
+  const [quantity, setQuantity] = useState(item.quantity ?? '');
+  const [note, setNote] = useState(item.note ?? '');
+
+  function save() {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onSave(item.id, { name: trimmed, quantity: quantity.trim(), note: note.trim() });
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(43, 43, 43, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 10,
+      }}
+    >
+      <div
+        className="card-floating"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 420, padding: 24 }}
+      >
+        <div className="label" style={{ marginBottom: 16 }}>
+          Redigera vara
+        </div>
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Namn"
+          autoFocus
+          style={{ marginBottom: 12, width: '100%' }}
+        />
+        <input
+          className="input"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Antal"
+          style={{ marginBottom: 12, width: '100%' }}
+        />
+        <input
+          className="input"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Anteckning"
+          style={{ marginBottom: 16, width: '100%' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn-ghost" onClick={onClose}>
+            Avbryt
+          </button>
+          <button className="btn-primary" onClick={save}>
+            Spara
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
