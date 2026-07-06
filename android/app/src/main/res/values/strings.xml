@@ -108,14 +108,12 @@
     <string name="add">Lägg till</string>
     <string name="add_with_voice">Lägg till med röst</string>
     <string name="shopping_mode">Handla</string>
-    <string name="auto_sort">Sortera</string>
     <string name="sort_with_ai">Sortera med AI</string>
     <string name="auto_sort_done">AI sorterade %1$d varor</string>
     <string name="auto_sort_no_changes">Inget behövde sorteras om</string>
     <string name="auto_sort_failed">Kunde inte sortera med AI just nu</string>
     <string name="reorder_items">Ordna om varor</string>
     <string name="completed">Klara</string>
-    <string name="show_completed">Visa klara (%1$d)</string>
     <string name="hide_completed">Dölj klara</string>
     <string name="items_left">%1$d kvar</string>
     <string name="shopping_done">Det ser ut som att handlingen är klar.</string>
@@ -146,9 +144,6 @@
     <string name="close">Stäng</string>
 
     <!-- Recipe -->
-    <string name="recipe_to_list">Recept till inköpslistan</string>
-    <string name="recipe_hint">Klistra in recept eller ingredienser…</string>
-    <string name="generate_suggestions">Föreslå varor</string>
     <string name="accept_all">Lägg till alla</string>
     <string name="add_selected">Lägg till (%1$d)</string>
 
@@ -183,7 +178,7 @@
     <!-- Presence / sync -->
     <string name="presence_shopping">%1$s är och handlar</string>
     <string name="presence_viewing">%1$s tittar på listan</string>
-    <string name="sync_offline">Offline – ändringar sparas</string>
+    <string name="sync_offline">Offline</string>
     <string name="sync_syncing">Synkar…</string>
     <string name="sync_synced">Synkad</string>
 
@@ -196,4 +191,26 @@
     <string name="favorites_empty">Inga favoriter än. Stjärnmärk en vara så hittar du den här.</string>
     <string name="favorites_added">Tillagd ×%1$d</string>
     <string name="history">Tidigare köpt</string>
+
+    <!-- Shared UI -->
+    <string name="more">Mer</string>
+    <string name="collapse">Dölj</string>
+    <string name="expand">Visa</string>
+    <string name="sort_categories">Sortera kategorier</string>
+    <string name="new_category">Ny kategori</string>
+    <string name="move_up">Flytta upp</string>
+    <string name="add_category">Lägg till kategori</string>
+    <string name="choose_icon">Välj ikon</string>
+    <string name="move_down">Flytta ner</string>
+    <string name="list_name_hint">Namn</string>
+    <string name="list_kind_grocery">Matlista</string>
+    <string name="list_kind_other">Annan</string>
+    <string name="list_kind_generic">Lista</string>
+    <string name="list_prompt_hint">Beskriv sortering, t.ex. dokument, kläder, toalett…</string>
+    <string name="sync_pending">%1$d väntar</string>
+
+    <!-- Matkasse quick access ("Kassen") -->
+    <string name="matkasse_peek_cd">Visa inköpslistan</string>
+    <string name="matkasse_open_full">Öppna listan</string>
+    <string name="matkasse_empty">Kassen är tom just nu.</string>
 </resources>

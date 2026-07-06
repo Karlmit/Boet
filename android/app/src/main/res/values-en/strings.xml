@@ -105,14 +105,12 @@
     <string name="add">Add</string>
     <string name="add_with_voice">Add with voice</string>
     <string name="shopping_mode">Shop</string>
-    <string name="auto_sort">Sort</string>
     <string name="sort_with_ai">Sort with AI</string>
     <string name="auto_sort_done">AI sorted %1$d items</string>
     <string name="auto_sort_no_changes">Nothing needed re-sorting</string>
     <string name="auto_sort_failed">Couldn\'t sort with AI right now</string>
     <string name="reorder_items">Reorder items</string>
     <string name="completed">Completed</string>
-    <string name="show_completed">Show completed (%1$d)</string>
     <string name="hide_completed">Hide completed</string>
     <string name="items_left">%1$d left</string>
     <string name="shopping_done">Looks like shopping is finished.</string>
@@ -139,10 +137,6 @@
     <string name="voice_review_title">Review items</string>
     <string name="voice_none">No items found</string>
     <string name="close">Close</string>
-
-    <string name="recipe_to_list">Recipe to shopping list</string>
-    <string name="recipe_hint">Paste a recipe or ingredients…</string>
-    <string name="generate_suggestions">Suggest items</string>
     <string name="accept_all">Add all</string>
     <string name="add_selected">Add (%1$d)</string>
 
@@ -175,7 +169,7 @@
 
     <string name="presence_shopping">%1$s is shopping</string>
     <string name="presence_viewing">%1$s is viewing the list</string>
-    <string name="sync_offline">Offline – changes saved</string>
+    <string name="sync_offline">Offline</string>
     <string name="sync_syncing">Syncing…</string>
     <string name="sync_synced">Synced</string>
 
@@ -188,4 +182,26 @@
     <string name="favorites_empty">No favorites yet. Star an item to find it here.</string>
     <string name="favorites_added">Added ×%1$d</string>
     <string name="history">Purchase history</string>
+
+    <!-- Shared UI -->
+    <string name="more">More</string>
+    <string name="collapse">Collapse</string>
+    <string name="expand">Expand</string>
+    <string name="sort_categories">Sort categories</string>
+    <string name="new_category">New category</string>
+    <string name="move_up">Move up</string>
+    <string name="add_category">Add category</string>
+    <string name="choose_icon">Choose icon</string>
+    <string name="move_down">Move down</string>
+    <string name="list_name_hint">Name</string>
+    <string name="list_kind_grocery">Grocery list</string>
+    <string name="list_kind_other">Other</string>
+    <string name="list_kind_generic">List</string>
+    <string name="list_prompt_hint">Describe the sorting, e.g. documents, clothes, bathroom…</string>
+    <string name="sync_pending">%1$d pending</string>
+
+    <!-- Matkasse quick access ("Kassen") -->
+    <string name="matkasse_peek_cd">Show the shopping list</string>
+    <string name="matkasse_open_full">Open list</string>
+    <string name="matkasse_empty">The bag is empty right now.</string>
 </resources>

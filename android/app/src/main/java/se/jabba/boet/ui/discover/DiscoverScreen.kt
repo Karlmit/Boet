@@ -158,7 +158,7 @@ fun DiscoverScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = 32.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             item {
                 SearchField(

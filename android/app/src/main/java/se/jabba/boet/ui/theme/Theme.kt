@@ -22,6 +22,14 @@ private val LightColors = lightColorScheme(
     surfaceVariant = Stone,
     onSurfaceVariant = CharcoalMuted,
     outline = Stone,
+    // M3 1.2+ components (DropdownMenu, ModalBottomSheet, …) draw on the
+    // surfaceContainer roles, not `surface` — left unset they fall back to the
+    // Material baseline's lavender-tinted neutrals. Pin them to the palette.
+    surfaceContainerLowest = WarmWhite,
+    surfaceContainerLow = WarmWhite,
+    surfaceContainer = WarmWhite,
+    surfaceContainerHigh = WarmWhite,
+    surfaceContainerHighest = Stone,
 )
 
 // Used for Shopping Mode and dark theme — Night Base / Night Surface.
@@ -39,6 +47,11 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = NightSurface,
     onSurfaceVariant = Stone,
     outline = MossDeep,
+    surfaceContainerLowest = NightBase,
+    surfaceContainerLow = NightSurface,
+    surfaceContainer = NightSurface,
+    surfaceContainerHigh = NightSurface,
+    surfaceContainerHighest = NightSurface,
 )
 
 private val BoetTypography = Typography(

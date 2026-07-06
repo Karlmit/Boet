@@ -416,9 +416,6 @@ class Repository(
     }
 
     // Recipe / history (network-only helpers) -------------------------------
-    suspend fun parseRecipe(text: String): List<RecipeSuggestion> = withContext(Dispatchers.IO) {
-        runCatching { api.parseRecipe(text).suggestions }.getOrDefault(emptyList())
-    }
     suspend fun history(): List<HistoryItem> = withContext(Dispatchers.IO) {
         runCatching { api.history() }.getOrDefault(emptyList())
     }
@@ -487,7 +484,7 @@ class Repository(
 
     // Discover (TheMealDB browse/search/import) ------------------------------
     // Read-only browse of a third-party catalogue — live network calls only, no
-    // Room mirror/offline support (matches parseRecipe's defensive pattern:
+    // Room mirror/offline support (defensive pattern:
     // never throws, just returns an empty result when offline/unreachable).
     suspend fun discoverRandom(): MealDetail? = withContext(Dispatchers.IO) {
         runCatching { api.discoverRandom() }.getOrNull()

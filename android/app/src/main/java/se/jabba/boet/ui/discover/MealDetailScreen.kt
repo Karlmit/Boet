@@ -109,7 +109,7 @@ private fun MealDetailBody(
 ) {
     val steps = remember(meal.instructions) { splitMealInstructions(meal.instructions) }
 
-    LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
         item {
             Box(Modifier.fillMaxWidth().height(200.dp).background(Leaf), contentAlignment = Alignment.Center) {
                 if (meal.thumb != null) {

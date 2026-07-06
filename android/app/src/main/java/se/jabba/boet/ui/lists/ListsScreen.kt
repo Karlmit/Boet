@@ -1,5 +1,6 @@
 package se.jabba.boet.ui.lists
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,7 +60,7 @@ fun ListsScreen(
         val archived = lists.filter { it.archived }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         ) {
             items(active, key = { it.id }) { list ->
                 ListCard(list, onOpenList) { scope.launch { repo.setArchived(list, true) } }
@@ -101,7 +102,7 @@ private fun ListCard(list: ListEntity, onOpen: (String) -> Unit, archived: Boole
     Surface(
         color = if (archived) Stone else WarmWhite,
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
+        border = BorderStroke(1.dp, Stone),
         modifier = Modifier.fillMaxWidth().clickable { onOpen(list.id) },
     ) {
         Row(
@@ -111,7 +112,7 @@ private fun ListCard(list: ListEntity, onOpen: (String) -> Unit, archived: Boole
             Column(Modifier.weight(1f)) {
                 Text(list.name, style = BoetType.title, color = Charcoal)
                 Text(
-                    if (list.kind == "grocery") "Matlista" else "Lista",
+                    stringResource(if (list.kind == "grocery") R.string.list_kind_grocery else R.string.list_kind_generic),
                     style = BoetType.body, color = CharcoalMuted,
                 )
             }
@@ -141,23 +142,23 @@ private fun NewListDialog(onDismiss: () -> Unit, onCreate: (String, String, Stri
             Column {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    placeholder = { Text("Namn", color = CharcoalMuted) },
+                    placeholder = { Text(stringResource(R.string.list_name_hint), color = CharcoalMuted) },
                     singleLine = true, shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = grocery, onClick = { grocery = true }, label = { Text("Matlista") },
+                    FilterChip(selected = grocery, onClick = { grocery = true }, label = { Text(stringResource(R.string.list_kind_grocery)) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Moss, selectedLabelColor = WarmWhite))
                     Spacer(Modifier.width(8.dp))
-                    FilterChip(selected = !grocery, onClick = { grocery = false }, label = { Text("Annan") },
+                    FilterChip(selected = !grocery, onClick = { grocery = false }, label = { Text(stringResource(R.string.list_kind_other)) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Moss, selectedLabelColor = WarmWhite))
                 }
                 if (!grocery) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = prompt, onValueChange = { prompt = it },
-                        placeholder = { Text("Beskriv sortering, t.ex. dokument, kläder, toalett…", color = CharcoalMuted) },
+                        placeholder = { Text(stringResource(R.string.list_prompt_hint), color = CharcoalMuted) },
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
                     )

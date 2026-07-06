@@ -153,10 +153,10 @@ fun InstagramLinkRow(url: String, modifier: Modifier = Modifier) {
 @Composable
 fun SyncChip(state: ConnState, pending: Int, onClick: (() -> Unit)? = null) {
     val (label, dot) = when {
-        state == ConnState.CONNECTED && pending == 0 -> "Synkad" to Moss
-        state == ConnState.CONNECTING -> "Synkar…" to Sage
-        pending > 0 -> "$pending väntar" to Sage
-        else -> "Offline" to CharcoalMuted
+        state == ConnState.CONNECTED && pending == 0 -> stringResource(R.string.sync_synced) to Moss
+        state == ConnState.CONNECTING -> stringResource(R.string.sync_syncing) to Sage
+        pending > 0 -> stringResource(R.string.sync_pending, pending) to Sage
+        else -> stringResource(R.string.sync_offline) to CharcoalMuted
     }
     Surface(
         color = Leaf,

@@ -179,12 +179,6 @@ data class BootstrapDto(
     val recipes: List<RecipeDto> = emptyList(),
 )
 
-@Serializable
-data class RecipeSuggestion(val name: String, val quantity: String? = null, val category: String? = null)
-
-@Serializable
-data class RecipeResponse(val suggestions: List<RecipeSuggestion> = emptyList())
-
 // Server-side voice cleaning (POST /api/voice/clean): the server cleans the raw
 // transcript with the household's local LLM and returns ready-to-add items. The
 // quantity string is already composed ("2", "1 kg") — same format the app uses.

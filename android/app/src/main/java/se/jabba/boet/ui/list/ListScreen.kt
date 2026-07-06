@@ -60,6 +60,7 @@ import kotlin.math.roundToInt
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
 import se.jabba.boet.data.local.ItemEntity
+import se.jabba.boet.data.local.ListEntity
 import se.jabba.boet.data.remote.ConnState
 import se.jabba.boet.ui.common.*
 import se.jabba.boet.ui.theme.*
@@ -152,7 +153,7 @@ fun ListScreen(
                         actions = {
                             Box {
                                 IconButton(onClick = { menuOpen = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "Mer", tint = Charcoal)
+                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more), tint = Charcoal)
                                 }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                     DropdownMenuItem(
@@ -164,7 +165,7 @@ fun ListScreen(
                                         onClick = { reorderMode = !reorderMode; menuOpen = false },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Sortera kategorier") },
+                                        text = { Text(stringResource(R.string.sort_categories)) },
                                         onClick = { menuOpen = false; onOpenCategories() },
                                     )
                                     DropdownMenuItem(
@@ -333,7 +334,7 @@ fun ListScreen(
 // rely on system back rather than an explicit top-bar back arrow.
 @Composable
 fun ListsDrawer(
-    lists: List<se.jabba.boet.data.local.ListEntity>,
+    lists: List<ListEntity>,
     currentId: String,
     onSelect: (String) -> Unit,
     onManage: () -> Unit,
@@ -569,8 +570,9 @@ private fun BannerShoppingButton(onClick: () -> Unit) {
 }
 
 // One soft-cornered card holding a category's items, hairline-separated.
+// Internal: shared with the Matkasse peek sheet (MatkassePeek.kt).
 @Composable
-private fun GroupedCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun GroupedCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = WarmWhite,
         shape = RoundedCornerShape(16.dp),
@@ -582,7 +584,7 @@ private fun GroupedCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun GroupDivider() {
+internal fun GroupDivider() {
     HorizontalDivider(color = Stone, thickness = 1.dp, modifier = Modifier.padding(start = 52.dp))
 }
 
@@ -617,7 +619,7 @@ private fun CategoryGroup(
             Text(name.uppercase(), style = BoetType.label, color = MossDeep, modifier = Modifier.weight(1f))
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (expanded) "Dölj" else "Visa",
+                contentDescription = stringResource(if (expanded) R.string.collapse else R.string.expand),
                 tint = MossDeep,
                 modifier = Modifier.size(22.dp),
             )
@@ -688,7 +690,7 @@ private fun CategoryGroup(
                                 ) {
                                     Icon(
                                         Icons.Default.DragHandle,
-                                        contentDescription = "Sortera",
+                                        contentDescription = stringResource(R.string.reorder_items),
                                         tint = if (isDragging) MossDeep else CharcoalMuted,
                                         modifier = Modifier.size(24.dp),
                                     )
@@ -705,8 +707,9 @@ private fun CategoryGroup(
 }
 
 // Compact list row used inside grouped cards: checkbox · name · qty · drag handle.
+// Internal: shared with the Matkasse peek sheet (MatkassePeek.kt).
 @Composable
-private fun CompactItemRow(
+internal fun CompactItemRow(
     item: ItemEntity,
     isFavorite: Boolean,
     onToggle: () -> Unit,
@@ -768,47 +771,6 @@ fun CompletedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit, dark: B
             style = BoetType.label,
             color = tint,
         )
-    }
-}
-
-@Composable
-fun ItemRow(item: ItemEntity, onToggle: () -> Unit, onClick: () -> Unit, large: Boolean = false) {
-    // Shopping-mode rows are transparent so the full-screen background shows through.
-    val rowColor = if (large) Color.Transparent else WarmWhite
-    val textColor = when {
-        item.checked && large -> Stone
-        item.checked -> CharcoalMuted
-        large -> WarmWhite
-        else -> Charcoal
-    }
-    Surface(
-        color = rowColor,
-        shape = RoundedCornerShape(14.dp),
-        border = if (large) null else androidx.compose.foundation.BorderStroke(1.dp, Stone),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = if (large) 18.dp else 14.dp),
-        ) {
-            BoetCheckbox(checked = item.checked, onToggle = onToggle, large = large)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    item.name,
-                    style = if (large) BoetType.shopping else BoetType.title,
-                    color = textColor,
-                    textDecoration = if (item.checked) TextDecoration.LineThrough else null,
-                )
-                if (!item.note.isNullOrBlank()) {
-                    Text(item.note, style = BoetType.body, color = if (large) Stone else CharcoalMuted)
-                }
-            }
-            if (!item.quantity.isNullOrBlank()) {
-                Spacer(Modifier.width(8.dp))
-                QuantityBadge(item.quantity)
-            }
-        }
     }
 }
 

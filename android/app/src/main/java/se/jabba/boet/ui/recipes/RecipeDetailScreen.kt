@@ -167,7 +167,7 @@ fun RecipeDetailScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = 32.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             // Live AI-parse progress/result. Set only while (or just after) an async
             // parse ran; absent for manual recipes and cleared once truly "done".

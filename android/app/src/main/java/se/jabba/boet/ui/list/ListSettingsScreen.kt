@@ -94,7 +94,7 @@ fun ListSettingsScreen(
                         )
                         Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.2f + overlay / 100f * 0.5f)))
                         Column(Modifier.align(Alignment.CenterStart).padding(start = 18.dp)) {
-                            Text("Matkasse", style = BoetType.headline, color = WarmWhite)
+                            Text(list?.name ?: "", style = BoetType.headline, color = WarmWhite)
                             Text(stringResource(R.string.preview), style = BoetType.body, color = Stone)
                         }
                     } else {

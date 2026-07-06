@@ -1,5 +1,6 @@
 package se.jabba.boet.ui.list
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -59,7 +60,7 @@ fun CategoryManageScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Charcoal)
                     }
                 },
-                title = { Text("Sortera kategorier", style = BoetType.headline) },
+                title = { Text(stringResource(R.string.sort_categories), style = BoetType.headline) },
             )
         },
     ) { padding ->
@@ -69,10 +70,11 @@ fun CategoryManageScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
             ) {
+                val newCategoryLabel = stringResource(R.string.new_category)
                 IconPickerButton(
                     icon = newIcon,
-                    name = newName.ifBlank { "Ny kategori" },
-                    onClick = { iconEditing = CategoryEntity(id = "", listId = listId, name = newName.ifBlank { "Ny kategori" }, icon = newIcon) },
+                    name = newName.ifBlank { newCategoryLabel },
+                    onClick = { iconEditing = CategoryEntity(id = "", listId = listId, name = newName.ifBlank { newCategoryLabel }, icon = newIcon) },
                 )
                 Spacer(Modifier.width(8.dp))
                 OutlinedTextField(
@@ -81,7 +83,7 @@ fun CategoryManageScreen(
                         newName = it
                         if (newIcon == "label") newIcon = defaultCategoryIconKey(it)
                     },
-                    placeholder = { Text("Ny kategori", color = CharcoalMuted) },
+                    placeholder = { Text(stringResource(R.string.new_category), color = CharcoalMuted) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Moss, unfocusedBorderColor = Stone),
@@ -98,15 +100,15 @@ fun CategoryManageScreen(
                         }
                     },
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MossDeep, contentColor = WarmWhite),
-                ) { Icon(Icons.Default.Add, contentDescription = "Lägg till kategori") }
+                ) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_category)) }
             }
 
-            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp)) {
+            LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)) {
                 itemsIndexed(order, key = { _, c -> c.id }) { index, cat ->
                     Surface(
                         color = WarmWhite,
                         shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
+                        border = BorderStroke(1.dp, Stone),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(
@@ -146,7 +148,7 @@ fun CategoryManageScreen(
                                         val m = order.toMutableList()
                                         m.add(index - 1, m.removeAt(index)); commit(m)
                                     },
-                                ) { Icon(Icons.Default.ArrowUpward, contentDescription = "Flytta upp", tint = if (index > 0) MossDeep else Stone) }
+                                ) { Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.move_up), tint = if (index > 0) MossDeep else Stone) }
 
                                 IconButton(
                                     enabled = index < order.lastIndex,
@@ -154,7 +156,7 @@ fun CategoryManageScreen(
                                         val m = order.toMutableList()
                                         m.add(index + 1, m.removeAt(index)); commit(m)
                                     },
-                                ) { Icon(Icons.Default.ArrowDownward, contentDescription = "Flytta ner", tint = if (index < order.lastIndex) MossDeep else Stone) }
+                                ) { Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.move_down), tint = if (index < order.lastIndex) MossDeep else Stone) }
 
                                 IconButton(onClick = { renaming = cat }) {
                                     Text("Aa", style = BoetType.label, color = MossDeep)
@@ -214,9 +216,9 @@ private fun IconPickerButton(
     OutlinedIconButton(
         onClick = onClick,
         colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = MossDeep),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Stone),
+        border = BorderStroke(1.dp, Stone),
     ) {
-        Icon(categoryIcon(icon, name), contentDescription = "Välj ikon")
+        Icon(categoryIcon(icon, name), contentDescription = stringResource(R.string.choose_icon))
     }
 }
 

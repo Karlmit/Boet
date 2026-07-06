@@ -39,8 +39,6 @@ class ApiClient(private val baseUrlProvider: () -> String) {
     fun bootstrap(): BootstrapDto = request("GET", "/api/bootstrap", null)
     fun history(limit: Int = 40): List<HistoryItem> = request("GET", "/api/history?limit=$limit", null)
     fun favorites(): List<FavoriteDto> = request("GET", "/api/favorites", null)
-    fun parseRecipe(text: String): RecipeResponse =
-        request("POST", "/api/recipe/parse", json.encodeToString(RecipeReq.serializer(), RecipeReq(text)))
 
     // Async AI recipe parse (POST /api/recipes/parse-async). Returns immediately
     // with a placeholder recipe row (data.aiStatus = "queued"/"error") — the actual
