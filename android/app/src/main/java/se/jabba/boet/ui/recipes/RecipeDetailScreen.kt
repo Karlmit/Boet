@@ -58,6 +58,9 @@ fun RecipeDetailScreen(
     recipeId: String,
     onEdit: () -> Unit,
     onBack: () -> Unit,
+    // Reports the keep-awake (lightbulb) toggle so the host can hide the floating
+    // Matkasse pill while cooking; always reset to false when leaving the screen.
+    onKeepAwakeChanged: (Boolean) -> Unit = {},
 ) {
     val entity by repo.recipeById(recipeId).collectAsState(initial = null)
     val scope = rememberCoroutineScope()
@@ -77,7 +80,11 @@ fun RecipeDetailScreen(
     DisposableEffect(keepAwake) {
         val window = (context as? Activity)?.window
         if (keepAwake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        onKeepAwakeChanged(keepAwake)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            onKeepAwakeChanged(false)
+        }
     }
     val addedText = stringResource(R.string.recipe_added_to_list)
     val noListText = stringResource(R.string.recipe_no_list)

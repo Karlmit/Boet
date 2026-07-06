@@ -1,6 +1,11 @@
 package se.jabba.boet.ui
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -109,6 +114,10 @@ fun BoetNavHost(
     val onOpenSettingsFromDrawer: () -> Unit = { nav.navigate("settings") }
 
     val start = if (settings.identity == null) "onboarding" else "home"
+
+    // True while a recipe's keep-awake (lightbulb) toggle is on — the user is
+    // cooking, so the floating Matkasse pill gets out of the way.
+    var cookingKeepAwake by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = nav, startDestination = start) {
@@ -240,6 +249,7 @@ fun BoetNavHost(
                     recipeId = id,
                     onEdit = { nav.navigate("recipe/$id/edit") },
                     onBack = { nav.popBackStack() },
+                    onKeepAwakeChanged = { cookingKeepAwake = it },
                 )
             }
 
@@ -287,16 +297,24 @@ fun BoetNavHost(
         val route = backStackEntry?.destination?.route
         val peekListId = (activeLists.firstOrNull { it.id == selectedListId && it.kind == "grocery" }
             ?: activeLists.firstOrNull { it.kind == "grocery" })?.id
-        if (peekListId != null && showMatkassePill(route)) {
-            MatkasseQuickAccess(
-                repo = repo,
-                listId = peekListId,
-                onOpenFull = { selectedListId = peekListId; nav.popBackStack("home", false) },
+        if (peekListId != null) {
+            // Animated (not a plain if) because keep-awake toggles it while the
+            // screen is showing — a snap in/out would be jarring mid-recipe.
+            AnimatedVisibility(
+                visible = showMatkassePill(route) && !cookingKeepAwake,
+                enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                exit = fadeOut() + scaleOut(targetScale = 0.8f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(bottom = 18.dp),
-            )
+            ) {
+                MatkasseQuickAccess(
+                    repo = repo,
+                    listId = peekListId,
+                    onOpenFull = { selectedListId = peekListId; nav.popBackStack("home", false) },
+                )
+            }
         }
     }
 
