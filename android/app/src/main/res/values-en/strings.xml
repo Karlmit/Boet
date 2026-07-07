@@ -204,4 +204,10 @@
     <string name="matkasse_peek_cd">Show the shopping list</string>
     <string name="matkasse_open_full">Open list</string>
     <string name="matkasse_empty">The bag is empty right now.</string>
+
+    <!-- Home-screen widget -->
+    <string name="widget_description">See the shopping list and add items right from your home screen.</string>
+    <string name="widget_title_fallback">Matkasse</string>
+    <string name="widget_quick_add">Add to Matkasse</string>
+    <string name="widget_add_more_hint">Adding several? Separate with commas.</string>
 </resources>

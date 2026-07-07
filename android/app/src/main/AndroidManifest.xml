@@ -42,6 +42,29 @@
             </intent-filter>
         </activity>
 
+        <!-- Home-screen Matkasse widget: glanceable list + quick add. -->
+        <receiver
+            android:name=".widget.MatkasseWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_matkasse_info" />
+        </receiver>
+        <service
+            android:name=".widget.MatkasseWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+        <activity
+            android:name=".widget.WidgetAddActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Boet.QuickAdd"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
         <!-- Serves the downloaded update APK to the system package installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

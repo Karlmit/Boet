@@ -12,6 +12,7 @@ import se.jabba.boet.data.local.Prefs
 import se.jabba.boet.data.local.Settings
 import se.jabba.boet.data.remote.ApiClient
 import se.jabba.boet.push.BoetMessagingService
+import se.jabba.boet.widget.MatkasseWidget
 
 // Manual dependency container. Small app, single household — no DI framework needed.
 class BoetApp : Application() {
@@ -41,6 +42,13 @@ class BoetApp : Application() {
             identityProvider = { identity },
             baseUrlProvider = { serverUrl },
         )
+
+        // Keep the home-screen widget in sync: any change to the items table
+        // (a local add/check/edit or a WebSocket sync from the other member)
+        // re-renders it. No-ops instantly when no widget is placed.
+        repository.allItems().onEach {
+            runCatching { MatkasseWidget.update(this) }
+        }.launchIn(appScope)
 
         // Keep snapshots and the realtime connection in sync with settings.
         prefs.settings.onEach { s ->

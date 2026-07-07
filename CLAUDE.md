@@ -370,6 +370,22 @@ collapsible Klara section, and the **background-settings live preview**. Still o
   yet device-tested (verified via `docker compose` + curl + the Android build
   compiling clean, not an on-device tap-through).
 
+### Home-screen widget (Matkasse)
+- ✅ **Home-screen widget** (`widget/`, classic RemoteViews — no Glance dependency):
+  shows the Matkasse's unchecked items grouped under small category labels
+  (`MatkasseWidgetService` RemoteViewsFactory reading Room directly, same
+  section/orphan→Övrigt logic as `ListViewModel`), header with list name +
+  "N kvar", Boet palette + Manrope. Round Moss **"+" opens `WidgetAddActivity`**,
+  a translucent quick-add overlay (text field, comma-splits like the in-app add
+  bar, running "Tillagda · N" counter) that adds via the normal
+  `Repository.addItems` path — on-device categorization + outbox sync, works
+  offline; redirects to MainActivity if not yet onboarded. Refresh: `BoetApp`
+  collects a new `ItemDao.allItemsFlow()` and re-renders on any items-table
+  change (local or WebSocket-synced); the provider's 30-min `onUpdate` is a
+  staleness backstop that also runs a best-effort `bootstrap()`. Any other tap
+  on the widget opens the app. **Builds clean; not yet committed or
+  device-tested** (no device in this LXC).
+
 ### Interactions (added during review)
 - ✅ Hamburger drawer with lists + settings cog (no edge-swipe to open)
 - ✅ Swipe-left-to-delete (position-based, animated) — now **wired on the main list**

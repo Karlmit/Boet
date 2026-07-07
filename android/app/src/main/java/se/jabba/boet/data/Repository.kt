@@ -104,6 +104,9 @@ class Repository(
     fun recipes() = recipeDao.recipes()
     fun recipeById(id: String) = recipeDao.recipeById(id)
     fun pendingCount() = outboxDao.count()
+    // Refresh trigger for the home-screen widget (collected in BoetApp): re-emits
+    // whenever anything in the items table changes, local or synced.
+    fun allItems() = itemDao.allItemsFlow()
 
     suspend fun firstListId(): String? = withContext(Dispatchers.IO) { listDao.anyListId() }
 

@@ -213,4 +213,10 @@
     <string name="matkasse_peek_cd">Visa inköpslistan</string>
     <string name="matkasse_open_full">Öppna listan</string>
     <string name="matkasse_empty">Kassen är tom just nu.</string>
+
+    <!-- Home-screen widget -->
+    <string name="widget_description">Se Matkassen och lägg till varor direkt från hemskärmen.</string>
+    <string name="widget_title_fallback">Matkasse</string>
+    <string name="widget_quick_add">Lägg till i Matkassen</string>
+    <string name="widget_add_more_hint">Flera varor? Skriv komma emellan.</string>
 </resources>

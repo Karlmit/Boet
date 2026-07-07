@@ -25,6 +25,7 @@ interface ListDao {
     @Query("DELETE FROM lists") suspend fun deleteAll()
     @Query("SELECT id FROM lists LIMIT 1") suspend fun anyListId(): String?
     @Query("SELECT id FROM lists WHERE kind = 'grocery' AND archived = 0 ORDER BY position LIMIT 1") suspend fun firstGroceryListId(): String?
+    @Query("SELECT name FROM lists WHERE id = :id") suspend fun nameById(id: String): String?
 }
 
 @Dao
@@ -51,6 +52,11 @@ interface CategoryDao {
 interface ItemDao {
     @Query("SELECT * FROM items WHERE listId = :listId ORDER BY position, createdAt")
     fun itemsForList(listId: String): Flow<List<ItemEntity>>
+
+    // Emits on ANY items-table change (Room invalidation) — the home-screen
+    // widget's refresh trigger; see the collector in BoetApp.
+    @Query("SELECT * FROM items")
+    fun allItemsFlow(): Flow<List<ItemEntity>>
 
     @Query("SELECT * FROM items WHERE id = :id")
     suspend fun byId(id: String): ItemEntity?

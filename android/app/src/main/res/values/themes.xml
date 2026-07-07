@@ -11,4 +11,15 @@
     <style name="Theme.Boet.Splash" parent="Theme.Boet">
         <item name="android:windowBackground">@color/warm_white</item>
     </style>
+
+    <!-- Widget quick-add overlay: translucent so the home screen stays visible
+         behind the dimmed scrim (the scrim + card are drawn in Compose). -->
+    <style name="Theme.Boet.QuickAdd" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
 </resources>
