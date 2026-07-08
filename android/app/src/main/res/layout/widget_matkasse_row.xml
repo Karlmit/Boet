@@ -34,7 +34,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:fontFamily="@font/manrope"
-            android:textSize="16sp"
+            android:textSize="20sp"
             android:textColor="@color/charcoal"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -45,7 +45,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:fontFamily="@font/manrope"
-            android:textSize="13sp"
+            android:textSize="16sp"
             android:textColor="@color/charcoal_muted"
             android:maxLines="1" />
     </LinearLayout>
