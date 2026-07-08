@@ -210,4 +210,5 @@
     <string name="widget_title_fallback">Matkasse</string>
     <string name="widget_quick_add">Add to Matkasse</string>
     <string name="widget_add_more_hint">Adding several? Separate with commas.</string>
+    <string name="widget_mark_done">Mark as done</string>
 </resources>

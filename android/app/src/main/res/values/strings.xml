@@ -219,4 +219,5 @@
     <string name="widget_title_fallback">Matkasse</string>
     <string name="widget_quick_add">Lägg till i Matkassen</string>
     <string name="widget_add_more_hint">Flera varor? Skriv komma emellan.</string>
+    <string name="widget_mark_done">Markera som klar</string>
 </resources>

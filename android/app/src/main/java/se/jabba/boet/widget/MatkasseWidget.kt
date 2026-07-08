@@ -68,16 +68,19 @@ object MatkasseWidget {
             }
             views.setRemoteAdapter(android.R.id.list, adapterIntent)
             views.setEmptyView(android.R.id.list, R.id.widget_empty)
-            // Row taps just open the app (the fill-in intent carries nothing);
-            // the template must be mutable for fill-ins to apply (S+ requires
-            // saying so explicitly; older versions are mutable by default).
+            // A collection only gets ONE PendingIntent template, so every row
+            // (checkbox or name/qty) routes through WidgetActionReceiver, which
+            // tells the two apart via the per-view fill-in intent's extras (see
+            // MatkasseWidgetService). The template must be mutable for fill-ins
+            // to apply (S+ requires saying so explicitly; older versions are
+            // mutable by default).
             val mutableFlag =
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
             views.setPendingIntentTemplate(
                 android.R.id.list,
-                PendingIntent.getActivity(
+                PendingIntent.getBroadcast(
                     context, 2,
-                    Intent(context, MainActivity::class.java),
+                    Intent(context, WidgetActionReceiver::class.java),
                     mutableFlag or PendingIntent.FLAG_UPDATE_CURRENT,
                 ),
             )

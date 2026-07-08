@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Unchecked item box for the widget row, matching the in-app checkbox
+     (ui/list/ListScreen.kt): rounded-square, 2dp Stone outline, no fill.
+     The widget only ever lists unchecked items, so there's no "checked" state. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <stroke android:width="2dp" android:color="@color/stone" />
+    <corners android:radius="6dp" />
+</shape>

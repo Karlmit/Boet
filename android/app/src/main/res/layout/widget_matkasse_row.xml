@@ -1,32 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One unchecked item: name + optional quantity badge text ("×2" / "1 kg"). -->
+<!-- One unchecked item: tap the box to mark it done (fires straight to
+     WidgetActionReceiver, no app launch); tap the name/qty area to open the app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp">
+    android:paddingTop="9dp"
+    android:paddingBottom="9dp">
 
-    <TextView
-        android:id="@+id/row_name"
+    <ImageView
+        android:id="@+id/row_check"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:src="@drawable/widget_checkbox_off"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/widget_mark_done" />
+
+    <LinearLayout
+        android:id="@+id/row_content"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:fontFamily="@font/manrope"
-        android:textSize="14sp"
-        android:textColor="@color/charcoal"
-        android:maxLines="1"
-        android:ellipsize="end" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="2dp">
 
-    <TextView
-        android:id="@+id/row_qty"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:fontFamily="@font/manrope"
-        android:textSize="12sp"
-        android:textColor="@color/charcoal_muted"
-        android:maxLines="1" />
+        <TextView
+            android:id="@+id/row_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/manrope"
+            android:textSize="16sp"
+            android:textColor="@color/charcoal"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/row_qty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:fontFamily="@font/manrope"
+            android:textSize="13sp"
+            android:textColor="@color/charcoal_muted"
+            android:maxLines="1" />
+    </LinearLayout>
 </LinearLayout>

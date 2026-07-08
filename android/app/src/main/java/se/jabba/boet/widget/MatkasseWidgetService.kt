@@ -24,7 +24,7 @@ private class MatkasseRemoteViewsFactory(
 
     private sealed interface Row {
         data class Section(val name: String) : Row
-        data class Item(val name: String, val qty: String?) : Row
+        data class Item(val id: String, val name: String, val qty: String?) : Row
     }
 
     private var rows: List<Row> = emptyList()
@@ -48,13 +48,13 @@ private class MatkasseRemoteViewsFactory(
                 val items = (byCat[cat.id] ?: emptyList()).sortedBy { it.position }
                 if (items.isEmpty()) continue
                 add(Row.Section(cat.name))
-                items.forEach { add(Row.Item(it.name, badge(it.quantity))) }
+                items.forEach { add(Row.Item(it.id, it.name, badge(it.quantity))) }
             }
             // Items with no (or a stale) category — same fallback bucket as the app.
             val orphan = active.filter { it.categoryId == null || categories.none { c -> c.id == it.categoryId } }
             if (orphan.isNotEmpty()) {
                 add(Row.Section("Övrigt"))
-                orphan.sortedBy { it.position }.forEach { add(Row.Item(it.name, badge(it.quantity))) }
+                orphan.sortedBy { it.position }.forEach { add(Row.Item(it.id, it.name, badge(it.quantity))) }
             }
         }
     }
@@ -82,8 +82,14 @@ private class MatkasseRemoteViewsFactory(
                 } else {
                     setViewVisibility(R.id.row_qty, View.GONE)
                 }
-                // Empty fill-in: the row tap fires the widget's open-app template.
-                setOnClickFillInIntent(R.id.row_root, Intent())
+                // Checkbox: carries the item id, so WidgetActionReceiver checks
+                // it off directly. Name/qty area: empty fill-in, so the shared
+                // template's default (open the app) applies.
+                setOnClickFillInIntent(
+                    R.id.row_check,
+                    Intent().putExtra(WidgetActionReceiver.EXTRA_ITEM_ID, row.id),
+                )
+                setOnClickFillInIntent(R.id.row_content, Intent())
             }
             null -> RemoteViews(context.packageName, R.layout.widget_matkasse_row)
         }

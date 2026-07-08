@@ -57,6 +57,11 @@
             android:name=".widget.MatkasseWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
+        <!-- Fired by the widget's row PendingIntent template (checkbox tap or
+             row tap) — see widget/WidgetActionReceiver.kt. -->
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="false" />
         <activity
             android:name=".widget.WidgetAddActivity"
             android:exported="false"
