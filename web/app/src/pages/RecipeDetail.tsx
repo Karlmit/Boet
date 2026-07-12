@@ -15,8 +15,26 @@ import {
   DeleteIcon,
   CartIcon,
   AddCartIcon,
+  PlayCircleIcon,
+  LanguageIcon,
+  MovieIcon,
+  OpenInNewIcon,
 } from '../components/icons';
 import type { RecipeIngredient } from '../api/types';
+import type { ReactNode } from 'react';
+
+// Tappable source-link row, same style as the Android app's
+// YoutubeLinkRow/InstagramLinkRow/SourceLinkRow (ui/common/Common.kt):
+// leading icon + uppercase label + a small open-in-new glyph, all MossDeep.
+function LinkRow({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+  return (
+    <a className="link-row" href={href} target="_blank" rel="noreferrer">
+      {icon}
+      <span className="label">{label}</span>
+      <OpenInNewIcon />
+    </a>
+  );
+}
 
 export default function RecipeDetail() {
   const { recipeId } = useParams<{ recipeId: string }>();
@@ -233,20 +251,15 @@ export default function RecipeDetail() {
         <div className="recipe-meta-row">
           {doc.totalTime && <span className="label">{doc.totalTime}</span>}
           {activeRecipe.categoryName && <span className="recipe-chip">{activeRecipe.categoryName}</span>}
-          {doc.youtubeUrl && (
-            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.youtubeUrl} target="_blank" rel="noreferrer">
-              YouTube
-            </a>
-          )}
-          {doc.instagramUrl && (
-            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.instagramUrl} target="_blank" rel="noreferrer">
-              Instagram
-            </a>
-          )}
+        </div>
+        <div className="recipe-link-rows">
+          {doc.youtubeUrl && <LinkRow href={doc.youtubeUrl} icon={<PlayCircleIcon />} label="Se på YouTube" />}
+          {doc.instagramUrl && <LinkRow href={doc.instagramUrl} icon={<MovieIcon />} label="Visa på Instagram" />}
+          {/* sourceUrl is set to the same URL as instagramUrl for an Instagram
+              import (routes/instagram.js) — skip the generic link so it isn't
+              shown twice. Same rule as the Android detail screen. */}
           {doc.sourceUrl && !doc.instagramUrl && (
-            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.sourceUrl} target="_blank" rel="noreferrer">
-              Källa
-            </a>
+            <LinkRow href={doc.sourceUrl} icon={<LanguageIcon />} label="Visa originalreceptet" />
           )}
         </div>
       </div>

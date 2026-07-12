@@ -16,6 +16,7 @@ import { instagram } from './routes/instagram.js';
 import { media, UPLOAD_DIR } from './routes/media.js';
 import { display } from './routes/display.js';
 import { voice } from './routes/voice.js';
+import { backfillInstagramImages } from './backfill-images.js';
 
 const PORT = parseInt(process.env.PORT || '3020', 10);
 
@@ -67,6 +68,10 @@ async function main() {
   await seed();
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`[boet] server listening on :${PORT} (REST + /ws)`);
+  });
+  // Best-effort, non-blocking: repair pre-mirroring Instagram recipe images.
+  backfillInstagramImages().catch((err) => {
+    console.warn('[boet] image backfill failed:', err.message || err);
   });
 }
 

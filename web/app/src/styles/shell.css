@@ -30,6 +30,10 @@
 }
 
 @media (max-width: 640px) {
+  /* Pages that act as their own full-screen surface (recipe detail) drop the
+     app chrome entirely on phones. */
+  .app-header-hide-mobile { display: none; }
+
   .app-header-inner {
     padding: 12px 16px;
     gap: 16px;

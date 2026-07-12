@@ -67,6 +67,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 40px;
   margin-bottom: 12px;
 }
 .recipe-actionbar-icons {
@@ -106,6 +107,7 @@
   gap: 12px;
   margin-top: 8px;
 }
+.recipe-meta-row:empty { display: none; }
 
 /* Sage category pill (Android AmountChip on the title block). */
 .recipe-chip {
@@ -118,6 +120,29 @@
   padding: 3px 12px;
   border-radius: var(--radius-pill);
 }
+
+/* Source-link rows ("Se på YouTube" / "Visa på Instagram" / "Visa
+   originalreceptet") — the Android LinkRow style: leading 18px icon,
+   uppercase label, trailing 14px open-in-new glyph, all MossDeep, one row
+   per link. */
+.recipe-link-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.recipe-link-rows:empty { display: none; }
+.link-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--moss-deep);
+  text-decoration: none;
+}
+.link-row .label { color: inherit; }
+.link-row:hover .label { text-decoration: underline; }
+.link-row:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
 
 /* Servings stepper — Leaf pill with -/+ (Android ServingsStepper). */
 .servings-stepper {
@@ -359,12 +384,19 @@
 }
 
 @media (max-width: 640px) {
-  /* Edge-to-edge hero on mobile, Android style (the paper loses its inset). */
+  /* Edge-to-edge hero on mobile, Android style (the paper loses its inset).
+     No negative top margin — that pulled the image up over the action bar
+     and clipped the lightbulb toggle. */
   .recipe-hero {
     height: 200px;
     border-radius: 0;
     margin-left: calc(-1 * var(--space-md));
     margin-right: calc(-1 * var(--space-md));
-    margin-top: calc(-1 * var(--space-md));
+  }
+  /* With the app header hidden on this page, the action bar IS the top bar
+     (like Android's TopAppBar) — give it balanced vertical space. */
+  .recipe-actionbar {
+    min-height: 48px;
+    margin-bottom: 8px;
   }
 }

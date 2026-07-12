@@ -22,9 +22,15 @@ export default function AppShell() {
   const identity = getIdentity();
   if (authenticated && !identity) return <Navigate to="/welcome" replace />;
 
+  // On a phone the recipe page is a cooking surface, like the Android detail
+  // screen: its own action bar (← Recept) is the top bar and the app header
+  // just steals space — hide it there. Matches /recipes/<id> only, not the
+  // /recipes/new* editors or /recipes/discover*.
+  const isRecipeDetail = /^\/recipes\/(?!new$|discover$)[^/]+$/.test(location.pathname);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <header className="app-header">
+      <header className={`app-header${isRecipeDetail ? ' app-header-hide-mobile' : ''}`}>
         <div className="app-header-inner">
           <NavLink to={authenticated ? '/' : '/recipes'} className="wordmark" style={{ fontSize: '1.5rem', textDecoration: 'none' }}>
             Boet
