@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { issueSession, clearSession, requireSession, isRequestAuthorized } from './auth.js';
+import { issueSession, clearSession, requireSession, isRequestAuthorized, hasValidSession } from './auth.js';
 import { isLocked, recordFailure, recordSuccess } from './loginAttempts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,9 +51,36 @@ app.post('/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.use(requireSession);
+// Public: lets the SPA know whether it's running anonymous (read-only
+// recipes) or signed-in (full household app).
+app.get('/auth/me', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ authenticated: hasValidSession(req) });
+});
 
-// Everything below requires a valid session cookie.
+// PUBLIC allow-list — exactly these reads are reachable without a session,
+// so recipes can be shared with people outside the household. Everything
+// else on /api and /uploads stays behind the PIN below.
+const isPublicApiPath = (pathname, req) =>
+  (req.method === 'GET' || req.method === 'HEAD') &&
+  (pathname === '/api/recipes' || pathname.startsWith('/uploads/'));
+
+const publicProxy = createProxyMiddleware({
+  target: API_URL,
+  changeOrigin: true,
+  pathFilter: isPublicApiPath,
+});
+app.use(publicProxy);
+
+// Everything else on /api and /uploads requires a valid session cookie.
+// (Scoped with a wrapper instead of a mount path so the proxy keeps seeing
+// the unmodified request URL.)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    return requireSession(req, res, next);
+  }
+  next();
+});
 const apiProxy = createProxyMiddleware({
   target: API_URL,
   changeOrigin: true,
@@ -61,6 +88,8 @@ const apiProxy = createProxyMiddleware({
 });
 app.use(apiProxy);
 
+// The SPA shell itself is public — anonymous visitors get the read-only
+// recipe pages; the SPA's own route guards send them to /login elsewhere.
 const spaDist = path.join(__dirname, '../../app/dist');
 app.use(express.static(spaDist));
 // Client-side routing: any unmatched GET falls through to the SPA shell.

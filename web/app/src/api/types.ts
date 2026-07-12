@@ -50,7 +50,7 @@ export interface Favorite {
 
 export interface RecipeIngredient {
   id: string;
-  quantity?: string | null;
+  quantity?: number | null;
   unit?: string | null;
   food: string;
   display: string;

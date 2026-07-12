@@ -1,5 +1,6 @@
-import { NavLink, Outlet, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { getIdentity, displayName } from '../state/identity';
+import { useAuth } from '../state/auth';
 import { BoetStoreProvider } from '../state/store';
 
 const navItems = [
@@ -16,32 +17,20 @@ async function logout() {
 }
 
 export default function AppShell() {
+  const { authenticated } = useAuth();
+  const location = useLocation();
   const identity = getIdentity();
-  if (!identity) return <Navigate to="/welcome" replace />;
+  if (authenticated && !identity) return <Navigate to="/welcome" replace />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <header
-        style={{
-          background: 'var(--warm-white)',
-          borderBottom: '1px solid var(--stone)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            maxWidth: 'var(--content-max-width)',
-            margin: '0 auto',
-            padding: '16px 32px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            <span className="wordmark" style={{ fontSize: '1.5rem' }}>
-              Boet
-            </span>
-            <nav style={{ display: 'flex', gap: 20 }}>
+      <header className="app-header">
+        <div className="app-header-inner">
+          <NavLink to={authenticated ? '/' : '/recipes'} className="wordmark" style={{ fontSize: '1.5rem', textDecoration: 'none' }}>
+            Boet
+          </NavLink>
+          {authenticated && (
+            <nav className="app-nav">
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -58,28 +47,37 @@ export default function AppShell() {
                 </NavLink>
               ))}
             </nav>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span
-              className="label"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: 'var(--sage)',
-                color: 'var(--charcoal)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              title={displayName(identity)}
-            >
-              {displayName(identity).charAt(0)}
-            </span>
-            <button className="btn-ghost" onClick={logout}>
-              Logga ut
-            </button>
-          </div>
+          )}
+          {authenticated && identity ? (
+            <div className="app-auth">
+              <span
+                className="label"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: 'var(--sage)',
+                  color: 'var(--charcoal)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+                title={displayName(identity)}
+              >
+                {displayName(identity).charAt(0)}
+              </span>
+              <button className="btn-ghost btn-small" onClick={logout}>
+                Logga ut
+              </button>
+            </div>
+          ) : (
+            <div className="app-auth">
+              <a className="btn-primary btn-small" href={`/login?next=${encodeURIComponent(location.pathname)}`}>
+                Logga in
+              </a>
+            </div>
+          )}
         </div>
       </header>
       <main className="page-main" style={{ flex: 1 }}>

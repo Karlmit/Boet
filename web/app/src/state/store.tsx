@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useReducer, useRef, 
 import { api } from '../api/client';
 import { BoetSocket, type ChangeMessage, type PresenceMember } from '../api/ws';
 import { getIdentity, getMemberId, displayName } from './identity';
+import { useAuth } from './auth';
 import type { Bootstrap, BoetList, Category, Item, Favorite, Recipe, Member } from '../api/types';
 
 interface State {
@@ -28,6 +29,7 @@ const initialState: State = {
 
 type Action =
   | { type: 'bootstrap'; payload: Bootstrap }
+  | { type: 'recipes'; payload: Recipe[] }
   | { type: 'presence'; members: PresenceMember[] }
   | { type: 'change'; msg: ChangeMessage };
 
@@ -112,6 +114,8 @@ function reducer(state: State, action: Action): State {
         favorites: action.payload.favorites,
         recipes: action.payload.recipes,
       };
+    case 'recipes':
+      return { ...state, loaded: true, recipes: action.payload };
     case 'presence':
       return { ...state, presence: action.members };
     case 'change':
@@ -129,15 +133,27 @@ interface StoreValue extends State {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function BoetStoreProvider({ children }: { children: ReactNode }) {
+  const { authenticated } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
   const socketRef = useRef<BoetSocket | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!authenticated) {
+      // Anonymous visitors only get the public read-only recipe list.
+      const recipes = await api.get<Recipe[]>('/api/recipes');
+      dispatch({ type: 'recipes', payload: recipes });
+      return;
+    }
     const payload = await api.get<Bootstrap>('/api/bootstrap');
     dispatch({ type: 'bootstrap', payload });
-  }, []);
+  }, [authenticated]);
 
   useEffect(() => {
+    if (!authenticated) {
+      // No WebSocket, no presence — a single snapshot fetch.
+      refresh();
+      return;
+    }
     const identity = getIdentity();
     if (!identity) return;
     refresh();
@@ -154,7 +170,7 @@ export function BoetStoreProvider({ children }: { children: ReactNode }) {
     socket.connect();
     socketRef.current = socket;
     return () => socket.disconnect();
-  }, [refresh]);
+  }, [refresh, authenticated]);
 
   const sendPresence = useCallback((status: 'viewing' | 'shopping', listId: string | null) => {
     socketRef.current?.sendPresence(status, listId);

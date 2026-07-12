@@ -1,0 +1,50 @@
+/* App chrome — header + nav. Classes (not inline styles) so the header can
+   reflow on narrow screens. The inner row holds three siblings — wordmark,
+   nav, auth cluster — so the nav can drop to its own row on mobile. */
+
+.app-header {
+  background: var(--warm-white);
+  border-bottom: 1px solid var(--stone);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 32px;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: 16px 32px;
+}
+
+.app-nav {
+  display: flex;
+  gap: 20px;
+}
+
+.app-auth {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .app-header-inner {
+    padding: 12px 16px;
+    gap: 16px;
+    row-gap: 8px;
+  }
+  /* Two rows: wordmark …… login/avatar on top, then the nav — which scrolls
+     sideways instead of wrapping or overflowing. */
+  .app-nav {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .app-nav::-webkit-scrollbar { display: none; }
+}

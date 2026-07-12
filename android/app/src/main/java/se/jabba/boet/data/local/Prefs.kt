@@ -26,6 +26,9 @@ data class Settings(
 ) {
     companion object {
         const val DEFAULT_SERVER = "https://boet.jabba.se"
+        // The web app (public recipe pages live here) — a different host than
+        // the API server, so share links get their own constant.
+        const val WEB_BASE_URL = "https://boetweb.jabba.se"
         const val DEFAULT_AUTO_COMPLETE_THRESHOLD = 3
     }
 }

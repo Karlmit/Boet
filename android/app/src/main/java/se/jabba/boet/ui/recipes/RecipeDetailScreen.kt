@@ -1,6 +1,7 @@
 package se.jabba.boet.ui.recipes
 
 import android.app.Activity
+import android.content.Intent
 import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
@@ -40,6 +42,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import se.jabba.boet.R
 import se.jabba.boet.data.Repository
+import se.jabba.boet.data.local.Settings
 import se.jabba.boet.data.remote.RecipeDoc
 import se.jabba.boet.data.remote.RecipeIngredient
 import se.jabba.boet.data.remote.RecipeJson
@@ -164,6 +167,17 @@ fun RecipeDetailScreen(
                                 modifier = Modifier.padding(6.dp),
                             )
                         }
+                    }
+                    IconButton(onClick = {
+                        val url = "${Settings.WEB_BASE_URL}/recipes/$recipeId"
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, doc.name)
+                            putExtra(Intent.EXTRA_TEXT, if (doc.name.isBlank()) url else "${doc.name}\n$url")
+                        }
+                        context.startActivity(Intent.createChooser(send, null))
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.recipe_share), tint = MossDeep)
                     }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.recipe_edit), tint = MossDeep)

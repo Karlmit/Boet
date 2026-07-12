@@ -16,6 +16,7 @@
     <string name="recipes_filter_empty">Inga recept i den här kategorin.</string>
     <string name="recipe_new">Nytt recept</string>
     <string name="recipe_edit">Redigera recept</string>
+    <string name="recipe_share">Dela recept</string>
     <string name="recipe_delete_q">Ta bort receptet?</string>
     <string name="recipe_name">Namn</string>
     <string name="recipe_description">Beskrivning</string>

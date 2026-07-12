@@ -1,13 +1,42 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useBoetStore } from '../state/store';
+import { useAuth } from '../state/auth';
 import { api } from '../api/client';
 import { getIdentity, displayName } from '../state/identity';
+import { groupByTags, ingredientLine, chipLabel, addQty, fmtNum } from '../lib/recipe';
+import { useWakeLock } from '../hooks/useWakeLock';
+import BoetCheckbox from '../components/BoetCheckbox';
+import {
+  RestaurantIcon,
+  LightbulbIcon,
+  PushPinIcon,
+  EditIcon,
+  DeleteIcon,
+  CartIcon,
+  AddCartIcon,
+} from '../components/icons';
+import type { RecipeIngredient } from '../api/types';
 
 export default function RecipeDetail() {
   const { recipeId } = useParams<{ recipeId: string }>();
   const { recipes, lists } = useBoetStore();
+  const { authenticated } = useAuth();
   const navigate = useNavigate();
-  const identity = getIdentity()!;
+  const wakeLock = useWakeLock();
+
+  // Transient cooking state — reset when switching recipe, never persisted
+  // (matches the Android detail screen).
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [cartMode, setCartMode] = useState(false);
+  const [servingsOverride, setServingsOverride] = useState<number | null>(null);
+  useEffect(() => {
+    setChecked(new Set());
+    setCartMode(false);
+    setServingsOverride(null);
+  }, [recipeId]);
+
+  const identity = getIdentity();
   const recipe = recipes.find((r) => r.id === recipeId);
   const groceryList = lists.find((l) => l.kind === 'grocery' && !l.archived) || lists.find((l) => !l.archived);
 
@@ -15,14 +44,33 @@ export default function RecipeDetail() {
   const activeRecipe = recipe;
   const doc = activeRecipe.data;
 
-  async function addIngredientToList(name: string) {
-    if (!groceryList) return;
-    await api.post(`/api/lists/${groceryList.id}/items`, { name, addedBy: displayName(identity) });
+  const baseServings = doc.servings && doc.servings > 0 ? doc.servings : 0;
+  const servings = servingsOverride ?? baseServings;
+  const factor = baseServings > 0 ? servings / baseServings : 1;
+
+  function toggleChecked(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function addIngredientToList(ing: RecipeIngredient) {
+    if (!groceryList || !identity) return;
+    await api.post(`/api/lists/${groceryList.id}/items`, {
+      name: ing.food,
+      quantity: addQty(ing, factor) || undefined,
+      addedBy: displayName(identity),
+    });
   }
 
   async function addAllToList() {
-    if (!groceryList) return;
-    const items = doc.ingredients.filter((i) => i.food.trim()).map((i) => ({ name: i.food, quantity: i.quantity || undefined }));
+    if (!groceryList || !identity) return;
+    const items = doc.ingredients
+      .filter((i) => i.food.trim())
+      .map((i) => ({ name: i.food, quantity: addQty(i, factor) || undefined }));
     if (items.length === 0) return;
     await api.post(`/api/lists/${groceryList.id}/items`, { items, addedBy: displayName(identity) });
   }
@@ -46,100 +94,178 @@ export default function RecipeDetail() {
     if (!firstStepForIngredient.has(ref)) firstStepForIngredient.set(ref, i);
   }));
 
+  const ingredientGroups = groupByTags(doc.ingredients, (i) => i.sections ?? []);
+
+  const ingredientsColumn = (
+    <div className="recipe-ingredients-col">
+      <div className="recipe-section-header">
+        <h2 className="label">Ingredienser</h2>
+        {authenticated && (
+          <div className="recipe-section-controls">
+            <button className="btn-ghost btn-small" onClick={addAllToList} disabled={!groceryList}>
+              Lägg alla
+            </button>
+            <button
+              className={`icon-toggle${cartMode ? ' active' : ''}`}
+              onClick={() => setCartMode((m) => !m)}
+              title="Lägg i inköpslistan"
+              aria-pressed={cartMode}
+            >
+              <CartIcon />
+            </button>
+          </div>
+        )}
+      </div>
+      {ingredientGroups.map(([tag, group]) => (
+        <div key={tag ?? '__untagged'} className="ingredient-group">
+          {tag && <div className="ingredient-group-title">{tag}</div>}
+          {group.map((ing) => {
+            const isChecked = checked.has(ing.id);
+            return (
+              <div key={`${tag ?? ''}:${ing.id}`} className={`ingredient-row${isChecked && !cartMode ? ' checked' : ''}`}>
+                <span className="ingredient-dot" />
+                <span className="ingredient-text body-text">{ingredientLine(ing, factor)}</span>
+                {cartMode && authenticated ? (
+                  <button
+                    className="ingredient-add"
+                    onClick={() => addIngredientToList(ing)}
+                    disabled={!groceryList}
+                    title="Lägg i inköpslistan"
+                  >
+                    <AddCartIcon />
+                  </button>
+                ) : (
+                  <BoetCheckbox checked={isChecked} onToggle={() => toggleChecked(ing.id)} label={ing.food} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+
+  const stepsColumn = (
+    <div>
+      <div className="recipe-section-header">
+        <h2 className="label">Gör så här</h2>
+      </div>
+      {doc.steps.map((step, i) => (
+        <div key={step.id} className="recipe-step">
+          <span className="step-number">{i + 1}</span>
+          <div className="step-body">
+            {step.title && <div className="step-phase-title">{step.title}</div>}
+            <p className="body-text">{step.text}</p>
+            {(step.timerSeconds || step.ingredientRefs.some((ref) => firstStepForIngredient.get(ref) === i)) && (
+              <div className="step-chips">
+                {step.ingredientRefs.map((ref) => {
+                  if (firstStepForIngredient.get(ref) !== i) return null;
+                  const ing = ingredientById.get(ref);
+                  if (!ing) return null;
+                  return (
+                    <span key={ref} className={`step-chip${checked.has(ing.id) ? ' checked' : ''}`}>
+                      {chipLabel(ing, factor)}
+                    </span>
+                  );
+                })}
+                {step.timerSeconds ? <span className="step-chip timer">{Math.round(step.timerSeconds / 60)} min</span> : null}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="page-paper" style={{ maxWidth: 760 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <h1 className="headline">{doc.name || 'Namnlöst recept'}</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn-ghost" onClick={toggleSelected}>
-            {recipe.selected ? 'Avmarkera' : 'Visa på köksskärm'}
-          </button>
-          <Link className="btn-ghost" to={`/recipes/${recipe.id}/edit`}>
-            Redigera
-          </Link>
-          <button className="btn-ghost" onClick={remove}>
-            Ta bort
-          </button>
+    <div className="page-paper recipe-detail">
+      <div className="recipe-actionbar">
+        <Link to="/recipes" className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600, textDecoration: 'none' }}>
+          ← Recept
+        </Link>
+        <div className="recipe-actionbar-icons">
+          {authenticated && (
+            <button
+              className={`icon-toggle${activeRecipe.selected ? ' active' : ''}`}
+              onClick={toggleSelected}
+              title={activeRecipe.selected ? 'Avmarkera köksskärm' : 'Visa på köksskärm'}
+              aria-pressed={Boolean(activeRecipe.selected)}
+            >
+              <PushPinIcon />
+            </button>
+          )}
+          {wakeLock.supported && (
+            <button
+              className={`icon-toggle${wakeLock.active ? ' active' : ''}`}
+              onClick={wakeLock.toggle}
+              title="Håll skärmen vaken"
+              aria-pressed={wakeLock.active}
+            >
+              <LightbulbIcon />
+            </button>
+          )}
+          {authenticated && (
+            <>
+              <Link className="icon-toggle" to={`/recipes/${activeRecipe.id}/edit`} title="Redigera">
+                <EditIcon />
+              </Link>
+              <button className="icon-toggle" onClick={remove} title="Ta bort">
+                <DeleteIcon />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {doc.aiStatus && !['done', 'degraded'].includes(doc.aiStatus) && (
-        <p className="body-text" style={{ color: 'var(--moss-deep)' }}>
+        <p className="body-text" style={{ color: 'var(--moss-deep)', marginBottom: 12 }}>
           {doc.aiStatus === 'error' ? `AI-import misslyckades: ${doc.aiError ?? ''}` : 'AI:n bearbetar receptet…'}
         </p>
       )}
 
-      {doc.image && (
-        <img src={doc.image} alt="" style={{ width: '100%', maxHeight: 360, objectFit: 'cover', borderRadius: 'var(--radius-lg)', marginBottom: 16 }} />
-      )}
-
-      <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
-        {doc.servings && <span className="body-text">{doc.servings} portioner</span>}
-        {doc.totalTime && <span className="body-text">{doc.totalTime}</span>}
-        {doc.sourceUrl && (
-          <a className="body-text" href={doc.sourceUrl} target="_blank" rel="noreferrer">
-            Källa
-          </a>
-        )}
-        {doc.youtubeUrl && (
-          <a className="body-text" href={doc.youtubeUrl} target="_blank" rel="noreferrer">
-            YouTube
-          </a>
-        )}
+      <div className="recipe-hero">
+        {doc.image ? <img src={doc.image} alt="" /> : <RestaurantIcon size={48} />}
       </div>
 
-      {doc.description && <p className="body-text" style={{ marginBottom: 24, maxWidth: '70ch' }}>{doc.description}</p>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 32 }}>
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h2 className="title">Ingredienser</h2>
-            <button className="btn-ghost" onClick={addAllToList} disabled={!groceryList}>
-              Lägg alla
-            </button>
-          </div>
-          {doc.ingredients.map((ing) => (
-            <div key={ing.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span className="body-text">{ing.display || ing.food}</span>
-              <button className="btn-ghost" style={{ padding: '6px 12px' }} onClick={() => addIngredientToList(ing.food)} disabled={!groceryList}>
-                +
-              </button>
-            </div>
-          ))}
+      <div className="recipe-title-block">
+        <h1 className="headline">{doc.name || 'Namnlöst recept'}</h1>
+        {doc.description && <p className="body-text recipe-description">{doc.description}</p>}
+        <div className="recipe-meta-row">
+          {doc.totalTime && <span className="label">{doc.totalTime}</span>}
+          {activeRecipe.categoryName && <span className="recipe-chip">{activeRecipe.categoryName}</span>}
+          {doc.youtubeUrl && (
+            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.youtubeUrl} target="_blank" rel="noreferrer">
+              YouTube
+            </a>
+          )}
+          {doc.instagramUrl && (
+            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.instagramUrl} target="_blank" rel="noreferrer">
+              Instagram
+            </a>
+          )}
+          {doc.sourceUrl && !doc.instagramUrl && (
+            <a className="body-text" style={{ color: 'var(--moss-deep)', fontWeight: 600 }} href={doc.sourceUrl} target="_blank" rel="noreferrer">
+              Källa
+            </a>
+          )}
         </div>
+      </div>
 
-        <div>
-          <h2 className="title" style={{ marginBottom: 8 }}>
-            Steg
-          </h2>
-          {doc.steps.map((step, i) => (
-            <div key={step.id} className="card" style={{ marginBottom: 10 }}>
-              {step.title && <div className="label" style={{ marginBottom: 4 }}>{step.title}</div>}
-              <p className="body-text">
-                <strong>{i + 1}.</strong> {step.text}
-              </p>
-              {step.timerSeconds ? (
-                <span className="badge" style={{ marginTop: 8, display: 'inline-block' }}>
-                  {Math.round(step.timerSeconds / 60)} min
-                </span>
-              ) : null}
-              {step.ingredientRefs.some((ref) => firstStepForIngredient.get(ref) === i) && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                  {step.ingredientRefs.map((ref) => {
-                    if (firstStepForIngredient.get(ref) !== i) return null;
-                    const ing = ingredientById.get(ref);
-                    if (!ing) return null;
-                    return (
-                      <span key={ref} className="badge">
-                        {ing.display || ing.food}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
+      {baseServings > 0 && (
+        <div className="servings-stepper">
+          <button onClick={() => setServingsOverride((prev) => Math.max(1, (prev ?? baseServings) - 1))} aria-label="Färre portioner">
+            −
+          </button>
+          <span className="servings-count">{fmtNum(servings)} portioner</span>
+          <button onClick={() => setServingsOverride((prev) => Math.min(99, (prev ?? baseServings) + 1))} aria-label="Fler portioner">
+            +
+          </button>
         </div>
+      )}
+
+      <div className="recipe-columns">
+        {ingredientsColumn}
+        {stepsColumn}
       </div>
     </div>
   );

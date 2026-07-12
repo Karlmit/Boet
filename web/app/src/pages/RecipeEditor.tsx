@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { useBoetStore } from '../state/store';
 import { api } from '../api/client';
 import { fileToUploadPayload } from '../lib/image';
+import { fmtNum } from '../lib/recipe';
 import { SortableList } from '../components/SortableList';
 import type { RecipeDoc, RecipeIngredient, RecipeStep } from '../api/types';
 
@@ -39,7 +40,7 @@ export default function RecipeEditor() {
   }
 
   function addIngredient() {
-    const ing: RecipeIngredient = { id: nanoid(), quantity: '', unit: '', food: '', display: '', note: '', sections: [] };
+    const ing: RecipeIngredient = { id: nanoid(), quantity: null, unit: '', food: '', display: '', note: '', sections: [] };
     update('ingredients', [...doc.ingredients, ing]);
   }
 
@@ -49,7 +50,8 @@ export default function RecipeEditor() {
       doc.ingredients.map((ing) => {
         if (ing.id !== id) return ing;
         const next = { ...ing, ...patch };
-        next.display = [next.quantity, next.unit, next.food].filter(Boolean).join(' ').trim() || next.food;
+        next.display =
+          [next.quantity != null ? fmtNum(next.quantity) : '', next.unit, next.food].filter(Boolean).join(' ').trim() || next.food;
         return next;
       }),
     );
@@ -272,13 +274,22 @@ function IngredientRow({
   onRemove: (id: string) => void;
   dragHandleProps: Record<string, unknown>;
 }) {
+  // quantity is a number in the doc (it has to scale with servings), but the
+  // field needs free typing ("3,5" mid-edit) — keep the raw string locally
+  // and commit the parsed value on every change.
+  const [qtyText, setQtyText] = useState(ingredient.quantity != null ? String(ingredient.quantity).replace('.', ',') : '');
+  function changeQty(text: string) {
+    setQtyText(text);
+    const parsed = parseFloat(text.replace(',', '.'));
+    onChange(ingredient.id, { quantity: Number.isFinite(parsed) ? parsed : null });
+  }
   return (
     <div className="card" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
       <input
         className="input"
         placeholder="Mängd"
-        value={ingredient.quantity ?? ''}
-        onChange={(e) => onChange(ingredient.id, { quantity: e.target.value })}
+        value={qtyText}
+        onChange={(e) => changeQty(e.target.value)}
         style={{ width: 70 }}
       />
       <input

@@ -9,6 +9,9 @@
   --warm-white: #f7f6f2;
   --stone: #e5e3de;
   --charcoal: #2b2b2b;
+  /* Muted ink — the placeholder tone design.json already specifies (4.5:1 on
+     Warm White), promoted to a token for secondary/checked-off text. */
+  --charcoal-muted: #6e6c66;
   --night-base: #181c17;
   --night-surface: #232822;
 
@@ -132,6 +135,13 @@ button { font-family: var(--font-ui); }
 .btn-ghost:hover { background: var(--stone); }
 .btn-ghost:active { transform: var(--press-scale); }
 .btn-ghost:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+
+/* Compact pill variant for header/toolbar placement. */
+.btn-small {
+  padding: 8px 16px;
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
 
 .input {
   width: 100%;

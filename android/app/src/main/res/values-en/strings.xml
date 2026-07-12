@@ -14,6 +14,7 @@
     <string name="recipes_filter_empty">No recipes in this category.</string>
     <string name="recipe_new">New recipe</string>
     <string name="recipe_edit">Edit recipe</string>
+    <string name="recipe_share">Share recipe</string>
     <string name="recipe_delete_q">Delete recipe?</string>
     <string name="recipe_name">Name</string>
     <string name="recipe_description">Description</string>

@@ -26,13 +26,19 @@ function isValidExpiry(raw) {
   return !Number.isNaN(expiry) && expiry >= Date.now();
 }
 
+export function hasValidSession(req) {
+  return isValidExpiry(req.signedCookies[COOKIE_NAME]);
+}
+
 // Gates every route mounted after it. API/uploads calls get a 401 (the SPA's
 // fetch wrapper redirects to /login on that); page loads get redirected
 // straight to /login since there's no SPA loaded yet to react to a 401.
 export function requireSession(req, res, next) {
-  const raw = req.signedCookies[COOKIE_NAME];
-  if (!isValidExpiry(raw)) {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+  if (!hasValidSession(req)) {
+    // originalUrl, not path: when this middleware is mounted at a path
+    // (app.use(['/api','/uploads'], ...)), Express strips the mount prefix
+    // from req.path.
+    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
