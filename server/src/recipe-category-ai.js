@@ -18,27 +18,44 @@ async function existingNames(kind) {
   return rows.map((r) => r.name);
 }
 
+// Recipe content comes FIRST and the existing-value lists LAST, right before
+// the answer instruction, with an explicit "decide freely, THEN check for a
+// match" framing and a concrete anti-example. This ordering matters a lot in
+// practice: an earlier version put the existing lists first, which made
+// smaller local models (qwen3:4b) anchor hard on them — e.g. classifying a
+// Japanese sushi recipe as country "Mexiko" simply because Mexiko was the
+// only existing country value, rather than inventing "Japan". Verified fixed
+// against the real local model with this structure (sushi -> Japan/Nigirisushi,
+// unrelated tacos still correctly reuses the existing Mexiko).
 function buildPrompt(doc, types, countries) {
   const ingredients = (doc.ingredients || []).map((x) => x.food).filter(Boolean).join(', ');
   // Steps can be long; a handful of texts is plenty of signal for classification
   // and keeps the prompt small (unlike structuring, which needs every word).
   const steps = (doc.steps || []).slice(0, 8).map((x) => x.text).filter(Boolean).join(' ');
   return [
-    'You sort a home recipe into a household\'s recipe catalogue, on two independent axes.',
-    'Answer in Swedish, as STRICT JSON only: {"type":"...","country":"..."}',
-    '"type" = the kind of dish (e.g. "Dessert", "Pasta", "Soppa", "Bakverk", "Sallad").',
-    '"country" = the country/region of culinary origin (e.g. "Italien", "Thailand", "Sverige"),',
-    'or null if the recipe has no distinct origin (e.g. a generic international dish).',
-    'PREFER reusing one of these EXISTING values (case-insensitive) over inventing a new one —',
-    'only propose something new if nothing existing genuinely fits. Keep any new value short',
-    '(1-3 words).',
-    `Existing type values: ${types.length ? types.join(', ') : '(none yet)'}`,
-    `Existing country values: ${countries.length ? countries.join(', ') : '(none yet)'}`,
-    '',
     `Recipe name: ${doc.name || ''}`,
     `Description: ${doc.description || ''}`,
     `Ingredients: ${ingredients}`,
     `Steps: ${steps}`,
+    '',
+    'Based ONLY on the recipe above, decide the TRUE food type (e.g. "Dessert", "Pasta",',
+    '"Soppa", "Bakverk", "Sallad") and the TRUE country/region of culinary origin (or null if',
+    'the recipe has no distinct origin, e.g. a generic international dish) — ignore the',
+    'existing-value lists below while you decide this.',
+    'Only AFTER deciding the true answer, check: does one of the existing values below mean the',
+    'exact same thing (just possibly different spelling/case)? If yes, use that existing value\'s',
+    'exact spelling. If no existing value matches, output your own true answer as a new short',
+    'Swedish value (1-3 words) — inventing a new value is completely normal and expected',
+    'whenever nothing existing genuinely fits; do NOT force-fit an existing value that is',
+    'factually wrong for this recipe.',
+    'Example: existing country values are just ["Mexiko"], and the recipe is Japanese sushi —',
+    'the correct country is "Japan" (a brand-new value), NOT "Mexiko", because Mexiko does not',
+    'match.',
+    '',
+    `Existing type values: ${types.length ? types.join(', ') : '(none yet)'}`,
+    `Existing country values: ${countries.length ? countries.join(', ') : '(none yet)'}`,
+    '',
+    'Answer in Swedish, STRICT JSON only: {"type":"...","country":"..."}',
   ].join('\n');
 }
 
