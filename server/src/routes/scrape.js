@@ -3,8 +3,8 @@ import { nanoid } from 'nanoid';
 import { query } from '../db.js';
 import { hub } from '../hub.js';
 import { HOUSEHOLD_ID } from '../seed.js';
-import { recipeRow } from '../serialize.js';
 import { structureFromEx, parseRecipeText } from '../recipe-ai.js';
+import { recipeRowById, runCategorize } from './recipes.js';
 import { scrapeUrl, normalizeUrl, exToRawDoc, ScrapeError } from '../scrape.js';
 import { assertUrlAllowed, SsrfBlockedError } from '../ssrf-guard.js';
 
@@ -43,18 +43,18 @@ scrape.post('/recipes/scrape-async', async (req, res) => {
   const existing = existingRows[0];
 
   if (existing && existing.data?.aiStatus !== 'error') {
-    return res.status(200).json(recipeRow(existing));
+    return res.status(200).json(await recipeRowById(existing.id));
   }
 
   let id;
   let created;
   if (existing) {
     id = existing.id;
-    const { rows } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus: 'queued', aiError: null })]
     );
-    created = recipeRow(rows[0]);
+    created = await recipeRowById(id);
     hub.emit('update', 'recipe', created);
   } else {
     id = nanoid();
@@ -67,18 +67,18 @@ scrape.post('/recipes/scrape-async', async (req, res) => {
       `INSERT INTO recipes (id, household_id, data, source_key, position)
        VALUES ($1,$2,$3,$4,0)
        ON CONFLICT (household_id, source_key) WHERE source_key IS NOT NULL DO NOTHING
-       RETURNING *`,
+       RETURNING id`,
       [id, HOUSEHOLD_ID, placeholder, sourceKey]
     );
     if (rows.length === 0) {
       // Lost a race with a concurrent import of the same URL.
       const { rows: r2 } = await query(
-        `SELECT * FROM recipes WHERE household_id=$1 AND source_key=$2 LIMIT 1`,
+        `SELECT id FROM recipes WHERE household_id=$1 AND source_key=$2 LIMIT 1`,
         [HOUSEHOLD_ID, sourceKey]
       );
-      return res.status(200).json(recipeRow(r2[0]));
+      return res.status(200).json(await recipeRowById(r2[0].id));
     }
-    created = recipeRow(rows[0]);
+    created = await recipeRowById(id);
     hub.emit('create', 'recipe', created);
   }
   res.status(202).json(created);
@@ -88,11 +88,12 @@ scrape.post('/recipes/scrape-async', async (req, res) => {
   let lastStatus = 'queued';
   const setStatus = async (aiStatus) => {
     lastStatus = aiStatus;
-    const { rows: r } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus })]
     );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
   };
   try {
     const scraped = await scrapeUrl(inputUrl, { onStatus: setStatus });
@@ -130,20 +131,20 @@ scrape.post('/recipes/scrape-async', async (req, res) => {
           ingredients: [], steps: [],
           aiStatus: 'error', aiError: 'AI:n kunde inte tolka receptet.',
         };
-    const { rows: r } = await query(
-      `UPDATE recipes SET data=$2, updated_at=now() WHERE id=$1 RETURNING *`,
-      [id, finalData]
-    );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    await query(`UPDATE recipes SET data=$2, updated_at=now() WHERE id=$1`, [id, finalData]);
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
+    if (doc) runCategorize(id);
   } catch (e) {
     console.error(`[boet] url scrape (${id}) threw:`, e);
     const msg = e?.userFacing ? e.message : (e instanceof ScrapeError || e instanceof SsrfBlockedError)
       ? 'Kunde inte hämta sidan. Kontrollera länken.'
       : String(e?.message || e);
-    const { rows: r } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus: 'error', aiError: msg })]
     );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
   }
 });

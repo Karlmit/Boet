@@ -90,17 +90,30 @@ export interface RecipeDoc {
   aiError?: string | null;
 }
 
+export interface RecipeCategoryRef {
+  id: string;
+  name: string;
+}
+
 export interface Recipe {
   id: string;
   name: string;
   image?: string | null;
   data: RecipeDoc;
-  categoryName?: string | null;
+  typeCategory?: RecipeCategoryRef | null;
+  countryCategory?: RecipeCategoryRef | null;
+  categoryStatus?: string | null;
   position?: number | null;
   selected?: boolean;
   sourceKey?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface RecipeCategory {
+  id: string;
+  kind: 'type' | 'country';
+  name: string;
 }
 
 export interface Member {
@@ -135,4 +148,5 @@ export interface Bootstrap {
   learned: Array<{ key: string; category: string }>;
   favorites: Favorite[];
   recipes: Recipe[];
+  recipeCategories: RecipeCategory[];
 }

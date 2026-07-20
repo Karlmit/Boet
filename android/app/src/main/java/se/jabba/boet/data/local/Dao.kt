@@ -118,6 +118,20 @@ interface RecipeDao {
 }
 
 @Dao
+interface RecipeCategoryDao {
+    @Query("SELECT * FROM recipe_categories WHERE kind = :kind ORDER BY name")
+    fun forKind(kind: String): Flow<List<RecipeCategoryEntity>>
+
+    @Query("SELECT * FROM recipe_categories")
+    suspend fun all(): List<RecipeCategoryEntity>
+
+    @Upsert suspend fun upsert(category: RecipeCategoryEntity)
+    @Upsert suspend fun upsertAll(categories: List<RecipeCategoryEntity>)
+    @Query("DELETE FROM recipe_categories WHERE id NOT IN (:ids)") suspend fun deleteNotIn(ids: List<String>)
+    @Query("DELETE FROM recipe_categories") suspend fun deleteAll()
+}
+
+@Dao
 interface LearnedDao {
     @Query("SELECT * FROM learned_categories")
     suspend fun all(): List<LearnedCategoryEntity>

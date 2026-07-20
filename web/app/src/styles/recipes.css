@@ -58,6 +58,54 @@
   .recipe-card-image { aspect-ratio: auto; height: 120px; }
 }
 
+/* --- Recipe grouping (Type/Country cards, mirrors Android RecipeGroupCard) - */
+
+.recipe-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+/* Two-way Typ/Land segmented toggle. */
+.filter-toggle {
+  display: inline-flex;
+  background: var(--leaf);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+.filter-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--charcoal);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.filter-toggle-btn.active {
+  background: var(--moss-deep);
+  color: var(--warm-white);
+}
+
+/* One bordered card per category value, containing its own recipe-grid —
+   same WarmWhite/Stone surface as .ingredient-group. */
+.recipe-group-card {
+  background: var(--warm-white);
+  border: 1px solid var(--stone);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.recipe-group-title {
+  font-weight: 700;
+  color: var(--moss-deep);
+  margin-bottom: 12px;
+}
+.recipe-group-card .recipe-grid { gap: 12px; }
+
 /* --- Recipe detail -------------------------------------------------------- */
 
 .recipe-detail.page-paper { max-width: 1040px; }

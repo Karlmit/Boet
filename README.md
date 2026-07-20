@@ -453,7 +453,17 @@ Legend: ✅ done · 🟡 partial · ⬜ not started.
 - ✅ **Inline ingredient amounts in steps** (AI-linked) that **scale with the serving count**
 - ✅ Add ingredients to the **Matkasse** list (one tap, runs through the same categorization)
 - ✅ Per-step **timers** (AI-detected or set by hand) · keep-screen-awake while cooking
-- ✅ Optional recipe categories · stored as JSON documents, synced offline-first
+- ✅ **Two-axis categories** (Type of food + Country) replace the old single
+  free-text category: AI auto-sorts every new recipe from its own content
+  (name/description/ingredients/steps), a "Sortera om" action re-sorts on
+  demand, and either axis can be set/cleared manually via a dropdown that can
+  also add new catalogue entries. The recipe list groups into alphabetical
+  cards per category value (mode toggle Type/Country, default Type; an
+  "Okategoriserad" card holds unset ones), and the filter menu lists every
+  catalogue entry for the active mode, not just ones currently in use. Backed
+  by a household `recipe_categories` catalogue, synced like everything else
+  (bootstrap + WebSocket); recipes are otherwise still stored as JSON
+  documents, synced offline-first
 - ✅ **Discover**: browse/search TheMealDB (random pick, reshufflable ten, text +
   multi-ingredient search, category/area browsing) and import into the recipe book
   through the same AI pipeline; deduped so re-adding a meal never duplicates it

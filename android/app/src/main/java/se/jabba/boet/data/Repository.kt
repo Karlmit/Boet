@@ -44,6 +44,7 @@ class Repository(
     private val itemDao = db.itemDao()
     private val favoriteDao = db.favoriteDao()
     private val recipeDao = db.recipeDao()
+    private val recipeCategoryDao = db.recipeCategoryDao()
     private val learnedDao = db.learnedDao()
     private val outboxDao = db.outboxDao()
     private val flushMutex = Mutex()
@@ -103,6 +104,7 @@ class Repository(
     fun favorites() = favoriteDao.favorites()
     fun recipes() = recipeDao.recipes()
     fun recipeById(id: String) = recipeDao.recipeById(id)
+    fun recipeCategories(kind: String) = recipeCategoryDao.forKind(kind)
     fun pendingCount() = outboxDao.count()
     // Refresh trigger for the home-screen widget (collected in BoetApp): re-emits
     // whenever anything in the items table changes, local or synced.
@@ -138,6 +140,7 @@ class Repository(
             itemDao.upsertAll(data.items.map { it.toEntity() })
             favoriteDao.upsertAll(data.favorites.map { it.toEntity() })
             recipeDao.upsertAll(data.recipes.map { it.toEntity() })
+            recipeCategoryDao.upsertAll(data.recipeCategories.map { it.toEntity() })
 
             // Refresh the on-device learned-mappings mirror (small table; replace wholesale).
             learnedDao.deleteAll()
@@ -154,6 +157,8 @@ class Repository(
             if (favIds.isEmpty()) favoriteDao.deleteAll() else favoriteDao.deleteNotIn(favIds)
             val recipeIds = data.recipes.map { it.id }
             if (recipeIds.isEmpty()) recipeDao.deleteAll() else recipeDao.deleteNotIn(recipeIds)
+            val recipeCatIds = data.recipeCategories.map { it.id }
+            if (recipeCatIds.isEmpty()) recipeCategoryDao.deleteAll() else recipeCategoryDao.deleteNotIn(recipeCatIds)
         } catch (_: Exception) { /* offline — Room already has the last snapshot */ }
     }
 
@@ -428,31 +433,94 @@ class Repository(
     // upserts on id, so this same path serves create and "save edits"). The full
     // document goes out as a raw JSON object under `data`; name/image are
     // denormalized into columns for the grid. Returns the recipe id.
-    suspend fun saveRecipe(doc: RecipeDoc, id: String? = null, categoryName: String? = null): String =
-        withContext(Dispatchers.IO) {
-            val rid = id ?: UUID.randomUUID().toString()
-            val existing = recipeDao.byIdOnce(rid)
-            val dataElement = api.json.encodeToJsonElement(RecipeDoc.serializer(), doc)
-            val resolvedCategory = categoryName ?: existing?.categoryName
-            recipeDao.upsert(
-                RecipeEntity(
-                    id = rid,
-                    name = doc.name,
-                    image = doc.image,
-                    categoryName = resolvedCategory,
-                    position = existing?.position ?: 0,
-                    selected = existing?.selected ?: false,
-                    data = dataElement.toString(),
-                )
+    //
+    // typeCategoryId/countryCategoryId are ONLY sent on a genuinely NEW recipe
+    // (the editor's category pickers, before the first save) — they're the
+    // manual choice a user made while creating it. On an edit-save of an
+    // EXISTING recipe they're deliberately omitted from the body entirely: the
+    // server (routes/recipes.js POST /recipes) treats their presence as "user
+    // just overrode categorization" and marks it manual, so resending them on
+    // every plain content edit would silently reset an AI result / block future
+    // auto-sort. Changing categories on an existing recipe goes through
+    // setTypeCategory/setCountryCategory (PATCH) instead, applied immediately
+    // when the user picks a new value — same "instant apply" pattern as the
+    // grocery item category picker (see ListViewModel.move).
+    suspend fun saveRecipe(
+        doc: RecipeDoc,
+        id: String? = null,
+        typeCategoryId: String? = null,
+        countryCategoryId: String? = null,
+    ): String = withContext(Dispatchers.IO) {
+        val rid = id ?: UUID.randomUUID().toString()
+        val existing = recipeDao.byIdOnce(rid)
+        val dataElement = api.json.encodeToJsonElement(RecipeDoc.serializer(), doc)
+        val resolvedType = if (existing == null) typeCategoryId else existing.typeCategoryId
+        val resolvedCountry = if (existing == null) countryCategoryId else existing.countryCategoryId
+        recipeDao.upsert(
+            RecipeEntity(
+                id = rid,
+                name = doc.name,
+                image = doc.image,
+                typeCategoryId = resolvedType,
+                countryCategoryId = resolvedCountry,
+                categoryStatus = existing?.categoryStatus,
+                position = existing?.position ?: 0,
+                selected = existing?.selected ?: false,
+                data = dataElement.toString(),
             )
-            val body = buildJsonObject {
-                put("id", rid)
-                put("data", dataElement)
-                if (resolvedCategory != null) put("categoryName", resolvedCategory)
-            }.toString()
-            enqueue("POST", "/api/recipes", body)
-            rid
-        }
+        )
+        val body = buildJsonObject {
+            put("id", rid)
+            put("data", dataElement)
+            if (existing == null) {
+                if (resolvedType != null) put("typeCategoryId", resolvedType)
+                if (resolvedCountry != null) put("countryCategoryId", resolvedCountry)
+            }
+        }.toString()
+        enqueue("POST", "/api/recipes", body)
+        rid
+    }
+
+    // Recipe categories (Type of food / Country) -----------------------------
+    // Network-only create — used by the dropdown's "+ Ny kategori" entry. No
+    // offline/outbox support (matches importMeal/startUrlScrape's pattern):
+    // the caller needs the server-assigned id back immediately to select it,
+    // which an outbox POST can't provide. Returns null when offline/unreachable.
+    suspend fun createRecipeCategory(kind: String, name: String): RecipeCategoryEntity? = withContext(Dispatchers.IO) {
+        runCatching {
+            val entity = api.createRecipeCategory(kind, name).toEntity()
+            recipeCategoryDao.upsert(entity)
+            entity
+        }.getOrNull()
+    }
+
+    // Manually assign (or clear, via categoryId = null) a recipe's type/country.
+    // Optimistic Room write + outbox PATCH, applied immediately on selection.
+    // Marks categoryStatus "manual" locally so the resort spinner doesn't show
+    // while an unrelated in-flight AI job is still running (server enforces the
+    // same via the category_job compare-and-swap — see runCategorize).
+    suspend fun setTypeCategory(recipeId: String, categoryId: String?) = withContext(Dispatchers.IO) {
+        val existing = recipeDao.byIdOnce(recipeId) ?: return@withContext
+        recipeDao.upsert(existing.copy(typeCategoryId = categoryId, categoryStatus = "manual"))
+        enqueue("PATCH", "/api/recipes/$recipeId", buildJson(mapOf("typeCategoryId" to categoryId)))
+    }
+
+    suspend fun setCountryCategory(recipeId: String, categoryId: String?) = withContext(Dispatchers.IO) {
+        val existing = recipeDao.byIdOnce(recipeId) ?: return@withContext
+        recipeDao.upsert(existing.copy(countryCategoryId = categoryId, categoryStatus = "manual"))
+        enqueue("PATCH", "/api/recipes/$recipeId", buildJson(mapOf("countryCategoryId" to categoryId)))
+    }
+
+    // Mark a recipe for AI re-sorting ("Sortera om"). Network-only trigger (the
+    // server responds 202 immediately; the real result arrives over the
+    // WebSocket like any other recipe update) — optimistically flips local
+    // categoryStatus to "queued" first so the UI shows the spinner without
+    // waiting on that round-trip.
+    suspend fun resortRecipeCategories(recipeId: String) = withContext(Dispatchers.IO) {
+        val existing = recipeDao.byIdOnce(recipeId) ?: return@withContext
+        recipeDao.upsert(existing.copy(categoryStatus = "queued"))
+        runCatching { api.resortRecipeCategories(recipeId) }
+    }
 
     suspend fun deleteRecipe(id: String) = withContext(Dispatchers.IO) {
         recipeDao.delete(id)
@@ -595,6 +663,13 @@ class Repository(
                 "recipe" -> when (ev.event) {
                     "create", "update" -> runCatching { recipeDao.upsert(api.json.decodeFromString(RecipeDto.serializer(), ev.data.toString()).toEntity()) }
                     "delete" -> ev.data.str("id")?.let { recipeDao.delete(it) }
+                }
+                "recipeCategory" -> when (ev.event) {
+                    // AI-minted categories (see findOrCreateCategory) and manual
+                    // "+ Ny kategori" creates both arrive here — never renamed/
+                    // deleted from the client today, but upsert covers a future
+                    // rename too.
+                    "create", "update" -> runCatching { recipeCategoryDao.upsert(api.json.decodeFromString(RecipeCategoryDto.serializer(), ev.data.toString()).toEntity()) }
                 }
             }
         }

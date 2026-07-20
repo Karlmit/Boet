@@ -60,10 +60,13 @@ app.get('/auth/me', (req, res) => {
 
 // PUBLIC allow-list — exactly these reads are reachable without a session,
 // so recipes can be shared with people outside the household. Everything
-// else on /api and /uploads stays behind the PIN below.
+// else on /api and /uploads stays behind the PIN below. recipe-categories is
+// read-only category names/ids (no personal data) needed for the public
+// recipe pages' Type/Country grouping + filter to render the same as for
+// signed-in users.
 const isPublicApiPath = (pathname, req) =>
   (req.method === 'GET' || req.method === 'HEAD') &&
-  (pathname === '/api/recipes' || pathname.startsWith('/uploads/'));
+  (pathname === '/api/recipes' || pathname === '/api/recipe-categories' || pathname.startsWith('/uploads/'));
 
 const publicProxy = createProxyMiddleware({
   target: API_URL,

@@ -6,7 +6,7 @@
 export interface ChangeMessage {
   type: 'change';
   event: 'create' | 'update' | 'delete' | 'reorder' | 'bulk-delete';
-  entity: 'list' | 'category' | 'item' | 'favorite' | 'recipe';
+  entity: 'list' | 'category' | 'item' | 'favorite' | 'recipe' | 'recipeCategory';
   data: unknown;
   ts: number;
 }

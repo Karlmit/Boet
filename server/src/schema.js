@@ -118,11 +118,27 @@ export async function initSchema() {
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Recipe categorization catalogue: two independent dimensions ("type" e.g.
+    -- Dessert/Pasta, "country" e.g. Italien) a household builds up over time —
+    -- AI-assigned on recipe creation, user-editable via a dropdown that can also
+    -- add new entries. lower(name) uniqueness (per household+kind) so the AI and
+    -- the manual "+ Ny kategori" flow converge on one row instead of near-dupes.
+    CREATE TABLE IF NOT EXISTS recipe_categories (
+      id           TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      kind         TEXT NOT NULL CHECK (kind IN ('type','country')),
+      name         TEXT NOT NULL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_items_list ON items(list_id);
     CREATE INDEX IF NOT EXISTS idx_categories_list ON categories(list_id);
     CREATE INDEX IF NOT EXISTS idx_lists_household ON lists(household_id);
     CREATE INDEX IF NOT EXISTS idx_favorites_household ON favorites(household_id);
     CREATE INDEX IF NOT EXISTS idx_recipes_household ON recipes(household_id);
+    CREATE INDEX IF NOT EXISTS idx_recipe_categories_household ON recipe_categories(household_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_categories_unique
+      ON recipe_categories(household_id, kind, lower(name));
   `);
 
   // One-time backfill: seed the standalone favorites table from any items that
@@ -161,6 +177,60 @@ export async function initSchema() {
   await query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_selected
       ON recipes(household_id) WHERE selected = true
+  `);
+
+  // Two-axis categorization (Type of food / Country), replacing the old
+  // single free-text category_name. category_status tracks the AI job
+  // ('queued'|'done'|'error'|'manual' — 'manual' means a person overrode it,
+  // so a late-arriving AI result must not clobber it); category_job is an
+  // opaque per-job token used as a compare-and-swap guard for that same race
+  // (see runCategorize in routes/recipes.js).
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS type_category_id TEXT
+      REFERENCES recipe_categories(id) ON DELETE SET NULL
+  `);
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS country_category_id TEXT
+      REFERENCES recipe_categories(id) ON DELETE SET NULL
+  `);
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS category_status TEXT
+  `);
+  await query(`
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS category_job TEXT
+  `);
+
+  // One-time backfill + cleanup, guarded so it only runs while category_name
+  // still exists: fold each distinct old category_name into a "type" catalogue
+  // entry (the old field was always food-type-like, e.g. "Dessert"/"Pasta" in
+  // this household's actual usage) and point the recipe at it. country stays
+  // NULL for pre-existing recipes — the app's "Sortera om" action backfills it
+  // via AI, or the user sets it manually.
+  await query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'recipes' AND column_name = 'category_name'
+      ) THEN
+        INSERT INTO recipe_categories (id, household_id, kind, name)
+        SELECT gen_random_uuid()::text, household_id, 'type', trim(category_name)
+        FROM (
+          SELECT DISTINCT household_id, category_name FROM recipes
+          WHERE category_name IS NOT NULL AND trim(category_name) <> ''
+        ) d
+        ON CONFLICT (household_id, kind, lower(name)) DO NOTHING;
+
+        UPDATE recipes r
+        SET type_category_id = rc.id
+        FROM recipe_categories rc
+        WHERE rc.household_id = r.household_id AND rc.kind = 'type'
+          AND lower(rc.name) = lower(trim(r.category_name))
+          AND r.category_name IS NOT NULL AND trim(r.category_name) <> '';
+
+        ALTER TABLE recipes DROP COLUMN category_name;
+      END IF;
+    END $$;
   `);
 
   await query(`

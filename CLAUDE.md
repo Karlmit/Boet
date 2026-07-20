@@ -369,6 +369,81 @@ collapsible Klara section, and the **background-settings live preview**. Still o
   this LXC — see repo CLAUDE.md's Android section). URL scrape is likewise not
   yet device-tested (verified via `docker compose` + curl + the Android build
   compiling clean, not an on-device tap-through).
+- **TWO-AXIS CATEGORIES (Type of food + Country)** shipped 2026-07-20: replaces
+  the old single free-text `category_name` with two independent household
+  catalogues. Server: new `recipe_categories` table (`id, household_id, kind
+  'type'|'country', name`, unique per household+kind+lower(name)) and
+  `recipes.type_category_id`/`country_category_id`/`category_status`
+  (`queued`|`done`|`error`|`manual`)/`category_job` (opaque compare-and-swap
+  token); a `DO $$` migration block folds every existing `category_name` into
+  a `type` catalogue entry (case-insensitive dedup) then drops the column —
+  `country` starts NULL for pre-existing recipes. New
+  `routes/recipe-categories.js` (`GET /api/recipe-categories?kind=`, `POST`
+  case-insensitive find-or-create, exported `findOrCreateCategory` — it
+  broadcasts `create`/`recipeCategory` itself on actual insert, so an
+  AI-minted category reaches every synced device even though the AI never
+  goes through the POST route). New `recipe-category-ai.js`
+  `categorizeRecipe(doc)` reuses the existing cloud-first/local-ollama-fallback
+  backend (`recipe-llm.js`) with a small classification-only prompt (given the
+  existing catalogue, prefer reuse over inventing near-duplicates). New
+  `routes/recipes.js` `runCategorize(id)`: sets `category_status='queued'` +
+  a fresh `category_job` token, runs `categorizeRecipe`, writes the result
+  ONLY if `category_job` still matches the token — so a manual PATCH or a
+  newer resort call landing mid-flight wins instead of being clobbered late
+  (verified: triggered a resort, PATCHed a manual override before it finished,
+  confirmed the stale AI result never landed). Wired into every creation path
+  that doesn't get explicit category ids (`POST /recipes` — only on a
+  genuine insert, detected via the `xmax=0` trick, never on an edit-replay;
+  `parse-async`; `discover.js` MealDB import; `scrape.js` URL scrape) plus new
+  `POST /recipes/:id/resort-categories` ("Sortera om", callable any time).
+  `PATCH /recipes/:id` gained `typeCategoryId`/`countryCategoryId` (either may
+  be explicit `null` to clear) for manual assignment. `serialize.js`
+  `recipeRow` now embeds `typeCategory`/`countryCategory` as `{id,name}|null`
+  (a `RECIPE_SELECT` LEFT JOIN + `recipeRowById()` helper used by every write
+  path's response/broadcast, so a plain `UPDATE...RETURNING *` never
+  serializes without the joined names) plus `categoryStatus`; included in
+  `/api/bootstrap` as `recipeCategories`. Verified end-to-end against the real
+  local dev stack (not mocked): migration backfill with a seeded legacy
+  `category_name` + a case-variant duplicate (deduped to one catalogue row),
+  catalogue create/list, AI categorize via real Gemini-compatible cloud
+  endpoint failing over to real local `qwen3:4b-instruct` ollama (classified
+  "Carnitas" → Kötträtt/Mexiko correctly), resort, manual override with
+  explicit-null clear, the compare-and-swap race guard, and create-vs-edit
+  auto-categorize gating (new recipe queued+categorized; a subsequent content
+  edit did NOT re-trigger or reset the status). Android: Room bumped v6→v7
+  (`RecipeCategoryEntity`/`RecipeCategoryDao`, synced like `FavoriteEntity`;
+  `RecipeEntity` swaps `categoryName` for `typeCategoryId`/`countryCategoryId`/
+  `categoryStatus`). New shared `ui/recipes/CategoryDropdownPicker.kt`
+  (`CategoryFieldPicker`/`CategoryChipPicker` — dropdown of the catalogue +
+  "+ Ny kategori" inline-dialog create, both round-tripping through the server
+  for a real id) used by `RecipeEditorScreen` (two pickers, only sent to the
+  server on a brand-new recipe's first save — an edit-save omits them
+  entirely so resending unchanged values doesn't reset `category_status` to
+  `manual` on every plain content edit) and `RecipeDetailScreen` (two chips,
+  instant-apply PATCH via `Repository.setTypeCategory`/`setCountryCategory`,
+  plus an `AutoAwesome` "Sortera om" icon with a spinner while `queued`).
+  `RecipesScreen` rebuilt: filter menu is now a mode toggle (Typ/Land, default
+  Typ, switching resets any specific selection) followed by every catalogue
+  entry for that mode (not just used ones) + "Alla"; the flat grid became a
+  `LazyColumn` of `RecipeGroupCard`s (alphabetical, "Okategoriserad" last),
+  each a bordered card containing its own 2-column chunked grid of the
+  existing `RecipeCard` (alphabetical within). `./gradlew assembleDebug`
+  verified clean. Web (`boetweb.jabba.se`): `web/server`'s public allow-list
+  extended to also serve `GET /api/recipe-categories` anonymously (read-only,
+  no personal data) so the public recipe pages group/filter identically for
+  signed-out visitors — verified via curl (200 for GET, still 401 for an
+  unauthenticated PATCH). New `components/CategorySelect.tsx` (a `<select>` +
+  inline "+ Ny kategori…" text-entry, mirroring the Android picker) used by
+  `RecipeEditor.tsx` (two selects; create-path only sends an id if the user
+  actually picked one, edit-path always resends both since the web editor has
+  no separate instant-apply step) and `RecipeDetail.tsx` (authenticated:
+  live `<select>`s that PATCH immediately + a `AutoAwesomeIcon` resort button;
+  anonymous: plain read-only chips). `RecipesGrid.tsx` rebuilt with the same
+  Typ/Land toggle + catalogue dropdown + grouped `.recipe-group-card` sections
+  as Android. `tsc -b && vite build` verified clean; `npm run build` in
+  `web/app` clean. **Not yet committed or device-tested** (Android build
+  compiles clean but no physical device in this LXC; web verified via the
+  built dist + curl against the real local stack, not a browser tap-through).
 
 ### Home-screen widget (Matkasse)
 - ✅ **Home-screen widget** (`widget/`, classic RemoteViews — no Glance dependency):

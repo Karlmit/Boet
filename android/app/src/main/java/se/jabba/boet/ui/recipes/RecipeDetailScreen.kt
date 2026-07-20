@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lightbulb
@@ -66,6 +67,8 @@ fun RecipeDetailScreen(
     onKeepAwakeChanged: (Boolean) -> Unit = {},
 ) {
     val entity by repo.recipeById(recipeId).collectAsState(initial = null)
+    val typeOptions by repo.recipeCategories("type").collectAsState(initial = emptyList())
+    val countryOptions by repo.recipeCategories("country").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var keepAwake by remember { mutableStateOf(false) }
@@ -153,6 +156,17 @@ fun RecipeDetailScreen(
                             )
                         }
                     }
+                    val categoryStatus = entity?.categoryStatus
+                    IconButton(
+                        onClick = { scope.launch { repo.resortRecipeCategories(recipeId) } },
+                        enabled = categoryStatus != "queued",
+                    ) {
+                        if (categoryStatus == "queued") {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MossDeep)
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.recipe_resort), tint = MossDeep)
+                        }
+                    }
                     IconButton(onClick = { keepAwake = !keepAwake }) {
                         Box(
                             modifier = if (keepAwake) Modifier.background(Sage, CircleShape) else Modifier,
@@ -224,9 +238,24 @@ fun RecipeDetailScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(it, style = BoetType.label, color = MossDeep)
                     }
-                    entity?.categoryName?.takeIf { it.isNotBlank() }?.let {
+                    entity?.let { e ->
                         Spacer(Modifier.height(8.dp))
-                        AmountChip(it)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CategoryChipPicker(
+                                label = stringResource(R.string.recipe_type),
+                                options = typeOptions,
+                                selectedId = e.typeCategoryId,
+                                onSelect = { id -> scope.launch { repo.setTypeCategory(recipeId, id) } },
+                                onCreateNew = { repo.createRecipeCategory("type", it) },
+                            )
+                            CategoryChipPicker(
+                                label = stringResource(R.string.recipe_country),
+                                options = countryOptions,
+                                selectedId = e.countryCategoryId,
+                                onSelect = { id -> scope.launch { repo.setCountryCategory(recipeId, id) } },
+                                onCreateNew = { repo.createRecipeCategory("country", it) },
+                            )
+                        }
                     }
                     doc.youtubeUrl?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(8.dp))

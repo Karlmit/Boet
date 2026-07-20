@@ -90,7 +90,7 @@ function looksEnglish(text) {
 
 // Pull the JSON object out of the model reply, tolerant of <think> blocks,
 // ```json fences, or stray prose around it.
-function parseRecipeObject(text) {
+export function parseRecipeObject(text) {
   if (!text) return null;
   let t = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();

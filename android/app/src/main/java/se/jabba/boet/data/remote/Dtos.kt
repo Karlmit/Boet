@@ -7,6 +7,7 @@ import se.jabba.boet.data.local.CategoryEntity
 import se.jabba.boet.data.local.FavoriteEntity
 import se.jabba.boet.data.local.ItemEntity
 import se.jabba.boet.data.local.ListEntity
+import se.jabba.boet.data.local.RecipeCategoryEntity
 import se.jabba.boet.data.local.RecipeEntity
 
 @Serializable
@@ -69,6 +70,14 @@ data class FavoriteDto(
     fun toEntity() = FavoriteEntity(id, name, categoryName, position, updatedAt)
 }
 
+// A category reference as embedded on a recipe row ({id,name}, see server
+// serialize.js recipeRow) — only the id is kept on RecipeEntity (see its own
+// comment); the name here is just what the server denormalized for display,
+// discarded once toEntity() runs since RecipeCategoryEntity (synced separately
+// via bootstrap/WebSocket) is the source of truth for names in the UI layer.
+@Serializable
+data class RecipeCategoryRefDto(val id: String, val name: String)
+
 // A recipe as it travels over the wire and is mirrored in Room. `name` and
 // `image` are server-derived from the document for cheap grid rendering; `data`
 // is the canonical recipe document (see RecipeDoc) and is stored verbatim as a
@@ -78,14 +87,29 @@ data class RecipeDto(
     val id: String,
     val name: String = "",
     val image: String? = null,
-    val categoryName: String? = null,
+    val typeCategory: RecipeCategoryRefDto? = null,
+    val countryCategory: RecipeCategoryRefDto? = null,
+    val categoryStatus: String? = null,
     val position: Int = 0,
     val selected: Boolean = false,
     val data: JsonObject = JsonObject(emptyMap()),
     val createdAt: String? = null,
     val updatedAt: String? = null,
 ) {
-    fun toEntity() = RecipeEntity(id, name, image, categoryName, position, selected, data.toString(), createdAt, updatedAt)
+    fun toEntity() = RecipeEntity(
+        id, name, image, typeCategory?.id, countryCategory?.id, categoryStatus,
+        position, selected, data.toString(), createdAt, updatedAt,
+    )
+}
+
+// Recipe category catalogue entry (see server routes/recipe-categories.js).
+@Serializable
+data class RecipeCategoryDto(
+    val id: String,
+    val kind: String,
+    val name: String,
+) {
+    fun toEntity() = RecipeCategoryEntity(id, kind, name)
 }
 
 // The recipe document (the JSONB `data` blob). A Boet-flavoured, camelCase
@@ -177,6 +201,7 @@ data class BootstrapDto(
     val learned: List<LearnedDto> = emptyList(),
     val favorites: List<FavoriteDto> = emptyList(),
     val recipes: List<RecipeDto> = emptyList(),
+    val recipeCategories: List<RecipeCategoryDto> = emptyList(),
 )
 
 // Server-side voice cleaning (POST /api/voice/clean): the server cleans the raw

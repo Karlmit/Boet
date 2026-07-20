@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { BoetSocket, type ChangeMessage, type PresenceMember } from '../api/ws';
 import { getIdentity, getMemberId, displayName } from './identity';
 import { useAuth } from './auth';
-import type { Bootstrap, BoetList, Category, Item, Favorite, Recipe, Member } from '../api/types';
+import type { Bootstrap, BoetList, Category, Item, Favorite, Recipe, RecipeCategory, Member } from '../api/types';
 
 interface State {
   loaded: boolean;
@@ -13,6 +13,7 @@ interface State {
   items: Item[];
   favorites: Favorite[];
   recipes: Recipe[];
+  recipeCategories: RecipeCategory[];
   presence: PresenceMember[];
 }
 
@@ -24,12 +25,13 @@ const initialState: State = {
   items: [],
   favorites: [],
   recipes: [],
+  recipeCategories: [],
   presence: [],
 };
 
 type Action =
   | { type: 'bootstrap'; payload: Bootstrap }
-  | { type: 'recipes'; payload: Recipe[] }
+  | { type: 'recipesSnapshot'; recipes: Recipe[]; recipeCategories: RecipeCategory[] }
   | { type: 'presence'; members: PresenceMember[] }
   | { type: 'change'; msg: ChangeMessage };
 
@@ -96,6 +98,10 @@ function applyChange(state: State, msg: ChangeMessage): State {
       if (event === 'delete') return { ...state, recipes: removeBy(state.recipes, d.id) };
       return state;
     }
+    case 'recipeCategory': {
+      if (event === 'create' || event === 'update') return { ...state, recipeCategories: upsertBy(state.recipeCategories, d as RecipeCategory) };
+      return state;
+    }
     default:
       return state;
   }
@@ -113,9 +119,10 @@ function reducer(state: State, action: Action): State {
         items: action.payload.items,
         favorites: action.payload.favorites,
         recipes: action.payload.recipes,
+        recipeCategories: action.payload.recipeCategories,
       };
-    case 'recipes':
-      return { ...state, loaded: true, recipes: action.payload };
+    case 'recipesSnapshot':
+      return { ...state, loaded: true, recipes: action.recipes, recipeCategories: action.recipeCategories };
     case 'presence':
       return { ...state, presence: action.members };
     case 'change':
@@ -139,9 +146,15 @@ export function BoetStoreProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!authenticated) {
-      // Anonymous visitors only get the public read-only recipe list.
-      const recipes = await api.get<Recipe[]>('/api/recipes');
-      dispatch({ type: 'recipes', payload: recipes });
+      // Anonymous visitors only get the public read-only recipe list + the
+      // category catalogue (also public — see web/server's isPublicApiPath)
+      // so the grouped view/filter render the same as for signed-in users.
+      const [recipes, types, countries] = await Promise.all([
+        api.get<Recipe[]>('/api/recipes'),
+        api.get<RecipeCategory[]>('/api/recipe-categories?kind=type'),
+        api.get<RecipeCategory[]>('/api/recipe-categories?kind=country'),
+      ]);
+      dispatch({ type: 'recipesSnapshot', recipes, recipeCategories: [...types, ...countries] });
       return;
     }
     const payload = await api.get<Bootstrap>('/api/bootstrap');

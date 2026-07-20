@@ -130,6 +130,25 @@ class ApiClient(private val baseUrlProvider: () -> String) {
         return request("POST", "/api/recipes/instagram-async", body)
     }
 
+    // Recipe category catalogue (Type of food / Country) --------------------
+    fun recipeCategories(kind: String): List<RecipeCategoryDto> =
+        request("GET", "/api/recipe-categories?kind=${java.net.URLEncoder.encode(kind, "UTF-8")}", null)
+
+    // Case-insensitive find-or-create — used by the "+ Ny kategori" dropdown
+    // entry point. Always returns the server-assigned id (never client-minted),
+    // matching an existing entry's id if one already covers this name.
+    fun createRecipeCategory(kind: String, name: String): RecipeCategoryDto {
+        val body = json.encodeToString(RecipeCategoryReq.serializer(), RecipeCategoryReq(kind, name))
+        return request("POST", "/api/recipe-categories", body)
+    }
+
+    // Mark a recipe for AI re-sorting ("Sortera om"). Async like startAiParse —
+    // the request just confirms the job was queued; the actual result (or a
+    // failure) arrives over the WebSocket as a normal 'recipe' update.
+    fun resortRecipeCategories(recipeId: String) {
+        request<Unit>("POST", "/api/recipes/$recipeId/resort-categories", "")
+    }
+
     fun autoSort(listId: String): AutoSortResponse {
         val client = http.newBuilder()
             .readTimeout(60, TimeUnit.SECONDS)
@@ -156,3 +175,6 @@ private data class ImportMealReq(val mealId: String)
 
 @kotlinx.serialization.Serializable
 private data class ScrapeReq(val url: String)
+
+@kotlinx.serialization.Serializable
+private data class RecipeCategoryReq(val kind: String, val name: String)

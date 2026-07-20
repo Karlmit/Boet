@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { fileToUploadPayload } from '../lib/image';
 import { fmtNum } from '../lib/recipe';
 import { SortableList } from '../components/SortableList';
+import { CategorySelect } from '../components/CategorySelect';
 import type { RecipeDoc, RecipeIngredient, RecipeStep } from '../api/types';
 
 const emptyDoc: RecipeDoc = {
@@ -23,16 +24,24 @@ const emptyDoc: RecipeDoc = {
 
 export default function RecipeEditor() {
   const { recipeId } = useParams<{ recipeId: string }>();
-  const { recipes } = useBoetStore();
+  const { recipes, recipeCategories } = useBoetStore();
   const navigate = useNavigate();
   const existing = recipeId ? recipes.find((r) => r.id === recipeId) : undefined;
 
   const [doc, setDoc] = useState<RecipeDoc>(existing?.data ?? emptyDoc);
+  const [typeCategoryId, setTypeCategoryId] = useState<string | null>(existing?.typeCategory?.id ?? null);
+  const [countryCategoryId, setCountryCategoryId] = useState<string | null>(existing?.countryCategory?.id ?? null);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const typeOptions = recipeCategories.filter((c) => c.kind === 'type');
+  const countryOptions = recipeCategories.filter((c) => c.kind === 'country');
 
   useEffect(() => {
-    if (existing) setDoc(existing.data);
+    if (existing) {
+      setDoc(existing.data);
+      setTypeCategoryId(existing.typeCategory?.id ?? null);
+      setCountryCategoryId(existing.countryCategory?.id ?? null);
+    }
   }, [existing]);
 
   function update<K extends keyof RecipeDoc>(key: K, value: RecipeDoc[K]) {
@@ -130,11 +139,21 @@ export default function RecipeEditor() {
     setSaving(true);
     try {
       if (recipeId) {
-        await api.patch(`/api/recipes/${recipeId}`, { data: doc });
+        // Always resend both category ids on an edit-save (possibly null, to
+        // clear) — the web editor is a single-button form with no separate
+        // "instant apply" step, so whatever the dropdowns show is the intended
+        // final state.
+        await api.patch(`/api/recipes/${recipeId}`, { data: doc, typeCategoryId, countryCategoryId });
         navigate(`/recipes/${recipeId}`);
       } else {
         const id = nanoid();
-        await api.post('/api/recipes', { id, data: doc });
+        const body: Record<string, unknown> = { id, data: doc };
+        // Only send on creation if the user actually picked something — an
+        // untouched "Ingen" selection leaves categorization to the AI (see
+        // routes/recipes.js POST /recipes' `manual` gate).
+        if (typeCategoryId) body.typeCategoryId = typeCategoryId;
+        if (countryCategoryId) body.countryCategoryId = countryCategoryId;
+        await api.post('/api/recipes', body);
         navigate(`/recipes/${id}`);
       }
     } finally {
@@ -197,6 +216,17 @@ export default function RecipeEditor() {
                 onChange={(e) => update('totalTime', e.target.value)}
                 style={{ marginTop: 4 }}
               />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label className="label">Typ</label>
+              <CategorySelect label="Typ" kind="type" options={typeOptions} value={typeCategoryId} onChange={setTypeCategoryId} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="label">Land</label>
+              <CategorySelect label="Land" kind="country" options={countryOptions} value={countryCategoryId} onChange={setCountryCategoryId} />
             </div>
           </div>
 

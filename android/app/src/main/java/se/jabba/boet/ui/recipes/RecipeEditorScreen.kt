@@ -106,12 +106,18 @@ fun RecipeEditorScreen(
     val context = LocalContext.current
     val existing by (if (recipeId != null) repo.recipeById(recipeId) else kotlinx.coroutines.flow.flowOf(null))
         .collectAsState(initial = null)
+    val typeOptions by repo.recipeCategories("type").collectAsState(initial = emptyList())
+    val countryOptions by repo.recipeCategories("country").collectAsState(initial = emptyList())
 
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var servings by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("") }
     var image by rememberSaveable { mutableStateOf<String?>(null) }
+    // Only sent to the server on a brand-new recipe's first save (see
+    // Repository.saveRecipe) — editing an existing recipe's categories goes
+    // through the instant-apply setTypeCategory/setCountryCategory PATCH below.
+    var typeCategoryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var countryCategoryId by rememberSaveable { mutableStateOf<String?>(null) }
     var uploadingImage by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val ingredients = remember { mutableStateListOf<IngRow>() }
@@ -126,7 +132,8 @@ fun RecipeEditorScreen(
             name = doc.name
             description = doc.description.orEmpty()
             servings = doc.servings?.let { formatServings(it) } ?: ""
-            category = e.categoryName.orEmpty()
+            typeCategoryId = e.typeCategoryId
+            countryCategoryId = e.countryCategoryId
             image = doc.image
             ingredients.clear()
             doc.ingredients.forEach {
@@ -176,7 +183,7 @@ fun RecipeEditorScreen(
             },
         )
         scope.launch {
-            val id = repo.saveRecipe(doc, id = recipeId, categoryName = category.trim().ifBlank { null })
+            val id = repo.saveRecipe(doc, id = recipeId, typeCategoryId = typeCategoryId, countryCategoryId = countryCategoryId)
             onSaved(id)
         }
     }
@@ -227,7 +234,29 @@ fun RecipeEditorScreen(
                 Spacer(Modifier.height(12.dp))
                 Field(servings, { servings = it }, stringResource(R.string.recipe_servings), keyboard = KeyboardType.Number)
                 Spacer(Modifier.height(12.dp))
-                Field(category, { category = it }, stringResource(R.string.recipe_category))
+                CategoryFieldPicker(
+                    label = stringResource(R.string.recipe_type),
+                    options = typeOptions,
+                    selectedId = typeCategoryId,
+                    onSelect = { id ->
+                        typeCategoryId = id
+                        // An existing recipe applies the change immediately (instant-
+                        // apply PATCH); a brand-new one just holds it until Save.
+                        if (recipeId != null) scope.launch { repo.setTypeCategory(recipeId, id) }
+                    },
+                    onCreateNew = { repo.createRecipeCategory("type", it) },
+                )
+                Spacer(Modifier.height(12.dp))
+                CategoryFieldPicker(
+                    label = stringResource(R.string.recipe_country),
+                    options = countryOptions,
+                    selectedId = countryCategoryId,
+                    onSelect = { id ->
+                        countryCategoryId = id
+                        if (recipeId != null) scope.launch { repo.setCountryCategory(recipeId, id) }
+                    },
+                    onCreateNew = { repo.createRecipeCategory("country", it) },
+                )
             }
 
             item { CategoryHeader(stringResource(R.string.recipe_ingredients), modifier = Modifier.padding(top = 16.dp)) }

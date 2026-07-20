@@ -3,8 +3,8 @@ import { nanoid } from 'nanoid';
 import { query } from '../db.js';
 import { hub } from '../hub.js';
 import { HOUSEHOLD_ID } from '../seed.js';
-import { recipeRow } from '../serialize.js';
 import { structureFromEx } from '../recipe-ai.js';
+import { recipeRowById, runCategorize } from './recipes.js';
 import * as mealdb from '../mealdb.js';
 
 export const discover = Router();
@@ -86,7 +86,7 @@ discover.post('/discover/import', async (req, res) => {
 
   if (existing && existing.data?.aiStatus !== 'error') {
     // Already queued/parsing/done/degraded — instant, no duplicate background work.
-    return res.status(200).json(recipeRow(existing));
+    return res.status(200).json(await recipeRowById(existing.id));
   }
 
   const meal = await mealdb.lookupMeal(mealId);
@@ -97,11 +97,11 @@ discover.post('/discover/import', async (req, res) => {
   if (existing) {
     // Retry a previously-failed import: reuse the same row/id, reset status.
     id = existing.id;
-    const { rows } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus: 'queued', aiError: null })]
     );
-    created = recipeRow(rows[0]);
+    created = await recipeRowById(id);
     hub.emit('update', 'recipe', created);
   } else {
     id = nanoid();
@@ -122,18 +122,18 @@ discover.post('/discover/import', async (req, res) => {
       `INSERT INTO recipes (id, household_id, data, source_key, position)
        VALUES ($1,$2,$3,$4,0)
        ON CONFLICT (household_id, source_key) WHERE source_key IS NOT NULL DO NOTHING
-       RETURNING *`,
+       RETURNING id`,
       [id, HOUSEHOLD_ID, placeholder, sourceKey]
     );
     if (rows.length === 0) {
       // Lost a race with a concurrent import of the same meal — return that one.
       const { rows: r2 } = await query(
-        `SELECT * FROM recipes WHERE household_id=$1 AND source_key=$2 LIMIT 1`,
+        `SELECT id FROM recipes WHERE household_id=$1 AND source_key=$2 LIMIT 1`,
         [HOUSEHOLD_ID, sourceKey]
       );
-      return res.status(200).json(recipeRow(r2[0]));
+      return res.status(200).json(await recipeRowById(r2[0].id));
     }
-    created = recipeRow(rows[0]);
+    created = await recipeRowById(id);
     hub.emit('create', 'recipe', created);
   }
   res.status(202).json(created);
@@ -143,11 +143,12 @@ discover.post('/discover/import', async (req, res) => {
   let lastStatus = 'queued';
   const setStatus = async (aiStatus) => {
     lastStatus = aiStatus;
-    const { rows: r } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus })]
     );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
   };
   try {
     const ex = mealdb.mealToEx(meal);
@@ -174,17 +175,17 @@ discover.post('/discover/import', async (req, res) => {
           youtubeUrl: meal.strYoutube || null,
           ingredients: [], steps: [], aiStatus: 'error', aiError: 'Kunde inte tolka receptet.',
         };
-    const { rows: r } = await query(
-      `UPDATE recipes SET data=$2, updated_at=now() WHERE id=$1 RETURNING *`,
-      [id, finalData]
-    );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    await query(`UPDATE recipes SET data=$2, updated_at=now() WHERE id=$1`, [id, finalData]);
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
+    if (doc) runCategorize(id);
   } catch (e) {
     console.error(`[boet] mealdb import (${id}) threw:`, e);
-    const { rows: r } = await query(
-      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1 RETURNING *`,
+    await query(
+      `UPDATE recipes SET data = data || $2::jsonb, updated_at = now() WHERE id=$1`,
       [id, JSON.stringify({ aiStatus: 'error', aiError: String(e?.message || e) })]
     );
-    if (r[0]) hub.emit('update', 'recipe', recipeRow(r[0]));
+    const r = await recipeRowById(id);
+    if (r) hub.emit('update', 'recipe', r);
   }
 });

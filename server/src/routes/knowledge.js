@@ -4,13 +4,14 @@ import { HOUSEHOLD_ID } from '../seed.js';
 import { guessCategory } from '../categorize.js';
 import { parseRecipe } from '../ai.js';
 import { cleanVoice } from '../voice.js';
-import { itemRow, listRow, categoryRow, favoriteRow, recipeRow } from '../serialize.js';
+import { itemRow, listRow, categoryRow, favoriteRow, recipeRow, recipeCategoryRow } from '../serialize.js';
+import { RECIPE_SELECT } from './recipes.js';
 
 export const knowledge = Router();
 
 // Bootstrap: everything the app needs on launch.
 knowledge.get('/bootstrap', async (req, res) => {
-  const [house, members, lists, categories, items, learned, favorites, recipes] = await Promise.all([
+  const [house, members, lists, categories, items, learned, favorites, recipes, recipeCats] = await Promise.all([
     query(`SELECT * FROM households WHERE id=$1`, [HOUSEHOLD_ID]),
     query(`SELECT id, name FROM members WHERE household_id=$1 ORDER BY name`, [HOUSEHOLD_ID]),
     query(`SELECT * FROM lists WHERE household_id=$1 ORDER BY position, created_at`, [HOUSEHOLD_ID]),
@@ -18,7 +19,8 @@ knowledge.get('/bootstrap', async (req, res) => {
     query(`SELECT i.* FROM items i JOIN lists l ON l.id=i.list_id WHERE l.household_id=$1 ORDER BY i.position, i.created_at`, [HOUSEHOLD_ID]),
     query(`SELECT item_key, category_name FROM learned_categories WHERE household_id=$1`, [HOUSEHOLD_ID]),
     query(`SELECT * FROM favorites WHERE household_id=$1 ORDER BY position, lower(name)`, [HOUSEHOLD_ID]),
-    query(`SELECT * FROM recipes WHERE household_id=$1 ORDER BY position, lower(data->>'name')`, [HOUSEHOLD_ID]),
+    query(`${RECIPE_SELECT} WHERE r.household_id=$1 ORDER BY r.position, lower(r.data->>'name')`, [HOUSEHOLD_ID]),
+    query(`SELECT * FROM recipe_categories WHERE household_id=$1 ORDER BY kind, lower(name)`, [HOUSEHOLD_ID]),
   ]);
   res.json({
     household: house.rows[0] || null,
@@ -33,6 +35,8 @@ knowledge.get('/bootstrap', async (req, res) => {
     favorites: favorites.rows.map(favoriteRow),
     // Household recipes (full documents; the app mirrors them in Room).
     recipes: recipes.rows.map(recipeRow),
+    // Type/country catalogue for the recipe category dropdowns + filters.
+    recipeCategories: recipeCats.rows.map(recipeCategoryRow),
   });
 });
 

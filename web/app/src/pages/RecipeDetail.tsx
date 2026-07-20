@@ -7,10 +7,12 @@ import { getIdentity, displayName } from '../state/identity';
 import { groupByTags, ingredientLine, chipLabel, addQty, fmtNum } from '../lib/recipe';
 import { useWakeLock } from '../hooks/useWakeLock';
 import BoetCheckbox from '../components/BoetCheckbox';
+import { CategorySelect } from '../components/CategorySelect';
 import {
   RestaurantIcon,
   LightbulbIcon,
   PushPinIcon,
+  AutoAwesomeIcon,
   EditIcon,
   DeleteIcon,
   CartIcon,
@@ -38,7 +40,7 @@ function LinkRow({ href, icon, label }: { href: string; icon: ReactNode; label: 
 
 export default function RecipeDetail() {
   const { recipeId } = useParams<{ recipeId: string }>();
-  const { recipes, lists } = useBoetStore();
+  const { recipes, lists, recipeCategories } = useBoetStore();
   const { authenticated } = useAuth();
   const navigate = useNavigate();
   const wakeLock = useWakeLock();
@@ -95,6 +97,18 @@ export default function RecipeDetail() {
 
   async function toggleSelected() {
     await api.post(`/api/recipes/${activeRecipe.id}/select`, { selected: !activeRecipe.selected });
+  }
+
+  // Instant-apply, like the Android chip pickers — no local state needed since
+  // the store re-renders from the PATCH response/WebSocket broadcast.
+  async function setTypeCategory(id: string | null) {
+    await api.patch(`/api/recipes/${activeRecipe.id}`, { typeCategoryId: id });
+  }
+  async function setCountryCategory(id: string | null) {
+    await api.patch(`/api/recipes/${activeRecipe.id}`, { countryCategoryId: id });
+  }
+  async function resortCategories() {
+    await api.post(`/api/recipes/${activeRecipe.id}/resort-categories`);
   }
 
   async function remove() {
@@ -212,6 +226,16 @@ export default function RecipeDetail() {
               <PushPinIcon />
             </button>
           )}
+          {authenticated && (
+            <button
+              className={`icon-toggle${activeRecipe.categoryStatus === 'queued' ? ' active' : ''}`}
+              onClick={resortCategories}
+              disabled={activeRecipe.categoryStatus === 'queued'}
+              title="Sortera om (typ/land)"
+            >
+              <AutoAwesomeIcon />
+            </button>
+          )}
           {wakeLock.supported && (
             <button
               className={`icon-toggle${wakeLock.active ? ' active' : ''}`}
@@ -250,7 +274,29 @@ export default function RecipeDetail() {
         {doc.description && <p className="body-text recipe-description">{doc.description}</p>}
         <div className="recipe-meta-row">
           {doc.totalTime && <span className="label">{doc.totalTime}</span>}
-          {activeRecipe.categoryName && <span className="recipe-chip">{activeRecipe.categoryName}</span>}
+          {authenticated ? (
+            <>
+              <CategorySelect
+                label="Typ"
+                kind="type"
+                options={recipeCategories.filter((c) => c.kind === 'type')}
+                value={activeRecipe.typeCategory?.id ?? null}
+                onChange={setTypeCategory}
+              />
+              <CategorySelect
+                label="Land"
+                kind="country"
+                options={recipeCategories.filter((c) => c.kind === 'country')}
+                value={activeRecipe.countryCategory?.id ?? null}
+                onChange={setCountryCategory}
+              />
+            </>
+          ) : (
+            <>
+              {activeRecipe.typeCategory && <span className="recipe-chip">{activeRecipe.typeCategory.name}</span>}
+              {activeRecipe.countryCategory && <span className="recipe-chip">{activeRecipe.countryCategory.name}</span>}
+            </>
+          )}
         </div>
         <div className="recipe-link-rows">
           {doc.youtubeUrl && <LinkRow href={doc.youtubeUrl} icon={<PlayCircleIcon />} label="Se på YouTube" />}

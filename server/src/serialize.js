@@ -27,6 +27,14 @@ export function categoryRow(r) {
   };
 }
 
+export function recipeCategoryRow(r) {
+  return {
+    id: r.id,
+    kind: r.kind,
+    name: r.name,
+  };
+}
+
 export function favoriteRow(r) {
   return {
     id: r.id,
@@ -46,7 +54,14 @@ export function recipeRow(r) {
     // recipe content (ingredients, steps, refs, timers).
     name: data.name || '',
     image: data.image || null,
-    categoryName: r.category_name,
+    // Denormalized {id,name} (not just an id) so clients can group/filter/
+    // display without a second lookup or waiting on the catalogue to sync —
+    // requires the SELECT this row comes from to LEFT JOIN recipe_categories
+    // twice, aliased tc_id/tc_name (type) and cc_id/cc_name (country); see
+    // the recipeSelect() query builder in routes/recipes.js.
+    typeCategory: r.tc_id ? { id: r.tc_id, name: r.tc_name } : null,
+    countryCategory: r.cc_id ? { id: r.cc_id, name: r.cc_name } : null,
+    categoryStatus: r.category_status || null,
     position: r.position,
     selected: !!r.selected,
     data,

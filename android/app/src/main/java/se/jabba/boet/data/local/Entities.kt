@@ -61,14 +61,22 @@ data class FavoriteEntity(
 // A household recipe, synced from the server (bootstrap + WebSocket). The full
 // recipe document is stored verbatim as a JSON string in `data` (parsed to a
 // RecipeDoc on demand); `name`/`image` are denormalized for cheap grid rendering
-// and ordering, and `categoryName`/`position` are list-view metadata mutated
-// independently of the body.
+// and ordering, and `typeCategoryId`/`countryCategoryId`/`categoryStatus`/
+// `position` are list-view metadata mutated independently of the body. Category
+// ids reference RecipeCategoryEntity — same "store the id, join in the UI layer"
+// pattern as ItemEntity.categoryId/CategoryEntity (see ListViewModel).
 @Entity(tableName = "recipes")
 data class RecipeEntity(
     @PrimaryKey val id: String,
     val name: String,
     val image: String? = null,
-    val categoryName: String? = null,
+    val typeCategoryId: String? = null,
+    val countryCategoryId: String? = null,
+    // "queued" | "done" | "error" | "manual" | null — drives the resort spinner
+    // in RecipeDetailScreen. "manual" means a person set the category directly;
+    // a same in-flight AI job's late result must not overwrite it (server-side
+    // compare-and-swap, see routes/recipes.js runCategorize).
+    val categoryStatus: String? = null,
     val position: Int = 0,
     // The single household-wide "current recipe" for the kitchen display — only
     // one recipe may have this set to true (see the pin icon in RecipeDetailScreen
@@ -77,6 +85,18 @@ data class RecipeEntity(
     val data: String,                  // RecipeDoc serialized as JSON
     val createdAt: String? = null,
     val updatedAt: String? = null,
+)
+
+// Two-axis recipe category catalogue (kind "type" | "country"), synced from the
+// server (bootstrap + WebSocket) — see server/src/routes/recipe-categories.js.
+// AI-assigned on recipe creation, user-editable via a dropdown that can also add
+// new entries (which round-trip through the server so the id here is always the
+// server-generated one, never client-minted).
+@Entity(tableName = "recipe_categories")
+data class RecipeCategoryEntity(
+    @PrimaryKey val id: String,
+    val kind: String,
+    val name: String,
 )
 
 // Household "knowledge base" of learned item→category mappings, synced down from
